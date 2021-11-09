@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 #[derive(Debug)]
 pub enum StartupMessage {
+    SslRequest,
     Startup {
         params: HashMap<String, String>,
         version: i32,
