@@ -5,17 +5,17 @@ use byteorder::{ByteOrder, NetworkEndian};
 use bytes::{Buf, BytesMut};
 use std::char;
 use std::collections::HashMap;
-use tokio::io::{AsyncRead, AsyncReadExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio_util::codec::{Decoder, Encoder};
 // Postgres protocol version.
 const VERSION_3: i32 = 0x30000;
 pub const VERSION_SSL: i32 = (1234 << 16) + 5679;
 
-// decode_startup_message decode pg startup message.
+// decode_startup_message decode pg startup message, if ssl request it'll  upgrade the connection to ssl connection and returns the
 pub async fn decode_startup_message<T>(mut conn: T) -> Result<StartupMessage, DecoderError>
 where
-    T: AsyncRead + Unpin,
+    T: AsyncRead + Unpin + AsyncReadExt + AsyncWrite + AsyncWriteExt,
 {
     // read the frame length.
     let len = decode_frame_length(&mut conn).await?;
