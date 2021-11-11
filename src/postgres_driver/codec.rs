@@ -5,13 +5,14 @@ use byteorder::{ByteOrder, NetworkEndian};
 use bytes::{Buf, BytesMut};
 use std::char;
 use std::collections::HashMap;
+use std::io::ErrorKind;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio_util::codec::{Decoder, Encoder};
 // Postgres protocol version.
 const VERSION_3: i32 = 0x30000;
 pub const VERSION_SSL: i32 = (1234 << 16) + 5679;
-
+pub const ACCEPT_SSL_ENCRYPTION: u8 = b'S';
 // decode_startup_message decode pg startup message, if ssl request it'll  upgrade the connection to ssl connection and returns the
 pub async fn decode_startup_message<T>(mut conn: T) -> Result<StartupMessage, DecoderError>
 where
@@ -76,10 +77,12 @@ fn read_cstr(buf: &mut BytesMut) -> Result<String, Error> {
 
 pub async fn decode_password_message<T>(mut conn: T) -> Result<StartupMessage, anyhow::Error>
 where
-    T: AsyncRead + Unpin,
+    T: AsyncRead + AsyncReadExt + Unpin,
 {
     let mut buf = [0; 1];
+    // loop till it read it.
     conn.read_exact(&mut buf).await?;
+
     if buf[0] != b'p' {
         return Err(anyhow!("incoming message is not a password message"));
     }

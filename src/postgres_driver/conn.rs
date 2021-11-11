@@ -2,11 +2,14 @@ use std::pin::Pin;
 
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
-use tokio_native_tls::TlsStream;
+use tokio_rustls::{Accept};
 use std::task::{Poll};
+use tokio_openssl::SslStream;
+
+#[derive(Debug)]
 pub enum PostgresConn {
     Unsecured(TcpStream),
-    Secured(TlsStream<TcpStream>),
+    Secured(SslStream<TcpStream>),
 }
 
 impl AsyncRead for PostgresConn {
