@@ -12,7 +12,7 @@ use tokio_util::codec::{Decoder, Encoder};
 // Postgres protocol version.
 
 // decode_startup_message decode pg startup message, if ssl request it'll  upgrade the connection to ssl connection and returns the
-pub async fn decode_init_startup_message<T>(mut conn: T) -> Result<StartupMessage, DecoderError>
+pub async fn decode_init_startup_message<T>(mut conn: T) -> Result<FrotendMessage, DecoderError>
 where
     T: AsyncRead + Unpin + AsyncReadExt + AsyncWrite + AsyncWriteExt,
 {
@@ -24,7 +24,7 @@ where
     // read version number
     let version_number = buf.get_i32();
     match version_number {
-        VERSION_SSL => return Ok(StartupMessage::SslRequest),
+        VERSION_SSL => return Ok(FrotendMessage::SslRequest),
         VERSION_3 => {
             let mut params = HashMap::new();
             // read all the params.
@@ -37,7 +37,7 @@ where
                 params.insert(key, val);
             }
 
-            return Ok(StartupMessage::Startup {
+            return Ok(FrotendMessage::Startup {
                 params: params,
                 version: version_number,
             });
@@ -82,7 +82,7 @@ pub fn write_cstr(buf: &mut BytesMut, val: &[u8]) -> Result<(), anyhow::Error>{
     Ok(())
 }
 
-pub async fn decode_password_message<T>(mut conn: T) -> Result<StartupMessage, anyhow::Error>
+pub async fn decode_password_message<T>(mut conn: T) -> Result<FrotendMessage, anyhow::Error>
 where
     T: AsyncRead + AsyncReadExt + Unpin,
 {
@@ -102,7 +102,7 @@ where
     // read the passcode.
     let password =
         read_cstr(&mut buf).map_err(|err| anyhow!("error while reading password {:?}", err))?;
-    Ok(StartupMessage::PasswordMessage { password: password })
+    Ok(FrotendMessage::PasswordMessage { password: password })
 }
 
 

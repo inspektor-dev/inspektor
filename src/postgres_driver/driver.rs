@@ -71,9 +71,9 @@ impl PostgresDriver {
                         };
                         debug!("we got startup message{:?}", msg);
                         match msg {
-                            StartupMessage::Startup { params, .. } => {
+                            FrotendMessage::Startup { params, .. } => {
                                 // we have to ask for passcode after connecting.
-                                let buf = StartupMessage::AuthenticationCleartextPassword.encode();
+                                let buf = BackendMessage::AuthenticationCleartextPassword.encode();
                                 if let Err(e) = socket.write_all(&buf).await {
                                     error!(
                                         "error while sending AuthenticationCleartextPassword {:?}",
@@ -89,12 +89,12 @@ impl PostgresDriver {
                                     );
                                     return;
                                 };
-                                if let StartupMessage::PasswordMessage { password } =
+                                if let FrotendMessage::PasswordMessage{ password } =
                                     result.unwrap()
                                 {
                                     // send authetication ok message and handle the query request from here.
                                     if let Err(e) = socket
-                                        .write(&StartupMessage::AuthenticationOk{success: true}.encode())
+                                        .write(&BackendMessage::AuthenticationOk{success: true}.encode())
                                         .await
                                     {
                                         error!(
@@ -114,7 +114,7 @@ impl PostgresDriver {
                                 }
                                 unreachable!("message expected to be password message");
                             },
-                            StartupMessage::SslRequest =>{
+                            FrotendMessage::SslRequest =>{
                                 if let PostgresConn::Unsecured(mut inner) = socket{
                                     // tell the client that you are upgrading for secure connection
                                     if let Err(e) = inner.write_all(&[ACCEPT_SSL_ENCRYPTION]).await{

@@ -39,7 +39,7 @@ impl ProtocolHandler {
         let mut target_conn = PostgresConn::Unsecured(target_conn);
 
         target_conn
-            .write_all(&StartupMessage::SslRequest.encode())
+            .write_all(&FrotendMessage::SslRequest.encode())
             .await
             .map_err(|e| {
                 error!("error while writing ssl request to remote target {:?}", e);
@@ -106,7 +106,7 @@ impl ProtocolHandler {
         target_params.insert("client_encoding".to_string(), "UTF8".to_string());
         target_params.insert("application_name".to_string(), "inspektor".to_string());
 
-        let msg = StartupMessage::Startup {
+        let msg = FrotendMessage::Startup {
             params: target_params,
             version: VERSION_3,
         };
@@ -128,38 +128,32 @@ impl ProtocolHandler {
 
         debug!("got target message {:?} after startup message", msg);
         match msg {
-            BackendMessage::StartupMessage(inner) => match inner {
-                StartupMessage::AuthenticationMD5Password { salt } => {
-                    let password = md5_password(
-                        self.config.target_username.as_ref().unwrap(),
-                        self.config.target_password.as_ref().unwrap(),
-                        salt,
-                    );
-                    let password_msg = FrotendMessage::PasswordMessage { password };
-                    target_conn
-                        .write_all(&password_msg.encode())
-                        .await
-                        .map_err(|e| {
-                            error!("error while sending password message: [err msg: {:?}]", e);
-                            anyhow!("error while sending password messaage to target")
-                        })?;
-                }
-                StartupMessage::AuthenticationCleartextPassword => {
-                    let password = self.config.target_username.as_ref().unwrap().clone();
-                    let password_msg = FrotendMessage::PasswordMessage { password };
-                    target_conn
-                        .write_all(&password_msg.encode())
-                        .await
-                        .map_err(|e| {
-                            error!("error while sending password message: [err msg: {:?}]", e);
-                            anyhow!("error while sending password messaage to target")
-                        })?;
-                }
-                _ => {
-                    error!("expected password authentication message ");
-                    return Err(anyhow!("invalid target message"));
-                }
-            },
+            BackendMessage::AuthenticationMD5Password { salt } => {
+                let password = md5_password(
+                    self.config.target_username.as_ref().unwrap(),
+                    self.config.target_password.as_ref().unwrap(),
+                    salt,
+                );
+                let password_msg = FrotendMessage::PasswordMessage { password };
+                target_conn
+                    .write_all(&password_msg.encode())
+                    .await
+                    .map_err(|e| {
+                        error!("error while sending password message: [err msg: {:?}]", e);
+                        anyhow!("error while sending password messaage to target")
+                    })?;
+            }
+            BackendMessage::AuthenticationCleartextPassword => {
+                let password = self.config.target_username.as_ref().unwrap().clone();
+                let password_msg = FrotendMessage::PasswordMessage { password };
+                target_conn
+                    .write_all(&password_msg.encode())
+                    .await
+                    .map_err(|e| {
+                        error!("error while sending password message: [err msg: {:?}]", e);
+                        anyhow!("error while sending password messaage to target")
+                    })?;
+            }
             _ => {
                 error!("expected password authentication message ");
                 return Err(anyhow!("invalid target message"));
@@ -177,21 +171,12 @@ impl ProtocolHandler {
                 return anyhow!("invalid target message");
             })?;
         match msg {
-            BackendMessage::StartupMessage(inner) => match inner {
-                StartupMessage::AuthenticationOk { success } => {
-                    if !success {
-                        error!("authentication failed with the target server");
-                        return Err(anyhow!("unable to reach target server"));
-                    }
+            BackendMessage::AuthenticationOk { success } => {
+                if !success {
+                    error!("authentication failed with the target server");
+                    return Err(anyhow!("unable to reach target server"));
                 }
-                _ => {
-                    error!(
-                        "expected authentication ok message from target but got {:?}",
-                        inner
-                    );
-                    return Err(anyhow!("invalid target message"));
-                }
-            },
+            }
             _ => {
                 error!(
                     "expected authentication ok message from target but got {:?}",

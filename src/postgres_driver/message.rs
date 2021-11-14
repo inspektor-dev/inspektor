@@ -10,73 +10,44 @@ pub const VERSION_3: i32 = 0x30000;
 pub const VERSION_SSL: i32 = (1234 << 16) + 5679;
 pub const ACCEPT_SSL_ENCRYPTION: u8 = b'S';
 
+
 #[derive(Debug)]
-pub enum StartupMessage {
-    Startup {
-        params: HashMap<String, String>,
-        version: i32,
-    },
-    AuthenticationCleartextPassword,
-    PasswordMessage {
-        password: String,
-    },
+pub enum BackendMessage {
+    ErrorMsg(Option<String>),
     AuthenticationOk {
         success: bool,
     },
-    SslRequest,
+    AuthenticationCleartextPassword,
     AuthenticationMD5Password {
         salt: Vec<u8>,
     },
 }
 
-impl StartupMessage {
-    pub fn encode(&self) -> BytesMut {
-        let mut buf = BytesMut::new();
-        match self {
-            StartupMessage::AuthenticationCleartextPassword => {
-                buf.put_u8(b'R');
-                buf.put_u32(8);
-                buf.put_u32(3);
-                buf
+impl BackendMessage{
+  pub fn encode(&self) -> BytesMut {
+    let mut buf = BytesMut::new();
+    match self {
+        BackendMessage::AuthenticationCleartextPassword => {
+            buf.put_u8(b'R');
+            buf.put_u32(8);
+            buf.put_u32(3);
+            buf
+        }
+        BackendMessage::AuthenticationOk { success } => {
+            buf.put_u8(b'R');
+            buf.put_u32(8);
+            if *success {
+                buf.put_u32(0);
+                return buf
             }
-            StartupMessage::AuthenticationOk { success } => {
-                buf.put_u8(b'R');
-                buf.put_u32(8);
-                if *success {
-                    buf.put_u32(0);
-                    return buf
-                }
-                buf.put_u32(1);
-                buf
-            }
-            StartupMessage::SslRequest => {
-                buf.put_u32(8);
-                buf.put_i32(VERSION_SSL);
-                buf
-            }
-            StartupMessage::Startup { params, version } => {
-                write_message(&mut buf, |buf| {
-                    buf.put_i32(*version);
-                    for (key, val) in params {
-                        write_cstr(buf, key.as_bytes())?;
-                        write_cstr(buf, val.as_bytes())?;
-                    }
-                    buf.put_u8(0);
-                    Ok(())
-                })
-                .unwrap();
-                buf
-            }
-            _ => {
-                unreachable!("encoding invalid startup message")
-            }
+            buf.put_u32(1);
+            buf
+        }
+        _ => {
+            unreachable!("encoding invalid startup message")
         }
     }
-}
-#[derive(Debug)]
-pub enum BackendMessage {
-    StartupMessage(StartupMessage),
-    ErrorMsg(Option<String>),
+  }
 }
 
 pub async fn decode_backend_message<T>(mut conn: T) -> Result<BackendMessage, anyhow::Error>
@@ -107,25 +78,18 @@ where
             buf.advance(4);
             match msg_type {
                 3 => {
-                    return Ok(BackendMessage::StartupMessage(
-                        StartupMessage::AuthenticationCleartextPassword,
-                    ))
+                    return Ok(BackendMessage::AuthenticationCleartextPassword)
                 }
                 5 => {
                     let salt = buf[..4].to_vec();
-                    return Ok(BackendMessage::StartupMessage(
-                        StartupMessage::AuthenticationMD5Password { salt },
-                    ));
+                    return Ok(BackendMessage::AuthenticationMD5Password { salt });
                 }
                 0 => {
-                    return Ok(BackendMessage::StartupMessage(
-                        StartupMessage::AuthenticationOk{success: true},
-                    ));
+                    return Ok(BackendMessage::AuthenticationOk{success: true}
+                      );
                 }
                 1 => {
-                    return Ok(BackendMessage::StartupMessage(
-                        StartupMessage::AuthenticationOk{success: true},
-                    ));
+                    return Ok(BackendMessage::AuthenticationOk{success: false});
                 }
                 _ => {
                     unreachable!("unknown message type {:?}", msg_type)
@@ -151,13 +115,16 @@ where
             return Err(anyhow!("invalid backend message"));
         }
     }
-
-    unreachable!("");
 }
 
 #[derive(Debug)]
 pub enum FrotendMessage {
     PasswordMessage { password: String },
+    SslRequest,
+    Startup {
+        params: HashMap<String, String>,
+        version: i32,
+    },
 }
 
 impl FrotendMessage {
@@ -168,6 +135,22 @@ impl FrotendMessage {
                 buf.put_u8(b'p');
                 write_message(&mut buf, |buf| {
                     write_cstr(buf, password.as_bytes())?;
+                    Ok(())
+                })
+                .unwrap();
+            }
+            FrotendMessage::SslRequest => {
+                buf.put_u32(8);
+                buf.put_i32(VERSION_SSL);
+            }
+            FrotendMessage::Startup { params, version } => {
+                write_message(&mut buf, |buf| {
+                    buf.put_i32(*version);
+                    for (key, val) in params {
+                        write_cstr(buf, key.as_bytes())?;
+                        write_cstr(buf, val.as_bytes())?;
+                    }
+                    buf.put_u8(0);
                     Ok(())
                 })
                 .unwrap();
