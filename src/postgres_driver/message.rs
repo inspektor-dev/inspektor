@@ -10,44 +10,39 @@ pub const VERSION_3: i32 = 0x30000;
 pub const VERSION_SSL: i32 = (1234 << 16) + 5679;
 pub const ACCEPT_SSL_ENCRYPTION: u8 = b'S';
 
-
 #[derive(Debug)]
 pub enum BackendMessage {
     ErrorMsg(Option<String>),
-    AuthenticationOk {
-        success: bool,
-    },
+    AuthenticationOk { success: bool },
     AuthenticationCleartextPassword,
-    AuthenticationMD5Password {
-        salt: Vec<u8>,
-    },
+    AuthenticationMD5Password { salt: Vec<u8> },
 }
 
-impl BackendMessage{
-  pub fn encode(&self) -> BytesMut {
-    let mut buf = BytesMut::new();
-    match self {
-        BackendMessage::AuthenticationCleartextPassword => {
-            buf.put_u8(b'R');
-            buf.put_u32(8);
-            buf.put_u32(3);
-            buf
-        }
-        BackendMessage::AuthenticationOk { success } => {
-            buf.put_u8(b'R');
-            buf.put_u32(8);
-            if *success {
-                buf.put_u32(0);
-                return buf
+impl BackendMessage {
+    pub fn encode(&self) -> BytesMut {
+        let mut buf = BytesMut::new();
+        match self {
+            BackendMessage::AuthenticationCleartextPassword => {
+                buf.put_u8(b'R');
+                buf.put_u32(8);
+                buf.put_u32(3);
+                buf
             }
-            buf.put_u32(1);
-            buf
-        }
-        _ => {
-            unreachable!("encoding invalid startup message")
+            BackendMessage::AuthenticationOk { success } => {
+                buf.put_u8(b'R');
+                buf.put_u32(8);
+                if *success {
+                    buf.put_u32(0);
+                    return buf;
+                }
+                buf.put_u32(1);
+                buf
+            }
+            _ => {
+                unreachable!("encoding invalid startup message")
+            }
         }
     }
-  }
 }
 
 pub async fn decode_backend_message<T>(mut conn: T) -> Result<BackendMessage, anyhow::Error>
@@ -77,19 +72,16 @@ where
             let msg_type = NetworkEndian::read_u32(&buf);
             buf.advance(4);
             match msg_type {
-                3 => {
-                    return Ok(BackendMessage::AuthenticationCleartextPassword)
-                }
+                3 => return Ok(BackendMessage::AuthenticationCleartextPassword),
                 5 => {
                     let salt = buf[..4].to_vec();
                     return Ok(BackendMessage::AuthenticationMD5Password { salt });
                 }
                 0 => {
-                    return Ok(BackendMessage::AuthenticationOk{success: true}
-                      );
+                    return Ok(BackendMessage::AuthenticationOk { success: true });
                 }
                 1 => {
-                    return Ok(BackendMessage::AuthenticationOk{success: false});
+                    return Ok(BackendMessage::AuthenticationOk { success: false });
                 }
                 _ => {
                     unreachable!("unknown message type {:?}", msg_type)
@@ -119,12 +111,24 @@ where
 
 #[derive(Debug)]
 pub enum FrotendMessage {
-    PasswordMessage { password: String },
+    PasswordMessage {
+        password: String,
+    },
     SslRequest,
     Startup {
         params: HashMap<String, String>,
         version: i32,
     },
+    Describe {
+        is_prepared_statement: bool,
+        name: String,
+    },
+    Flush,
+    Query {
+        query_string: String,
+    },
+    Sync,
+    Terminate,
 }
 
 impl FrotendMessage {
@@ -155,7 +159,95 @@ impl FrotendMessage {
                 })
                 .unwrap();
             }
+            FrotendMessage::Describe {
+                is_prepared_statement,
+                name,
+            } => {
+                buf.put_u8(b'D');
+                write_message(&mut buf, |buf| {
+                    if *is_prepared_statement {
+                        buf.put_u8(b'S');
+                    } else {
+                        buf.put_u8(b'P');
+                    }
+                    if name.len() != 0 {
+                        write_cstr(buf, name.as_bytes())?;
+                    } else {
+                        buf.put_u8(0);
+                    }
+                    Ok(())
+                })
+                .unwrap();
+            }
+            FrotendMessage::Flush => {
+                buf.put_u8(b'H');
+                NetworkEndian::write_i32(&mut buf, 4);
+            }
+            FrotendMessage::Query { query_string } => {
+                buf.put_u8(b'Q');
+                write_message(&mut buf, |buf| write_cstr(buf, query_string.as_bytes())).unwrap();
+            }
+            FrotendMessage::Sync => {
+                buf.put_u8(b'S');
+                NetworkEndian::write_i32(&mut buf, 4);
+            }
+            FrotendMessage::Terminate => {
+                buf.put_u8(b'X');
+                NetworkEndian::write_i32(&mut buf, 4);
+            }
         }
         buf
+    }
+
+    pub async fn decode<T>(mut conn: T) -> Result<FrotendMessage, anyhow::Error>
+    where
+        T: AsyncRead + Unpin + AsyncReadExt + AsyncWrite + AsyncWriteExt,
+    {
+        let mut meta = [0; 1];
+        conn.read_exact(&mut meta).await.map_err(|e| {
+            error!("error while reading frontend meta [err_msg: {:?}]", e);
+            anyhow!("invalid frontend message")
+        })?;
+        match meta[0]{
+            b'D'=>{
+                let len = decode_frame_length(&mut conn).await?;
+                let mut buf = BytesMut::new();
+                buf.resize( len,b'0');
+                conn.read_exact(&mut buf).await?;
+                match buf[0]{
+                    b'S' =>{
+                        let name = read_cstr(&mut buf)?;
+                        return Ok(FrotendMessage::Describe{is_prepared_statement: true, name: name});
+                    }
+                    b'P' => {
+                        let name = read_cstr(&mut buf)?;
+                        return Ok(FrotendMessage::Describe{is_prepared_statement: false, name: name});
+                    }
+                    _ =>{
+                        return Err(anyhow!("invalid frontend message"));
+                    }
+                }
+            },
+            b'H' => {
+                return Ok(FrotendMessage::Flush)
+            }
+            b'Q' => {
+                let len = decode_frame_length(&mut conn).await?;
+                let mut buf = BytesMut::new();
+                buf.resize( len,b'0');
+                conn.read_exact(&mut buf).await?;
+                let query_string = read_cstr(&mut buf)?;
+                return  Ok(FrotendMessage::Query{query_string});
+            }
+            b'S' => {
+                return Ok(FrotendMessage::Sync)
+            }
+            b'X' => {
+                return  Ok(FrotendMessage::Terminate);
+            }
+            _ => {
+                return Err(anyhow!("unrecognized frontend message"));
+            }
+        }
     }
 }
