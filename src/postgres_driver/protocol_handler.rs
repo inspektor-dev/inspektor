@@ -187,7 +187,6 @@ impl ProtocolHandler {
         }
 
         let mut target_buf = [0; 1024];
-        let mut client_buf = [0; 1024];
         loop {
             tokio::select! {
                 n = target_conn.read(&mut target_buf) =>{
@@ -204,17 +203,15 @@ impl ProtocolHandler {
                         }
                     }
                 }
-                n = self.client_conn.read(&mut client_buf) => {
+                n = FrotendMessage::decode(&mut self.client_conn) => {
                     match n {
                         Err(e) =>{
                                 println!("failed to read from socket; err = {:?}", e);
                                 return Ok(());
                         },
-                        Ok(n) =>{
-                            if n == 0 {
-                                return Ok(())
-                            }
-                            target_conn.write_all(&client_buf[0..n]).await?
+                        Ok(msg) =>{
+                            debug!("got frontend message {:?}", msg);
+                            target_conn.write_all(&msg.encode()).await?;
                         }
                     }
                 }
