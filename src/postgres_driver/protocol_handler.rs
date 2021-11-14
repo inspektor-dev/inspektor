@@ -5,6 +5,7 @@ use crate::postgres_driver::conn::PostgresConn;
 use crate::postgres_driver::message::*;
 use anyhow::*;
 use log::*;
+use md5::{Digest, Md5};
 use openssl::ssl::{SslConnector, SslMethod};
 use std::collections::HashMap;
 use std::pin::Pin;
@@ -20,7 +21,10 @@ pub struct ProtocolHandler {
 impl ProtocolHandler {
     // init should be called after authenticated client connection. init will try to connect with remote
     // server. if not possible then it'll close the client connection.
-    pub async fn init(&self, client_params: HashMap<String, String>) -> Result<(), anyhow::Error> {
+    pub async fn init(
+        mut self,
+        client_params: HashMap<String, String>,
+    ) -> Result<(), anyhow::Error> {
         debug!(
             "initializing postgres protocol handler with config {:?}",
             self.config
@@ -125,19 +129,144 @@ impl ProtocolHandler {
         debug!("got target message {:?} after startup message", msg);
         match msg {
             BackendMessage::StartupMessage(inner) => match inner {
-                StartupMessage::AuthenticationMD5Password{salt} => {
-
-                },
-                StartupMessage::AuthenticationCleartextPassword => {},
+                StartupMessage::AuthenticationMD5Password { salt } => {
+                    let password = md5_password(
+                        self.config.target_username.as_ref().unwrap(),
+                        self.config.target_password.as_ref().unwrap(),
+                        salt,
+                    );
+                    let password_msg = FrotendMessage::PasswordMessage { password };
+                    target_conn
+                        .write_all(&password_msg.encode())
+                        .await
+                        .map_err(|e| {
+                            error!("error while sending password message: [err msg: {:?}]", e);
+                            anyhow!("error while sending password messaage to target")
+                        })?;
+                }
+                StartupMessage::AuthenticationCleartextPassword => {
+                    let password = self.config.target_username.as_ref().unwrap().clone();
+                    let password_msg = FrotendMessage::PasswordMessage { password };
+                    target_conn
+                        .write_all(&password_msg.encode())
+                        .await
+                        .map_err(|e| {
+                            error!("error while sending password message: [err msg: {:?}]", e);
+                            anyhow!("error while sending password messaage to target")
+                        })?;
+                }
                 _ => {
                     error!("expected password authentication message ");
                     return Err(anyhow!("invalid target message"));
                 }
             },
-            _ => {}
+            _ => {
+                error!("expected password authentication message ");
+                return Err(anyhow!("invalid target message"));
+            }
         }
-        // we support password based auth only for
-        debug!("target connection is upgraded to tls");
+
+        // we have done the authentication let's wait for authentication ok message.
+        let msg = decode_backend_message(&mut target_conn)
+            .await
+            .map_err(|err| {
+                error!(
+                    "error while decoding the first message after startup message {:?}",
+                    err
+                );
+                return anyhow!("invalid target message");
+            })?;
+        match msg {
+            BackendMessage::StartupMessage(inner) => match inner {
+                StartupMessage::AuthenticationOk { success } => {
+                    if !success {
+                        error!("authentication failed with the target server");
+                        return Err(anyhow!("unable to reach target server"));
+                    }
+                }
+                _ => {
+                    error!(
+                        "expected authentication ok message from target but got {:?}",
+                        inner
+                    );
+                    return Err(anyhow!("invalid target message"));
+                }
+            },
+            _ => {
+                error!(
+                    "expected authentication ok message from target but got {:?}",
+                    msg
+                );
+                return Err(anyhow!("invalid target message"));
+            }
+        }
+
+        let mut target_buf = [0; 1024];
+        let mut client_buf = [0; 1024];
+        loop {
+            tokio::select! {
+                n = target_conn.read(&mut target_buf) =>{
+                    match n {
+                        Err(e) =>{
+                                println!("failed to read from socket; err = {:?}", e);
+                                return Ok(());
+                        },
+                        Ok(n) =>{
+                            if n == 0 {
+                                return Ok(())
+                            }
+                            self.client_conn.write_all(&target_buf[0..n]).await?
+                        }
+                    }
+                }
+                n = self.client_conn.read(&mut client_buf) => {
+                    match n {
+                        Err(e) =>{
+                                println!("failed to read from socket; err = {:?}", e);
+                                return Ok(());
+                        },
+                        Ok(n) =>{
+                            if n == 0 {
+                                return Ok(())
+                            }
+                            target_conn.write_all(&client_buf[0..n]).await?
+                        }
+                    }
+                }
+            }
+        }
+
+
+        // // let's pipe both the connection and see what happens :P
+        // let mut buf = [0; 1024];
+        // // In a loop, read data from the socket and write the data back.
+        // loop {
+        //     let n = match target_conn.read(&mut buf).await {
+        //         // socket closed
+        //         Ok(n) if n == 0 => return Ok(()),
+        //         Ok(n) => n,
+        //         Err(e) => {
+        //             eprintln!("failed to read from socket; err = {:?}", e);
+        //             return Ok(());
+        //         }
+        //     };
+
+        //     // Write the data back
+        //     if let Err(e) = self.client_conn.write_all(&buf[0..n]).await {
+        //         eprintln!("failed to write to socket; err = {:?}", e);
+        //         return Ok(());
+        //     }
+        // }
         Ok(())
     }
+}
+
+fn md5_password(username: &String, password: &String, salt: Vec<u8>) -> String {
+    let mut md5 = Md5::new();
+    md5.update(password);
+    md5.update(username);
+    let result = md5.finalize_reset();
+    md5.update(format!("{:x}", result));
+    md5.update(salt);
+    format!("md5{:x}", md5.finalize())
 }

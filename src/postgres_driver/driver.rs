@@ -94,7 +94,7 @@ impl PostgresDriver {
                                 {
                                     // send authetication ok message and handle the query request from here.
                                     if let Err(e) = socket
-                                        .write(&StartupMessage::AuthenticationOk.encode())
+                                        .write(&StartupMessage::AuthenticationOk{success: true}.encode())
                                         .await
                                     {
                                         error!(
@@ -104,7 +104,7 @@ impl PostgresDriver {
                                         return;
                                     }
                                     println!("aquired password {:?}", password);
-                                    let handler = protocol_handler::ProtocolHandler{
+                                    let mut handler = protocol_handler::ProtocolHandler{
                                         config: PostgresConfig::default(),
                                         remote_conn: None,
                                         client_conn: socket

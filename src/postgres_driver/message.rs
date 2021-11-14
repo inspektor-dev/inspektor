@@ -5,11 +5,10 @@ use bytes::{Buf, BufMut, BytesMut};
 use log::*;
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+
 pub const VERSION_3: i32 = 0x30000;
 pub const VERSION_SSL: i32 = (1234 << 16) + 5679;
 pub const ACCEPT_SSL_ENCRYPTION: u8 = b'S';
-
-
 
 #[derive(Debug)]
 pub enum StartupMessage {
@@ -21,7 +20,9 @@ pub enum StartupMessage {
     PasswordMessage {
         password: String,
     },
-    AuthenticationOk,
+    AuthenticationOk {
+        success: bool,
+    },
     SslRequest,
     AuthenticationMD5Password {
         salt: Vec<u8>,
@@ -38,10 +39,14 @@ impl StartupMessage {
                 buf.put_u32(3);
                 buf
             }
-            StartupMessage::AuthenticationOk => {
+            StartupMessage::AuthenticationOk { success } => {
                 buf.put_u8(b'R');
                 buf.put_u32(8);
-                buf.put_u32(0);
+                if *success {
+                    buf.put_u32(0);
+                    return buf
+                }
+                buf.put_u32(1);
                 buf
             }
             StartupMessage::SslRequest => {
@@ -112,6 +117,16 @@ where
                         StartupMessage::AuthenticationMD5Password { salt },
                     ));
                 }
+                0 => {
+                    return Ok(BackendMessage::StartupMessage(
+                        StartupMessage::AuthenticationOk{success: true},
+                    ));
+                }
+                1 => {
+                    return Ok(BackendMessage::StartupMessage(
+                        StartupMessage::AuthenticationOk{success: true},
+                    ));
+                }
                 _ => {
                     unreachable!("unknown message type {:?}", msg_type)
                 }
@@ -149,7 +164,7 @@ impl FrotendMessage {
     pub fn encode(&self) -> BytesMut {
         let mut buf = BytesMut::new();
         match self {
-            FrotendMessage::PasswordMessage{password} => {
+            FrotendMessage::PasswordMessage { password } => {
                 buf.put_u8(b'p');
                 write_message(&mut buf, |buf| {
                     write_cstr(buf, password.as_bytes())?;
@@ -160,8 +175,4 @@ impl FrotendMessage {
         }
         buf
     }
-}
-
-fn md5_password(username: &String, password: &String, salt: Vec<u8>) -> String{
-    format!("md5")
 }
