@@ -1,0 +1,143 @@
+use std::net::SocketAddr;
+
+use crate::config::PostgresConfig;
+use crate::postgres_driver::conn::PostgresConn;
+use crate::postgres_driver::message::*;
+use anyhow::*;
+use log::*;
+use openssl::ssl::{SslConnector, SslMethod};
+use std::collections::HashMap;
+use std::pin::Pin;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
+use tokio_openssl::SslStream;
+pub struct ProtocolHandler {
+    pub config: PostgresConfig,
+    pub remote_conn: Option<PostgresConn>,
+    pub client_conn: PostgresConn,
+}
+
+impl ProtocolHandler {
+    // init should be called after authenticated client connection. init will try to connect with remote
+    // server. if not possible then it'll close the client connection.
+    pub async fn init(&self, client_params: HashMap<String, String>) -> Result<(), anyhow::Error> {
+        debug!(
+            "initializing postgres protocol handler with config {:?}",
+            self.config
+        );
+        let mut target_conn = TcpStream::connect(self.config.target_addr.as_ref().unwrap())
+            .await
+            .map_err(|e| {
+                error!("error while reaching to target server {:?}", e);
+                return anyhow!("unable to connect to remote server");
+            })?;
+
+        let mut target_conn = PostgresConn::Unsecured(target_conn);
+
+        target_conn
+            .write_all(&StartupMessage::SslRequest.encode())
+            .await
+            .map_err(|e| {
+                error!("error while writing ssl request to remote target {:?}", e);
+                return anyhow!("unable to connect to remote serveer");
+            })?;
+
+        // check whether target server support ssl.
+        let mut buf = [0; 1];
+        target_conn.read_exact(&mut buf).await.map_err(|e| {
+            error!("error while reading the ssl response message {:?}", e);
+            return anyhow!("unable to reach remote server");
+        })?;
+
+        // check whether target accepts ssl connection.
+        if buf[0] == ACCEPT_SSL_ENCRYPTION {
+            error!("upgrading target connection to ssl connection");
+            // let's upgrade the connection into secure one.
+            match target_conn {
+                PostgresConn::Unsecured(inner) => {
+                    let mut connector = SslConnector::builder(SslMethod::tls())
+                        .unwrap()
+                        .build()
+                        .configure()
+                        .unwrap()
+                        .verify_hostname(false)
+                        .use_server_name_indication(false)
+                        .into_ssl("")
+                        .unwrap();
+
+                    let mut stream = SslStream::new(connector, inner).unwrap();
+                    Pin::new(&mut stream).connect().await.map_err(|e| {
+                        error!(
+                            "unable to upgrade the target connection to ssl stream {:?}",
+                            e
+                        );
+                        anyhow!("unbale to reach remote server")
+                    })?;
+                    target_conn = PostgresConn::Secured(stream)
+                }
+                _ => {
+                    unreachable!("can't upgrade the connection which is already secured")
+                }
+            }
+        } else {
+            // target doesn't looks like accpeting tls connectio. so let's try to connect with the target again.
+            let new_conn = TcpStream::connect(self.config.target_addr.as_ref().unwrap())
+                .await
+                .map_err(|e| {
+                    error!("error while reaching to target server {:?}", e);
+                    return anyhow!("unable to connect to remote server");
+                })?;
+            target_conn = PostgresConn::Unsecured(new_conn);
+        }
+        // Initiate the startup message.
+        let mut target_params = HashMap::new();
+        target_params.insert(
+            "database".to_string(),
+            client_params.get("database").unwrap().clone(),
+        );
+        target_params.insert(
+            "user".to_string(),
+            self.config.target_username.as_ref().unwrap().clone(),
+        );
+        target_params.insert("client_encoding".to_string(), "UTF8".to_string());
+        target_params.insert("application_name".to_string(), "inspektor".to_string());
+
+        let msg = StartupMessage::Startup {
+            params: target_params,
+            version: VERSION_3,
+        };
+        target_conn.write_all(&msg.encode()).await.map_err(|e| {
+            error!("error while sending startup message to the target {:?}", e);
+            anyhow!("error while connecting to target database")
+        })?;
+
+        // handle the authentication method.
+        let msg = decode_backend_message(&mut target_conn)
+            .await
+            .map_err(|err| {
+                error!(
+                    "error while decoding the first message after startup message {:?}",
+                    err
+                );
+                return anyhow!("invalid target message");
+            })?;
+
+        debug!("got target message {:?} after startup message", msg);
+        match msg {
+            BackendMessage::StartupMessage(inner) => match inner {
+                StartupMessage::AuthenticationMD5Password{salt} => {
+
+                },
+                StartupMessage::AuthenticationCleartextPassword => {},
+                _ => {
+                    error!("expected password authentication message ");
+                    return Err(anyhow!("invalid target message"));
+                }
+            },
+            _ => {}
+        }
+        // we support password based auth only for
+        debug!("target connection is upgraded to tls");
+        Ok(())
+    }
+}

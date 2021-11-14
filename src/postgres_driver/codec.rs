@@ -1,8 +1,8 @@
 use crate::postgres_driver::errors::DecoderError;
-use crate::postgres_driver::message::StartupMessage;
+use crate::postgres_driver::message::*;
 use anyhow::*;
 use byteorder::{ByteOrder, NetworkEndian};
-use bytes::{Buf, BytesMut};
+use bytes::{Buf, BufMut, BytesMut};
 use std::char;
 use std::collections::HashMap;
 use std::io::ErrorKind;
@@ -10,11 +10,9 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio_util::codec::{Decoder, Encoder};
 // Postgres protocol version.
-const VERSION_3: i32 = 0x30000;
-pub const VERSION_SSL: i32 = (1234 << 16) + 5679;
-pub const ACCEPT_SSL_ENCRYPTION: u8 = b'S';
+
 // decode_startup_message decode pg startup message, if ssl request it'll  upgrade the connection to ssl connection and returns the
-pub async fn decode_startup_message<T>(mut conn: T) -> Result<StartupMessage, DecoderError>
+pub async fn decode_init_startup_message<T>(mut conn: T) -> Result<StartupMessage, DecoderError>
 where
     T: AsyncRead + Unpin + AsyncReadExt + AsyncWrite + AsyncWriteExt,
 {
@@ -50,7 +48,7 @@ where
     };
 }
 
-async fn decode_frame_length<T>(mut conn: T) -> Result<usize, anyhow::Error>
+pub async fn decode_frame_length<T>(mut conn: T) -> Result<usize, anyhow::Error>
 where
     T: AsyncRead + Unpin,
 {
@@ -64,7 +62,7 @@ where
     Ok(frame_len - 4)
 }
 
-fn read_cstr(buf: &mut BytesMut) -> Result<String, Error> {
+pub fn read_cstr(buf: &mut BytesMut) -> Result<String, Error> {
     if let Some(pos) = buf.iter().position(|d| *d == 0) {
         let str = std::str::from_utf8(&buf[..pos])
             .map_err(|_| anyhow!("error while reading cstr"))?
@@ -73,6 +71,15 @@ fn read_cstr(buf: &mut BytesMut) -> Result<String, Error> {
         return Ok(str);
     }
     Err(anyhow!("string has not termination deliminiter"))
+}
+
+pub fn write_cstr(buf: &mut BytesMut, val: &[u8]) -> Result<(), anyhow::Error>{
+    if val.contains(&0){
+        return Err(anyhow!("cstr should not contain 0 value"))
+    }
+    buf.put_slice(val);
+    buf.put_u8(0);
+    Ok(())
 }
 
 pub async fn decode_password_message<T>(mut conn: T) -> Result<StartupMessage, anyhow::Error>
@@ -96,4 +103,20 @@ where
     let password =
         read_cstr(&mut buf).map_err(|err| anyhow!("error while reading password {:?}", err))?;
     Ok(StartupMessage::PasswordMessage { password: password })
+}
+
+
+#[inline]
+pub fn write_message<F>(buf: &mut BytesMut, f: F) -> Result<(), anyhow::Error>
+where
+    F: FnOnce(&mut BytesMut) -> Result<(), anyhow::Error>,
+{
+    let base = buf.len();
+    buf.extend_from_slice(&[0; 4]);
+
+    f(buf)?;
+
+    let size = (buf.len() - base) as i32;
+    NetworkEndian::write_i32(&mut buf[base..], size);
+    Ok(())
 }

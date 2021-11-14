@@ -5,7 +5,8 @@ use std::io::Read;
 use crate::postgres_driver::codec::*;
 use crate::postgres_driver::conn::PostgresConn;
 use crate::postgres_driver::errors::DecoderError;
-use crate::postgres_driver::message::StartupMessage;
+use crate::postgres_driver::message::*;
+use crate::config::PostgresConfig;
 use anyhow::anyhow;
 use log::*;
 use std::path::Path;
@@ -13,16 +14,16 @@ use std::sync::Arc;
 use tokio;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, Interest};
 use tokio::net::TcpListener;
-use rustls_pemfile::{certs, rsa_private_keys};
 use std::io::{self, BufReader};
 use openssl::ssl::{Ssl, SslAcceptor, SslConnector, SslFiletype, SslMethod};
 use tokio_openssl::SslStream;
 use std::pin::Pin;
+use std::time::Duration;
+use crate::postgres_driver::protocol_handler;
 
-
-
-
-pub struct PostgresDriver {}
+pub struct PostgresDriver {
+    pub postgres_config: PostgresConfig
+}
 
 impl PostgresDriver {
     pub fn start(&self) {
@@ -50,8 +51,7 @@ impl PostgresDriver {
                 let mut socket = PostgresConn::Unsecured(socket);
                 tokio::spawn(async move {
                     loop {
-                        debug!("loop {:?}", socket);
-                        let msg = match decode_startup_message(&mut socket).await {
+                        let msg = match decode_init_startup_message(&mut socket).await {
                             Ok(msg) => msg,
                             Err(e) => {
                                 match e {
@@ -81,7 +81,6 @@ impl PostgresDriver {
                                     );
                                     return;
                                 }
-                                debug!("socket tupe {:?}", socket);
                                 let result = decode_password_message(&mut socket).await;
                                 if result.is_err() {
                                     error!(
@@ -89,7 +88,7 @@ impl PostgresDriver {
                                         result.unwrap_err()
                                     );
                                     return;
-                                }
+                                };
                                 if let StartupMessage::PasswordMessage { password } =
                                     result.unwrap()
                                 {
@@ -104,6 +103,13 @@ impl PostgresDriver {
                                         );
                                         return;
                                     }
+                                    println!("aquired password {:?}", password);
+                                    let handler = protocol_handler::ProtocolHandler{
+                                        config: PostgresConfig::default(),
+                                        remote_conn: None,
+                                        client_conn: socket
+                                    };
+                                    handler.init(params).await.unwrap();
                                     return;
                                 }
                                 unreachable!("message expected to be password message");
@@ -119,7 +125,7 @@ impl PostgresDriver {
                                     let mut stream = SslStream::new(ssl, inner).unwrap();
                                     Pin::new(&mut stream).accept().await.unwrap();
                                     socket = PostgresConn::Secured(stream);
-                                    debug!("upgraded to tls connection");
+                                    debug!("client connection upgraded  to tls connection");
                                     continue;
                                 }
                                 error!(

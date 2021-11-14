@@ -2,7 +2,6 @@ use std::pin::Pin;
 
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
-use tokio_rustls::{Accept};
 use std::task::{Poll};
 use tokio_openssl::SslStream;
 
