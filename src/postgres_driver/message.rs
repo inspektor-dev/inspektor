@@ -1,14 +1,21 @@
-use crate::postgres_driver::codec::{decode_frame_length, read_cstr, write_cstr, write_message};
+use crate::postgres_driver::codec::{decode_frame_length, read_cstr, write_cstr, write_message, read_counted_message,write_counted_message};
 use anyhow::*;
 use byteorder::{ByteOrder, NetworkEndian};
 use bytes::{Buf, BufMut, BytesMut};
 use log::*;
+use md5::digest::consts::U8;
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 pub const VERSION_3: i32 = 0x30000;
 pub const VERSION_SSL: i32 = (1234 << 16) + 5679;
 pub const ACCEPT_SSL_ENCRYPTION: u8 = b'S';
+
+#[derive(Debug)]
+pub enum Value {
+    Null,
+    NotNull(Vec<u8>),
+}
 
 #[derive(Debug)]
 pub enum BackendMessage {
@@ -129,6 +136,14 @@ pub enum FrotendMessage {
     },
     Sync,
     Terminate,
+    Bind {
+        destination_portal_name: String,
+        prepared_statement_name: String,
+        parameter_format_codes: Vec<i16>,
+        parameter_values: Vec<Value>,
+        result_column_format_codes: Vec<i16>,
+    },
+    Close
 }
 
 impl FrotendMessage {
@@ -195,6 +210,43 @@ impl FrotendMessage {
                 buf.put_u8(b'X');
                 NetworkEndian::write_i32(&mut buf, 4);
             }
+            FrotendMessage::Bind {
+                destination_portal_name,
+                prepared_statement_name,
+                parameter_format_codes,
+                parameter_values,
+                result_column_format_codes,
+            } => {
+                buf.put_u8(b'B');
+                write_message(&mut buf, |buf| {
+                    write_cstr(buf, destination_portal_name.as_bytes()).unwrap();
+                    write_cstr(buf, prepared_statement_name.as_bytes()).unwrap();
+                    write_counted_message(parameter_format_codes, |item, buf|{
+                        NetworkEndian::write_i16(buf, *item);
+                        Ok(())
+                    }, buf)?;
+                    write_counted_message(parameter_values, |item, buf|{
+                        match item {
+                            Value::Null =>{
+                                NetworkEndian::write_i32(buf, -1);
+                            }
+                            Value::NotNull(val) =>{
+                                NetworkEndian::write_i32(buf, val.len() as i32);
+                                if val.len() != 0 {
+                                    buf.extend_from_slice(val);
+                                }
+                            }
+                        }
+                        Ok(())
+                    }, buf)?;
+                    write_counted_message(result_column_format_codes, |item, buf| {
+                        NetworkEndian::write_i16(buf, *item);
+                        Ok(())
+                    }, buf)?;
+                    Ok(())
+                })
+                .unwrap();
+            }
         }
         buf
     }
@@ -208,46 +260,88 @@ impl FrotendMessage {
             error!("error while reading frontend meta [err_msg: {:?}]", e);
             anyhow!("invalid frontend message")
         })?;
-        match meta[0]{
-            b'D'=>{
+        match meta[0] {
+            b'D' => {
                 let len = decode_frame_length(&mut conn).await?;
                 let mut buf = BytesMut::new();
-                buf.resize( len,b'0');
+                buf.resize(len, b'0');
                 conn.read_exact(&mut buf).await?;
-                match buf[0]{
-                    b'S' =>{
+                match buf[0] {
+                    b'S' => {
                         let name = read_cstr(&mut buf)?;
-                        return Ok(FrotendMessage::Describe{is_prepared_statement: true, name: name});
+                        return Ok(FrotendMessage::Describe {
+                            is_prepared_statement: true,
+                            name: name,
+                        });
                     }
                     b'P' => {
                         let name = read_cstr(&mut buf)?;
-                        return Ok(FrotendMessage::Describe{is_prepared_statement: false, name: name});
+                        return Ok(FrotendMessage::Describe {
+                            is_prepared_statement: false,
+                            name: name,
+                        });
                     }
-                    _ =>{
+                    _ => {
                         return Err(anyhow!("invalid frontend message"));
                     }
                 }
-            },
-            b'H' => {
-                return Ok(FrotendMessage::Flush)
             }
+            b'H' => return Ok(FrotendMessage::Flush),
             b'Q' => {
                 let len = decode_frame_length(&mut conn).await?;
                 let mut buf = BytesMut::new();
-                buf.resize( len,b'0');
+                buf.resize(len, b'0');
                 conn.read_exact(&mut buf).await?;
                 let query_string = read_cstr(&mut buf)?;
-                return  Ok(FrotendMessage::Query{query_string});
+                return Ok(FrotendMessage::Query { query_string });
             }
-            b'S' => {
-                return Ok(FrotendMessage::Sync)
-            }
+            b'S' => return Ok(FrotendMessage::Sync),
             b'X' => {
-                return  Ok(FrotendMessage::Terminate);
+                return Ok(FrotendMessage::Terminate);
             }
+            b'B' => {
+                let len = decode_frame_length(&mut conn).await?;
+                let mut buf = BytesMut::new();
+                buf.resize(len, b'0');
+                conn.read_exact(&mut buf).await?;
+                let destination_portal_name = read_cstr(&mut buf)?;
+                let prepared_statement_name = read_cstr(&mut buf)?;
+                let parameter_format_codes = read_counted_message(&mut buf, |buf|{
+                    let val = NetworkEndian::read_i16(&buf);
+                    buf.advance(2);
+                    Ok(val)
+                })?;
+                let parameter_values = read_counted_message(&mut buf, |buf|{
+                    let len_of_data = NetworkEndian::read_i32(&buf);
+                    buf.advance(4);
+                    if len_of_data == -1{
+                        return Ok(Value::Null)
+                    } else if len_of_data == 0{
+                        return Ok(Value::NotNull(Vec::new()))
+                    }
+                    let val = Value::NotNull(buf[0..len_of_data as usize].to_vec());
+                    buf.advance(len_of_data as usize);
+                    Ok(val)
+                })?;
+                let result_column_format_codes = read_counted_message(&mut buf, |buf|{
+                    let result = NetworkEndian::read_i16(&buf);
+                    buf.advance(2);
+                    Ok(result)
+                })?;
+                return Ok(FrotendMessage::Bind {
+                    destination_portal_name,
+                    prepared_statement_name,
+                    parameter_format_codes,
+                    parameter_values,
+                    result_column_format_codes,
+                });
+            }
+            b'C' =>{}
             _ => {
                 return Err(anyhow!("unrecognized frontend message"));
             }
         }
     }
 }
+
+

@@ -73,9 +73,9 @@ pub fn read_cstr(buf: &mut BytesMut) -> Result<String, Error> {
     Err(anyhow!("string has not termination deliminiter"))
 }
 
-pub fn write_cstr(buf: &mut BytesMut, val: &[u8]) -> Result<(), anyhow::Error>{
-    if val.contains(&0){
-        return Err(anyhow!("cstr should not contain 0 value"))
+pub fn write_cstr(buf: &mut BytesMut, val: &[u8]) -> Result<(), anyhow::Error> {
+    if val.contains(&0) {
+        return Err(anyhow!("cstr should not contain 0 value"));
     }
     buf.put_slice(val);
     buf.put_u8(0);
@@ -105,7 +105,6 @@ where
     Ok(FrotendMessage::PasswordMessage { password: password })
 }
 
-
 #[inline]
 pub fn write_message<F>(buf: &mut BytesMut, f: F) -> Result<(), anyhow::Error>
 where
@@ -118,5 +117,37 @@ where
 
     let size = (buf.len() - base) as i32;
     NetworkEndian::write_i32(&mut buf[base..], size);
+    Ok(())
+}
+
+#[inline]
+pub fn read_counted_message<F, T>(buf: &mut BytesMut,mut f: F) -> Result<Vec<T>, anyhow::Error>
+where
+    F: FnMut(&mut BytesMut) -> Result<T, anyhow::Error>,
+{
+    let len = NetworkEndian::read_i16(buf) as usize;
+    buf.advance(2);
+    let mut result = Vec::with_capacity(len);
+    for _ in 0..len {
+        result.push(f(buf)?);
+    }
+    Ok(result)
+}
+
+#[inline]
+pub fn write_counted_message<I, T, F>(items: I, mut f: F, buf: &mut BytesMut) -> Result<(), anyhow::Error>
+where
+    I: IntoIterator<Item = T>,
+    F: FnMut(T, &mut BytesMut) -> Result<(), anyhow::Error>,
+{
+    let base = buf.len();
+    buf.extend_from_slice(&[0; 2]);
+    let mut count = 0;
+    for item in items {
+        f(item, buf)?;
+        count += 1;
+    }
+    let count = count as i16;
+    NetworkEndian::write_i16(&mut buf[base..], count);
     Ok(())
 }
