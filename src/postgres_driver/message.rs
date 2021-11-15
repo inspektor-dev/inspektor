@@ -1,4 +1,7 @@
-use crate::postgres_driver::codec::{decode_frame_length, read_cstr, write_cstr, write_message, read_counted_message,write_counted_message};
+use crate::postgres_driver::codec::{
+    decode_frame_length, read_counted_message, read_cstr, write_counted_message, write_cstr,
+    write_message,
+};
 use anyhow::*;
 use byteorder::{ByteOrder, NetworkEndian};
 use bytes::{Buf, BufMut, BytesMut};
@@ -143,7 +146,14 @@ pub enum FrotendMessage {
         parameter_values: Vec<Value>,
         result_column_format_codes: Vec<i16>,
     },
-    Close
+    Close {
+        is_portal: bool,
+        name: String,
+    },
+    CopyData(Vec<u8>),
+    CopyDone,
+    CopyFail{err_msg: String},
+    Execute{name: String, max_no_of_rows: i32}
 }
 
 impl FrotendMessage {
@@ -221,31 +231,82 @@ impl FrotendMessage {
                 write_message(&mut buf, |buf| {
                     write_cstr(buf, destination_portal_name.as_bytes()).unwrap();
                     write_cstr(buf, prepared_statement_name.as_bytes()).unwrap();
-                    write_counted_message(parameter_format_codes, |item, buf|{
-                        NetworkEndian::write_i16(buf, *item);
-                        Ok(())
-                    }, buf)?;
-                    write_counted_message(parameter_values, |item, buf|{
-                        match item {
-                            Value::Null =>{
-                                NetworkEndian::write_i32(buf, -1);
-                            }
-                            Value::NotNull(val) =>{
-                                NetworkEndian::write_i32(buf, val.len() as i32);
-                                if val.len() != 0 {
-                                    buf.extend_from_slice(val);
+                    write_counted_message(
+                        parameter_format_codes,
+                        |item, buf| {
+                            NetworkEndian::write_i16(buf, *item);
+                            Ok(())
+                        },
+                        buf,
+                    )?;
+                    write_counted_message(
+                        parameter_values,
+                        |item, buf| {
+                            match item {
+                                Value::Null => {
+                                    NetworkEndian::write_i32(buf, -1);
+                                }
+                                Value::NotNull(val) => {
+                                    NetworkEndian::write_i32(buf, val.len() as i32);
+                                    if val.len() != 0 {
+                                        buf.extend_from_slice(val);
+                                    }
                                 }
                             }
-                        }
-                        Ok(())
-                    }, buf)?;
-                    write_counted_message(result_column_format_codes, |item, buf| {
-                        NetworkEndian::write_i16(buf, *item);
-                        Ok(())
-                    }, buf)?;
+                            Ok(())
+                        },
+                        buf,
+                    )?;
+                    write_counted_message(
+                        result_column_format_codes,
+                        |item, buf| {
+                            NetworkEndian::write_i16(buf, *item);
+                            Ok(())
+                        },
+                        buf,
+                    )?;
                     Ok(())
                 })
                 .unwrap();
+            }
+            FrotendMessage::CopyData(data) => {
+                buf.put_u8(b'd');
+                write_message(&mut buf, |buf| {
+                    buf.extend_from_slice(data);
+                    Ok(())
+                })
+                .unwrap();
+            }
+            FrotendMessage::CopyDone => {
+                buf.put_u8(b'c');
+                write_message(&mut buf, |_|{
+                    Ok(())
+                }).unwrap();
+            }
+            FrotendMessage::CopyFail{err_msg} => {
+                buf.put_u8(b'f');
+                write_message(&mut buf, |buf|{
+                    Ok(write_cstr(buf, err_msg.as_bytes())?)
+                }).unwrap();
+            }
+            FrotendMessage::Close{is_portal, name} =>{
+                buf.put_u8(b'C');
+                write_message(&mut buf, |buf|{
+                    if *is_portal{
+                        buf.put_u8(b'P');
+                    } else {
+                        buf.put_u8(b'S');
+                    }
+                    write_cstr(buf, name.as_bytes())
+                }).unwrap();
+            }
+            FrotendMessage::Execute{name, max_no_of_rows} => {
+                buf.put_u8(b'E');
+                write_message(&mut buf, |buf|{
+                    write_cstr(buf, name.as_bytes())?;
+                    NetworkEndian::write_i32(buf, *max_no_of_rows);
+                    Ok(())
+                }).unwrap();
             }
         }
         buf
@@ -306,24 +367,24 @@ impl FrotendMessage {
                 conn.read_exact(&mut buf).await?;
                 let destination_portal_name = read_cstr(&mut buf)?;
                 let prepared_statement_name = read_cstr(&mut buf)?;
-                let parameter_format_codes = read_counted_message(&mut buf, |buf|{
+                let parameter_format_codes = read_counted_message(&mut buf, |buf| {
                     let val = NetworkEndian::read_i16(&buf);
                     buf.advance(2);
                     Ok(val)
                 })?;
-                let parameter_values = read_counted_message(&mut buf, |buf|{
+                let parameter_values = read_counted_message(&mut buf, |buf| {
                     let len_of_data = NetworkEndian::read_i32(&buf);
                     buf.advance(4);
-                    if len_of_data == -1{
-                        return Ok(Value::Null)
-                    } else if len_of_data == 0{
-                        return Ok(Value::NotNull(Vec::new()))
+                    if len_of_data == -1 {
+                        return Ok(Value::Null);
+                    } else if len_of_data == 0 {
+                        return Ok(Value::NotNull(Vec::new()));
                     }
                     let val = Value::NotNull(buf[0..len_of_data as usize].to_vec());
                     buf.advance(len_of_data as usize);
                     Ok(val)
                 })?;
-                let result_column_format_codes = read_counted_message(&mut buf, |buf|{
+                let result_column_format_codes = read_counted_message(&mut buf, |buf| {
                     let result = NetworkEndian::read_i16(&buf);
                     buf.advance(2);
                     Ok(result)
@@ -336,12 +397,50 @@ impl FrotendMessage {
                     result_column_format_codes,
                 });
             }
-            b'C' =>{}
+            b'C' => {
+                let len = decode_frame_length(&mut conn).await?;
+                let mut buf = BytesMut::new();
+                buf.resize(len, b'0');
+                let mut is_portal = false;
+                if buf[0] != b'P' {
+                    is_portal = true;
+                }
+                buf.advance(1);
+                let name = read_cstr(&mut buf)?;
+                Ok(FrotendMessage::Close { is_portal, name })
+            }
+            b'd' => {
+                let len = decode_frame_length(&mut conn).await?;
+                let mut buf = BytesMut::new();
+                buf.resize(len, b'0');
+                conn.read_exact(&mut buf).await?;
+                Ok(FrotendMessage::CopyData(buf.to_vec()))
+            }
+            b'c' => {
+                let len = decode_frame_length(&mut conn).await?;
+                if len == 0 {
+                    return Ok(FrotendMessage::CopyDone);
+                }
+                Err(anyhow!("unrecognized frontend message"))
+            }
+            b'f' => {
+                let len = decode_frame_length(&mut conn).await?;
+                let mut buf = BytesMut::new();
+                buf.resize(len, b'0');
+                let err_msg = read_cstr(&mut buf)?;
+                Ok(FrotendMessage::CopyFail{err_msg})
+            }
+            b'E' => {
+                let len = decode_frame_length(&mut conn).await?;
+                let mut buf = BytesMut::new();
+                buf.resize(len, b'0');
+                let name = read_cstr(&mut buf)?;
+                let max_no_of_rows= NetworkEndian::read_i32(&buf[0..]);
+                return Ok(FrotendMessage::Execute{name, max_no_of_rows})
+            }
             _ => {
                 return Err(anyhow!("unrecognized frontend message"));
             }
         }
     }
 }
-
-
