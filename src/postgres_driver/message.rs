@@ -6,7 +6,6 @@ use anyhow::*;
 use byteorder::{ByteOrder, NetworkEndian};
 use bytes::{Buf, BufMut, BytesMut};
 use log::*;
-use md5::digest::consts::U8;
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
@@ -222,7 +221,7 @@ impl FrotendMessage {
             }
             FrotendMessage::Flush => {
                 buf.put_u8(b'H');
-                NetworkEndian::write_i32(&mut buf, 4);
+                buf.put_i32(4);
             }
             FrotendMessage::Query { query_string } => {
                 buf.put_u8(b'Q');
@@ -230,11 +229,11 @@ impl FrotendMessage {
             }
             FrotendMessage::Sync => {
                 buf.put_u8(b'S');
-                NetworkEndian::write_i32(&mut buf, 4);
+                buf.put_i32(4);
             }
             FrotendMessage::Terminate => {
                 buf.put_u8(b'X');
-                NetworkEndian::write_i32(&mut buf, 4);
+                buf.put_i32(4);
             }
             FrotendMessage::Bind {
                 destination_portal_name,
@@ -250,7 +249,7 @@ impl FrotendMessage {
                     write_counted_message(
                         parameter_format_codes,
                         |item, buf| {
-                            NetworkEndian::write_i16(buf, *item);
+                            buf.put_i16(*item);
                             Ok(())
                         },
                         buf,
@@ -260,10 +259,10 @@ impl FrotendMessage {
                         |item, buf| {
                             match item {
                                 Value::Null => {
-                                    NetworkEndian::write_i32(buf, -1);
+                                    buf.put_i32(-1);
                                 }
                                 Value::NotNull(val) => {
-                                    NetworkEndian::write_i32(buf, val.len() as i32);
+                                    buf.put_i32( val.len() as i32);
                                     if val.len() != 0 {
                                         buf.extend_from_slice(val);
                                     }
@@ -276,7 +275,7 @@ impl FrotendMessage {
                     write_counted_message(
                         result_column_format_codes,
                         |item, buf| {
-                            NetworkEndian::write_i16(buf, *item);
+                            buf.put_i16(*item);
                             Ok(())
                         },
                         buf,
@@ -287,18 +286,18 @@ impl FrotendMessage {
             }
             FrotendMessage::FunctionCall { object_id, format_codes, function_arguments, result_format_code } => {
                 write_message(&mut buf, |buf|{
-                    NetworkEndian::write_i32(buf, *object_id);
+                    buf.put_i32(*object_id);
                     write_counted_message(format_codes, |item, buf|{
-                        NetworkEndian::write_i16(buf, *item);
+                        buf.put_i16(*item);
                         Ok(())
                     }, buf).unwrap();
                     write_counted_message(function_arguments, |item, buf|{
                         match item {
                             Value::Null => {
-                                NetworkEndian::write_i32(buf, -1);
+                                buf.put_i32(-1);
                             }
                             Value::NotNull(val) => {
-                                NetworkEndian::write_i32(buf, val.len() as i32);
+                                buf.put_i32(val.len() as i32);
                                 if val.len() != 0 {
                                     buf.extend_from_slice(val);
                                 }
@@ -306,7 +305,7 @@ impl FrotendMessage {
                         }
                         Ok(())
                     }, buf).unwrap();
-                    NetworkEndian::write_i16(buf, *result_format_code);
+                    buf.put_i16(*result_format_code );
                     Ok(())
                 }).unwrap();
             }
@@ -345,7 +344,7 @@ impl FrotendMessage {
                 buf.put_u8(b'E');
                 write_message(&mut buf, |buf| {
                     write_cstr(buf, name.as_bytes())?;
-                    NetworkEndian::write_i32(buf, *max_no_of_rows);
+                    buf.put_i32(*max_no_of_rows);
                     Ok(())
                 })
                 .unwrap();
@@ -356,7 +355,7 @@ impl FrotendMessage {
                     write_cstr(buf, name.as_bytes())?;
                     write_cstr(buf, query.as_bytes())?;
                     write_counted_message(object_ids, |item, buf|{
-                        NetworkEndian::write_i32(buf, *item);
+                        buf.put_i32(*item);
                         buf.advance(4);
                         Ok(())
                     }, buf)?;
@@ -384,6 +383,7 @@ impl FrotendMessage {
         match meta[0] {
             b'D' => match buf[0] {
                 b'S' => {
+                    buf.advance(1);
                     let name = read_cstr(&mut buf)?;
                     return Ok(FrotendMessage::Describe {
                         is_prepared_statement: true,
@@ -391,6 +391,7 @@ impl FrotendMessage {
                     });
                 }
                 b'P' => {
+                    buf.advance(1);
                     let name = read_cstr(&mut buf)?;
                     return Ok(FrotendMessage::Describe {
                         is_prepared_statement: false,
