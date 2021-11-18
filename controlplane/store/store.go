@@ -2,6 +2,7 @@ package store
 
 import (
 	"inspektor/models"
+	"inspektor/types"
 	"inspektor/utils"
 
 	"go.uber.org/zap"
@@ -50,14 +51,8 @@ func (s *Store) init() error {
 		utils.Logger.Error("error while creating admin account", zap.String("err_msg", err.Error()))
 		return err
 	}
-	// create admin role of the admin user.
-	role := &models.Role{
-		ObjectID: user.ID,
-		Name:     "admin",
-	}
-	if err := s.db.Create(role).Error; err != nil {
-		utils.Logger.Error("error while creating role for user", zap.String("err_msg", err.Error()))
-		return err
+	if err := s.WriteRoleForObjectID(user.ID, "admin"); err != nil && err != types.ErrRoleAlreadyExist {
+		utils.Logger.Error("error while creating role for the default admin user", zap.String("err_msg", err.Error()))
 	}
 	return nil
 }
@@ -68,4 +63,22 @@ func (s *Store) GetUserByName(name string) (*models.User, error) {
 	return user, err
 }
 
-func (s *Store) WriteRoleForObjectID(id int, role string) {}
+func (s *Store) WriteRoleForObjectID(id uint, name string) error {
+	// if the role already exist for the object then we should throw error.
+	// TODO: simple way is that we can put primary key constraint on two columns.
+
+	// check role exist for the the object id.
+	var count int64
+	if err := s.db.Model(&models.Role{}).Where("object_id = ?", id).Count(&count).Error; err != nil {
+		utils.Logger.Error("error while checking whether role exist for the given object id", zap.Uint("object_id", id))
+		return err
+	}
+	if count > 0 {
+		return types.ErrRoleAlreadyExist
+	}
+	role := &models.Role{
+		ObjectID: id,
+		Name:     name,
+	}
+	return s.db.Create(role).Error
+}
