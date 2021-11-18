@@ -8,6 +8,7 @@ type Config struct {
 	PostgresSSL  bool   `mapstructure:"postgres_ssl"`
 	DatabaseName string `mapstructure:"database_name"`
 	ListenPort   string `mapstructure:"listen_port"`
+	JwtKey       string `mapstructure:"jwt_key"`
 }
 
 func (c *Config) Validate() error {
@@ -22,6 +23,9 @@ func (c *Config) Validate() error {
 	}
 	if c.ListenPort == "" {
 		c.ListenPort = ":3123"
+	}
+	if c.JwtKey == "" {
+		return errors.New("jwt key is a required config")
 	}
 	return nil
 }
