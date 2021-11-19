@@ -1,12 +1,16 @@
 package cmd
 
 import (
-	"fmt"
+	"log"
+	"net/http"
 	"os"
 
 	"inspektor/config"
+	"inspektor/handlers"
+	"inspektor/store"
 	"inspektor/utils"
 
+	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -36,7 +40,23 @@ var rootCmd = &cobra.Command{
 		if err := config.Validate(); err != nil {
 			utils.Logger.Fatal("error while validating config file", zap.String("err_msg", err.Error()))
 		}
-		fmt.Println("to")
+		db, err := utils.GetDB(config)
+		if err != nil {
+			utils.Logger.Fatal("error while connecting with postgres database", zap.String("err_msg", err.Error()))
+		}
+		store, err := store.NewStore(db)
+		if err != nil {
+			utils.Logger.Fatal("error while creating store interface", zap.String("err_msg", err.Error()))
+		}
+
+		h := handlers.Handlers{
+			Store: store,
+			Cfg:   config,
+		}
+		router := mux.NewRouter()
+		h.Init(router)
+		utils.Logger.Info("starting control plane", zap.String("listen_port", config.ListenPort))
+		log.Fatal(http.ListenAndServe(config.ListenPort, router))
 	},
 }
 

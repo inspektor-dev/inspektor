@@ -82,3 +82,16 @@ func (s *Store) WriteRoleForObjectID(id uint, name string) error {
 	}
 	return s.db.Create(role).Error
 }
+
+func (s *Store) GetRolesForObjectID(id uint) ([]string, error) {
+	roles := []*models.Role{}
+	if err := s.db.Model(&models.Role{}).Where("object_id = ?", id).First(&roles).Error; err != nil {
+		utils.Logger.Error("error while retriving roles for the object", zap.Uint("object_id", id))
+		return []string{}, err
+	}
+	out := make([]string, len(roles))
+	for _, role := range roles {
+		out = append(out, role.Name)
+	}
+	return out, nil
+}
