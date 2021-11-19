@@ -7,6 +7,7 @@ import (
 
 	"inspektor/config"
 	"inspektor/handlers"
+	"inspektor/models"
 	"inspektor/store"
 	"inspektor/utils"
 
@@ -44,6 +45,7 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			utils.Logger.Fatal("error while connecting with postgres database", zap.String("err_msg", err.Error()))
 		}
+		models.Migrate(db)
 		store, err := store.NewStore(db)
 		if err != nil {
 			utils.Logger.Fatal("error while creating store interface", zap.String("err_msg", err.Error()))

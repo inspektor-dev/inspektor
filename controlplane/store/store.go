@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"inspektor/models"
 	"inspektor/types"
 	"inspektor/utils"
@@ -94,4 +95,18 @@ func (s *Store) GetRolesForObjectID(id uint) ([]string, error) {
 		out = append(out, role.Name)
 	}
 	return out, nil
+}
+
+func (s *Store) CreateDataSource(datasource *models.DataSource) error {
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		// check any data source exist with that name.
+		var count int64
+		if err := tx.Model(&models.DataSource{}).Where("name = ?", datasource.Name).Count(&count).Error; err != nil {
+			return err
+		}
+		if count != 0 {
+			return errors.New("already data source exist with the given name")
+		}
+		return tx.Create(datasource).Error
+	})
 }

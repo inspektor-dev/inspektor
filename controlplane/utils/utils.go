@@ -95,3 +95,13 @@ func GetDB(cfg *config.Config) (*gorm.DB, error) {
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 }
+
+// IndexOf returns the index of search string in the given input array.
+func IndexOf(input []string, x string) int {
+	for i, y := range input {
+		if y == x {
+			return i
+		}
+	}
+	return -1
+}

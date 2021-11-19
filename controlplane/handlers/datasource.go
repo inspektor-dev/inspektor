@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"encoding/json"
+	"inspektor/models"
 	"inspektor/types"
 	"inspektor/utils"
 	"net/http"
@@ -33,5 +35,34 @@ func (h *Handlers) AuthMiddleWare(next func(ctx *types.Ctx)) http.HandlerFunc {
 			R:     r,
 			Claim: claim,
 		})
+	}
+}
+
+type InspectorHandler func(ctx *types.Ctx)
+
+func (h *Handlers) CreateDataSource() InspectorHandler {
+	return func(ctx *types.Ctx) {
+		if utils.IndexOf(ctx.Claim.Roles, "admin") == -1 {
+			utils.WriteErrorMsgWithErrCode("only admin can create data source", types.ErrInvalidAccess, http.StatusUnauthorized, ctx.Rw)
+			return
+		}
+		req := &types.CreateDataSourceRequest{}
+		if err := json.NewDecoder(ctx.R.Body).Decode(req); err != nil {
+			utils.WriteErrorMsg("invalid json", http.StatusBadRequest, ctx.Rw)
+			return
+		}
+		if err := req.Validate(); err != nil {
+			utils.WriteErrorMsg(err.Error(), http.StatusBadRequest, ctx.Rw)
+			return
+		}
+		err := h.Store.CreateDataSource(&models.DataSource{
+			Name: req.Name,
+			Type: req.Type,
+		})
+		if err != nil {
+			utils.WriteErrorMsg(err.Error(), http.StatusBadRequest, ctx.Rw)
+			return
+		}
+		utils.WriteSuccesMsg("data soruce created", http.StatusOK, ctx.Rw)
 	}
 }
