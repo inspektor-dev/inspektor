@@ -58,7 +58,7 @@ func (h *Handlers) CreateDataSource() InspectorHandler {
 		err := h.Store.CreateDataSource(&models.DataSource{
 			Name: req.Name,
 			Type: req.Type,
-		})
+		}, req.Roles)
 		if err != nil {
 			utils.WriteErrorMsg(err.Error(), http.StatusBadRequest, ctx.Rw)
 			return

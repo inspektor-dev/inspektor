@@ -97,7 +97,7 @@ func (s *Store) GetRolesForObjectID(id uint) ([]string, error) {
 	return out, nil
 }
 
-func (s *Store) CreateDataSource(datasource *models.DataSource) error {
+func (s *Store) CreateDataSource(datasource *models.DataSource, roles []string) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		// check any data source exist with that name.
 		var count int64
@@ -107,6 +107,28 @@ func (s *Store) CreateDataSource(datasource *models.DataSource) error {
 		if count != 0 {
 			return errors.New("already data source exist with the given name")
 		}
-		return tx.Create(datasource).Error
+		if err := tx.Create(datasource).Error; err != nil {
+			return err
+		}
+		// by default we add admin role to the data source.
+		internalRole := []*models.Role{}
+		internalRole = append(internalRole, &models.Role{
+			ObjectID: datasource.ID,
+			Name:     "admin",
+		})
+		dupmap := map[string]struct{}{}
+		dupmap["admin"] = struct{}{}
+		for _, role := range roles {
+			_, ok := dupmap[role]
+			if ok {
+				continue
+			}
+			dupmap[role] = struct{}{}
+			internalRole = append(internalRole, &models.Role{
+				ObjectID: datasource.ID,
+				Name:     role,
+			})
+		}
+		return tx.Model(&models.Role{}).Create(&internalRole).Error
 	})
 }

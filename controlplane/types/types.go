@@ -30,8 +30,9 @@ type Ctx struct {
 }
 
 type CreateDataSourceRequest struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
+	Name  string   `json:"name"`
+	Type  string   `json:"type"`
+	Roles []string `json:"roles"`
 }
 
 var ValidDataSources = []string{"postgres"}
