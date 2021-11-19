@@ -52,7 +52,7 @@ func (s *Store) init() error {
 		utils.Logger.Error("error while creating admin account", zap.String("err_msg", err.Error()))
 		return err
 	}
-	if err := s.WriteRoleForObjectID(user.ID, "admin"); err != nil && err != types.ErrRoleAlreadyExist {
+	if err := s.WriteRoleForUserObjectID(user.ID, "admin"); err != nil && err != types.ErrRoleAlreadyExist {
 		utils.Logger.Error("error while creating role for the default admin user", zap.String("err_msg", err.Error()))
 	}
 	return nil
@@ -64,7 +64,7 @@ func (s *Store) GetUserByName(name string) (*models.User, error) {
 	return user, err
 }
 
-func (s *Store) WriteRoleForObjectID(id uint, name string) error {
+func (s *Store) WriteRoleForUserObjectID(id uint, name string) error {
 	// if the role already exist for the object then we should throw error.
 	// TODO: simple way is that we can put primary key constraint on two columns.
 
@@ -80,6 +80,7 @@ func (s *Store) WriteRoleForObjectID(id uint, name string) error {
 	role := &models.Role{
 		ObjectID: id,
 		Name:     name,
+		Type:     models.UserType,
 	}
 	return s.db.Create(role).Error
 }
@@ -95,6 +96,28 @@ func (s *Store) GetRolesForObjectID(id uint) ([]string, error) {
 		out = append(out, role.Name)
 	}
 	return out, nil
+}
+
+func (s *Store) GetDataSources(ids ...uint) ([]*models.DataSource, error) {
+	dataSources := []*models.DataSource{}
+	if err := s.db.Model(&models.DataSource{}).Where("id in (?)", ids).Find(&dataSources).Error; err != nil {
+		utils.Logger.Error("error while fetching data sources", zap.String("err_msg", err.Error()))
+		return dataSources, err
+	}
+	return dataSources, nil
+}
+
+func (s *Store) GetObjectIDsForRoles(objectType string, roles []string) ([]uint, error) {
+	filteredRoles := []*models.Role{}
+	if err := s.db.Model(&models.Role{}).Where("type = ? AND name IN (?)", objectType, roles).Find(&filteredRoles).Error; err != nil {
+		utils.Logger.Error("error while retriving roles", zap.String("type", objectType), zap.Strings("roles", roles))
+		return []uint{}, err
+	}
+	ids := []uint{}
+	for _, role := range filteredRoles {
+		ids = append(ids, role.ObjectID)
+	}
+	return ids, nil
 }
 
 func (s *Store) CreateDataSource(datasource *models.DataSource, roles []string) error {
@@ -115,6 +138,7 @@ func (s *Store) CreateDataSource(datasource *models.DataSource, roles []string) 
 		internalRole = append(internalRole, &models.Role{
 			ObjectID: datasource.ID,
 			Name:     "admin",
+			Type:     models.DataSourceType,
 		})
 		dupmap := map[string]struct{}{}
 		dupmap["admin"] = struct{}{}
@@ -127,6 +151,7 @@ func (s *Store) CreateDataSource(datasource *models.DataSource, roles []string) 
 			internalRole = append(internalRole, &models.Role{
 				ObjectID: datasource.ID,
 				Name:     role,
+				Type:     models.DataSourceType,
 			})
 		}
 		return tx.Model(&models.Role{}).Create(&internalRole).Error

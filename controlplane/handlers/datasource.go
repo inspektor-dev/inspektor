@@ -66,3 +66,21 @@ func (h *Handlers) CreateDataSource() InspectorHandler {
 		utils.WriteSuccesMsg("data soruce created", http.StatusOK, ctx.Rw)
 	}
 }
+
+func (h *Handlers) GetDataSources() InspectorHandler {
+	return func(ctx *types.Ctx) {
+		objectIDS, err := h.Store.GetObjectIDsForRoles(models.DataSourceType, ctx.Claim.Roles)
+		if err != nil {
+			utils.Logger.Error("error while retriving datasource object ids", zap.String("err_msg", err.Error()))
+			utils.WriteErrorMsg("server down", http.StatusInternalServerError, ctx.Rw)
+			return
+		}
+		datasources, err := h.Store.GetDataSources(objectIDS...)
+		if err != nil {
+			utils.Logger.Error("error while retriving data sources", zap.String("err_msg", err.Error()), zap.Uints("ids", objectIDS))
+			utils.WriteErrorMsg("server down", http.StatusInternalServerError, ctx.Rw)
+			return
+		}
+		utils.WriteSuccesMsgWithData("ok", http.StatusOK, datasources, ctx.Rw)
+	}
+}

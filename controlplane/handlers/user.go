@@ -72,4 +72,5 @@ func (h *Handlers) Login() http.HandlerFunc {
 func (h *Handlers) Init(router *mux.Router) {
 	router.HandleFunc("/login", h.Login()).Methods("POST")
 	router.HandleFunc("/datasource", h.AuthMiddleWare(h.CreateDataSource())).Methods("POST")
+	router.HandleFunc("/datasource", h.AuthMiddleWare(h.GetDataSources())).Methods("POST")
 }

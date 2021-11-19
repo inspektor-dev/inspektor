@@ -1,9 +1,17 @@
 package models
 
-import "gorm.io/gorm"
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
 
 type DataSource struct {
-	gorm.Model
-	Name string `gorm:"unique"`
-	Type string
+	ID              uint           `gorm:"primarykey" json:"-"`
+	CreatedAt       time.Time      `json:"-"`
+	UpdatedAt       time.Time      `json:"-"`
+	DeletedAt       gorm.DeletedAt `gorm:"index"`
+	Name            string         `gorm:"unique"`
+	Type            string         `json:"-"`
+	SideCarHostName string         `json:"sidecardHostName"`
 }

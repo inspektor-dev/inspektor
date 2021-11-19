@@ -30,9 +30,10 @@ type Ctx struct {
 }
 
 type CreateDataSourceRequest struct {
-	Name  string   `json:"name"`
-	Type  string   `json:"type"`
-	Roles []string `json:"roles"`
+	Name            string   `json:"name"`
+	Type            string   `json:"type"`
+	Roles           []string `json:"roles"`
+	SideCarHostName string   `json:"sideCarHostName"`
 }
 
 var ValidDataSources = []string{"postgres"}
@@ -43,6 +44,9 @@ func (c *CreateDataSourceRequest) Validate() error {
 	}
 	if c.Name == "" {
 		return errors.New("data souce name can't ne empty")
+	}
+	if c.SideCarHostName == "" {
+		return errors.New("side car hostname can't be nil")
 	}
 	return nil
 }
