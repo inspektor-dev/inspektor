@@ -11,6 +11,7 @@ type Config struct {
 	PostgresPassword string `mapstructure:"postgres_password"`
 	ListenPort       string `mapstructure:"listen_port"`
 	JwtKey           string `mapstructure:"jwt_key"`
+	GrpcListenPort   string `mapstructure:"grpc_listen_port"`
 }
 
 func (c *Config) Validate() error {
@@ -34,6 +35,9 @@ func (c *Config) Validate() error {
 	}
 	if c.JwtKey == "" {
 		return errors.New("jwt key is a required config")
+	}
+	if c.GrpcListenPort == "" {
+		c.GrpcListenPort = ":5003"
 	}
 	return nil
 }

@@ -8,6 +8,7 @@ import (
 	"inspektor/config"
 	"inspektor/handlers"
 	"inspektor/models"
+	"inspektor/rpcserver"
 	"inspektor/store"
 	"inspektor/utils"
 
@@ -50,7 +51,12 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			utils.Logger.Fatal("error while creating store interface", zap.String("err_msg", err.Error()))
 		}
-
+		server := rpcserver.NewServer(store)
+		go func(server *rpcserver.RpcServer) {
+			if err := server.Start(config); err != nil {
+				log.Fatal(err)
+			}
+		}(server)
 		h := handlers.Handlers{
 			Store: store,
 			Cfg:   config,

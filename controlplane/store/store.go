@@ -26,7 +26,7 @@ func NewStore(db *gorm.DB) (*Store, error) {
 func (s *Store) init() error {
 	// check whether admin account exist.
 	var count int64
-	err := s.db.Model(&models.User{}).Where("user_name = ?", "admin").Count(&count).Error
+	err := s.db.Model(&models.User{}).Where("name = ?", "admin").Count(&count).Error
 	if err != nil {
 		utils.Logger.Error("error while retirving admin account", zap.String("err_msg", err.Error()))
 		return err
@@ -105,6 +105,15 @@ func (s *Store) GetDataSources(ids ...uint) ([]*models.DataSource, error) {
 		return dataSources, err
 	}
 	return dataSources, nil
+}
+
+func (s *Store) GetDatasourceByWhere(query interface{}, args ...interface{}) (*models.DataSource, error) {
+	dataSource := &models.DataSource{}
+	if err := s.db.Model(&models.DataSource{}).Where(query, args...).First(dataSource).Error; err != nil {
+		utils.Logger.Error("error while fetching data source", zap.String("err_msg", err.Error()))
+		return nil, err
+	}
+	return dataSource, nil
 }
 
 func (s *Store) GetObjectIDsForRoles(objectType string, roles []string) ([]uint, error) {
