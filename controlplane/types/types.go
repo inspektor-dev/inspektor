@@ -33,7 +33,7 @@ type CreateDataSourceRequest struct {
 	Name            string   `json:"name"`
 	Type            string   `json:"type"`
 	Roles           []string `json:"roles"`
-	SideCarHostName string   `json:"sideCarHostName"`
+	SideCarHostName string   `json:"sidecarHostname"`
 }
 
 var ValidDataSources = []string{"postgres"}

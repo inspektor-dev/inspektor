@@ -81,5 +81,6 @@ func (r *RpcServer) Start(cfg *config.Config) error {
 		return err
 	}
 	server := grpc.NewServer(grpc.UnaryInterceptor(r.getAuthInterceptor()))
+	apiproto.RegisterInspektorServer(server, r)
 	return server.Serve(lis)
 }

@@ -56,8 +56,9 @@ func (h *Handlers) CreateDataSource() InspectorHandler {
 			return
 		}
 		err := h.Store.CreateDataSource(&models.DataSource{
-			Name: req.Name,
-			Type: req.Type,
+			Name:         req.Name,
+			Type:         req.Type,
+			SideCarToken: utils.GenerateSecureToken(utils.TokenSize),
 		}, req.Roles)
 		if err != nil {
 			utils.WriteErrorMsg(err.Error(), http.StatusBadRequest, ctx.Rw)

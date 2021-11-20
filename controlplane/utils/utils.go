@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"inspektor/config"
@@ -11,6 +13,10 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+)
+
+const (
+	TokenSize = 30
 )
 
 var Logger *zap.Logger
@@ -40,6 +46,10 @@ type Response struct {
 }
 
 func WriteErrorMsg(msg string, status int, rw http.ResponseWriter) {
+	rw.Header().Set("Content-Type", "application/json")
+	rw.Header().Set("X-Content-Type-Options", "nosniff")
+	rw.Header().Set("Cache-Control", "no-store")
+	rw.WriteHeader(status)
 	res := &Response{
 		Msg:     msg,
 		Success: false,
@@ -48,6 +58,10 @@ func WriteErrorMsg(msg string, status int, rw http.ResponseWriter) {
 }
 
 func WriteErrorMsgWithErrCode(msg string, code, status int, rw http.ResponseWriter) {
+	rw.Header().Set("Content-Type", "application/json")
+	rw.Header().Set("X-Content-Type-Options", "nosniff")
+	rw.Header().Set("Cache-Control", "no-store")
+	rw.WriteHeader(status)
 	res := &Response{
 		Msg:       msg,
 		Success:   false,
@@ -57,6 +71,10 @@ func WriteErrorMsgWithErrCode(msg string, code, status int, rw http.ResponseWrit
 }
 
 func WriteSuccesMsg(msg string, status int, rw http.ResponseWriter) {
+	rw.Header().Set("Content-Type", "application/json")
+	rw.Header().Set("X-Content-Type-Options", "nosniff")
+	rw.Header().Set("Cache-Control", "no-store")
+	rw.WriteHeader(status)
 	res := &Response{
 		Msg:     msg,
 		Success: true,
@@ -65,6 +83,10 @@ func WriteSuccesMsg(msg string, status int, rw http.ResponseWriter) {
 }
 
 func WriteSuccesMsgWithData(msg string, status int, data interface{}, rw http.ResponseWriter) {
+	rw.Header().Set("Content-Type", "application/json")
+	rw.Header().Set("X-Content-Type-Options", "nosniff")
+	rw.Header().Set("Cache-Control", "no-store")
+	rw.WriteHeader(status)
 	res := &Response{
 		Msg:     msg,
 		Success: true,
@@ -104,4 +126,12 @@ func IndexOf(input []string, x string) int {
 		}
 	}
 	return -1
+}
+
+func GenerateSecureToken(length int) string {
+	b := make([]byte, length)
+	if _, err := rand.Read(b); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(b)
 }
