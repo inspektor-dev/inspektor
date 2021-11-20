@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package api;
+option go_package = "controlplane/apiproto";
+
+message AuthRequest {
+    string password = 1;
+}
+
+message Empty {
+}
+
+message InspektorPolicy {
+    string wasm_byte_code = 1;
+}
+
+service Inspektor {
+    rpc Auth(AuthRequest) returns (Empty) {}
+    rpc Policy(Empty) returns (stream InspektorPolicy){}
+}

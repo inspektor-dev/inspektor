@@ -13,5 +13,6 @@ type DataSource struct {
 	DeletedAt       gorm.DeletedAt `gorm:"index"`
 	Name            string         `gorm:"unique"`
 	Type            string         `json:"-"`
-	SideCarHostName string         `json:"sidecardHostName"`
+	SideCarHostName string         `json:"sidecarHostName"`
+	SideCarToken    string         `json:"sidecarToken,omitempty"`
 }
