@@ -1,4 +1,4 @@
-mod codec;
+mod utils;
 mod message;
 mod errors;
 mod conn;

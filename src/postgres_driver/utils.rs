@@ -8,7 +8,6 @@ use std::collections::HashMap;
 use std::io::ErrorKind;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
-use tokio_util::codec::{Decoder, Encoder};
 // Postgres protocol version.
 
 // decode_startup_message decode pg startup message, if ssl request it'll  upgrade the connection to ssl connection and returns the

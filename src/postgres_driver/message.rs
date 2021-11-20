@@ -1,4 +1,4 @@
-use crate::postgres_driver::codec::{
+use crate::postgres_driver::utils::{
     decode_frame_length, read_counted_message, read_cstr, write_counted_message, write_cstr,
     write_message,
 };

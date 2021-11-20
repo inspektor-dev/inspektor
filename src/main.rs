@@ -1,5 +1,6 @@
 mod postgres_driver;
 mod config;
+mod apiproto;
 use clap::{App, Arg};
 use env_logger;
 fn main() {
