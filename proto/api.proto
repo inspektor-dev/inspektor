@@ -10,11 +10,16 @@ message AuthRequest {
 message Empty {
 }
 
+message DataSourceResponse {
+    string data_source_name = 1;
+}
+
 message InspektorPolicy {
-    string wasm_byte_code = 1;
+    bytes wasm_byte_code = 1;
 }
 
 service Inspektor {
     rpc Auth(AuthRequest) returns (Empty) {}
     rpc Policy(Empty) returns (stream InspektorPolicy){}
+    rpc GetDataSource(Empty) returns (DataSourceResponse) {}
 }

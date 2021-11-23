@@ -17,8 +17,10 @@ tokio-openssl = "0.6.3"
 openssl = "0.10.38"
 clap = "2.33.3"
 md-5 = "0.9"
-prost = "0.9"
 grpcio = { version = "0.6", features = ["prost-codec", "openssl"] }
+protobuf = { version = "2", features = ["with-bytes"] }
+futures = "0.3"
+burrego = {git = "https://github.com/kubewarden/policy-evaluator"}
 
 [build-dependencies]
 protoc-grpcio = "3.0.0"

@@ -1,2 +1,2 @@
-mod api_grpc;
-mod api;
+pub mod api_grpc;
+pub mod api;

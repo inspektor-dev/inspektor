@@ -1,1 +1,1 @@
-protoc --go_out=../ api.proto
+protoc --go_out=../ api.proto --go-grpc_out=../
