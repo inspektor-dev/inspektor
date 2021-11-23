@@ -18,7 +18,7 @@ func Build(path string) ([]byte, error) {
 	compiler := compile.New().
 		WithCapabilities(ast.CapabilitiesForThisVersion()).
 		WithTarget(compile.TargetWasm).
-		WithEntrypoints("inspektor.resource_acl").
+		WithEntrypoints("inspektor/resource_acl/allow").
 		WithOutput(out).
 		WithPaths("/home/poonai/inspektor/controlplane/policy/testpolicy")
 	err := compiler.Build(context.TODO())

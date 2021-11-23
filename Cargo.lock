@@ -864,6 +864,7 @@ dependencies = [
  "openssl",
  "protobuf",
  "protoc-grpcio",
+ "serde_json",
  "thiserror",
  "tokio",
  "tokio-openssl",
