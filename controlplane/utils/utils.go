@@ -128,6 +128,15 @@ func IndexOf(input []string, x string) int {
 	return -1
 }
 
+func CommonItemExist(a []string, b []string) bool {
+	for _, val := range a {
+		if IndexOf(b, val) >= 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func GenerateSecureToken(length int) string {
 	b := make([]byte, length)
 	if _, err := rand.Read(b); err != nil {

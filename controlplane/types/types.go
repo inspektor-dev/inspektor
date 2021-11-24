@@ -10,6 +10,7 @@ import (
 
 var (
 	ErrRoleAlreadyExist = errors.New("role already exist")
+	ErrSessionExist     = errors.New("only one session can exist")
 )
 
 const (
@@ -49,4 +50,8 @@ func (c *CreateDataSourceRequest) Validate() error {
 		return errors.New("side car hostname can't be nil")
 	}
 	return nil
+}
+
+type CreateSessionRequest struct {
+	DatasourceID uint `json:"datasourceId"`
 }

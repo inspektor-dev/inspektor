@@ -70,7 +70,7 @@ func (s *Store) WriteRoleForUserObjectID(id uint, name string) error {
 
 	// check role exist for the the object id.
 	var count int64
-	if err := s.db.Model(&models.Role{}).Where("object_id = ?", id).Count(&count).Error; err != nil {
+	if err := s.db.Model(&models.Role{}).Where("object_id = ? and types = ?", id, models.UserType).Count(&count).Error; err != nil {
 		utils.Logger.Error("error while checking whether role exist for the given object id", zap.Uint("object_id", id))
 		return err
 	}
@@ -85,9 +85,9 @@ func (s *Store) WriteRoleForUserObjectID(id uint, name string) error {
 	return s.db.Create(role).Error
 }
 
-func (s *Store) GetRolesForObjectID(id uint) ([]string, error) {
+func (s *Store) GetRolesForObjectID(id uint, objectType string) ([]string, error) {
 	roles := []*models.Role{}
-	if err := s.db.Model(&models.Role{}).Where("object_id = ?", id).First(&roles).Error; err != nil {
+	if err := s.db.Model(&models.Role{}).Where("object_id = ? AND type = ?", id, objectType).First(&roles).Error; err != nil {
 		utils.Logger.Error("error while retriving roles for the object", zap.Uint("object_id", id))
 		return []string{}, err
 	}
@@ -164,5 +164,39 @@ func (s *Store) CreateDataSource(datasource *models.DataSource, roles []string) 
 			})
 		}
 		return tx.Model(&models.Role{}).Create(&internalRole).Error
+	})
+}
+
+func (s *Store) GetSessionForUser(userID uint) ([]*models.Session, error) {
+	sessions := []*models.Session{}
+	if err := s.db.Model(&models.Session{}).Where("user_id = ?", userID).Find(&sessions).Error; err != nil {
+		utils.Logger.Error("error while retriving sessions", zap.String("err_msg", err.Error()))
+		return nil, err
+	}
+	return sessions, nil
+}
+
+func (s *Store) CreateSessionForUser(userID uint, datasourceID uint) error {
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		var count int64
+		err := tx.Model(&models.Session{}).Where("user_id = ? AND object_id = ?", userID, datasourceID).Count(&count).Error
+		if err != nil {
+			utils.Logger.Error("error while retriving session count", zap.String("err_msg", err.Error()))
+			return err
+		}
+		if count != 0 {
+			return types.ErrSessionExist
+		}
+		// check whether session already exist for this user.
+		session := &models.Session{
+			ObjectID: datasourceID,
+			UserID:   userID,
+			SessionMeta: &models.SessionMeta{
+				Type:             "postgres",
+				PostgresPassword: utils.GenerateSecureToken(7),
+			},
+		}
+		session.MarshalMeta()
+		return tx.Model(&models.Session{}).Create(session).Error
 	})
 }
