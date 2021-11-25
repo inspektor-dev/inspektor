@@ -32,7 +32,7 @@ pub struct PostgresDriver {
 
 impl PostgresDriver {
     pub fn start(&self) {
-        let mut acceptor = self.get_ssl_acceptor();
+        let acceptor = self.get_ssl_acceptor();
         // run the socket message.
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async move {
@@ -45,7 +45,7 @@ impl PostgresDriver {
                 let (socket, _) = listener.accept().await.unwrap();
                 let acceptor = acceptor.clone();
                 let mut driver = self.clone();
-                let mut socket = PostgresConn::Unsecured(socket);
+                let socket = PostgresConn::Unsecured(socket);
                 tokio::spawn(async move {
                     driver.handle_client_conn(socket , acceptor).await;
                     ()
@@ -92,7 +92,7 @@ impl PostgresDriver {
             };
 
             match msg {
-                FrotendMessage::Startup { params, .. } => {
+                FrontendMessage::Startup { params, .. } => {
                     // let's verify the user name and
                     let groups = match self.verfiy_client_params(&params, &mut client_conn).await {
                         Ok(groups) => groups,
@@ -106,7 +106,7 @@ impl PostgresDriver {
                      handler.serve().await;
                      return
                 }
-                FrotendMessage::SslRequest =>{
+                FrontendMessage::SslRequest =>{
                     if let PostgresConn::Unsecured(mut inner) = client_conn{
                         // tell the client that you are upgrading for secure connection
                         if let Err(e) = inner.write_all(&[ACCEPT_SSL_ENCRYPTION]).await{
@@ -151,7 +151,7 @@ impl PostgresDriver {
         let msg = decode_password_message(client_conn).await?;
 
         let password = match msg {
-            FrotendMessage::PasswordMessage { password } => password,
+            FrontendMessage::PasswordMessage { password } => password,
             _ => {
                 unreachable!("expectected password message while decoding for password message");
             }

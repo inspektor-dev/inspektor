@@ -119,7 +119,7 @@ where
 }
 
 #[derive(Debug)]
-pub enum FrotendMessage {
+pub enum FrontendMessage {
     PasswordMessage {
         password: String,
     },
@@ -171,11 +171,11 @@ pub enum FrotendMessage {
     }
 }
 
-impl FrotendMessage {
+impl FrontendMessage {
     pub fn encode(&self) -> BytesMut {
         let mut buf = BytesMut::new();
         match self {
-            FrotendMessage::PasswordMessage { password } => {
+            FrontendMessage::PasswordMessage { password } => {
                 buf.put_u8(b'p');
                 write_message(&mut buf, |buf| {
                     write_cstr(buf, password.as_bytes())?;
@@ -183,11 +183,11 @@ impl FrotendMessage {
                 })
                 .unwrap();
             }
-            FrotendMessage::SslRequest => {
+            FrontendMessage::SslRequest => {
                 buf.put_u32(8);
                 buf.put_i32(VERSION_SSL);
             }
-            FrotendMessage::Startup { params, version } => {
+            FrontendMessage::Startup { params, version } => {
                 write_message(&mut buf, |buf| {
                     buf.put_i32(*version);
                     for (key, val) in params {
@@ -199,7 +199,7 @@ impl FrotendMessage {
                 })
                 .unwrap();
             }
-            FrotendMessage::Describe {
+            FrontendMessage::Describe {
                 is_prepared_statement,
                 name,
             } => {
@@ -219,23 +219,23 @@ impl FrotendMessage {
                 })
                 .unwrap();
             }
-            FrotendMessage::Flush => {
+            FrontendMessage::Flush => {
                 buf.put_u8(b'H');
                 buf.put_i32(4);
             }
-            FrotendMessage::Query { query_string } => {
+            FrontendMessage::Query { query_string } => {
                 buf.put_u8(b'Q');
                 write_message(&mut buf, |buf| write_cstr(buf, query_string.as_bytes())).unwrap();
             }
-            FrotendMessage::Sync => {
+            FrontendMessage::Sync => {
                 buf.put_u8(b'S');
                 buf.put_i32(4);
             }
-            FrotendMessage::Terminate => {
+            FrontendMessage::Terminate => {
                 buf.put_u8(b'X');
                 buf.put_i32(4);
             }
-            FrotendMessage::Bind {
+            FrontendMessage::Bind {
                 destination_portal_name,
                 prepared_statement_name,
                 parameter_format_codes,
@@ -284,7 +284,7 @@ impl FrotendMessage {
                 })
                 .unwrap();
             }
-            FrotendMessage::FunctionCall { object_id, format_codes, function_arguments, result_format_code } => {
+            FrontendMessage::FunctionCall { object_id, format_codes, function_arguments, result_format_code } => {
                 write_message(&mut buf, |buf|{
                     buf.put_i32(*object_id);
                     write_counted_message(format_codes, |item, buf|{
@@ -309,7 +309,7 @@ impl FrotendMessage {
                     Ok(())
                 }).unwrap();
             }
-            FrotendMessage::CopyData(data) => {
+            FrontendMessage::CopyData(data) => {
                 buf.put_u8(b'd');
                 write_message(&mut buf, |buf| {
                     buf.extend_from_slice(data);
@@ -317,15 +317,15 @@ impl FrotendMessage {
                 })
                 .unwrap();
             }
-            FrotendMessage::CopyDone => {
+            FrontendMessage::CopyDone => {
                 buf.put_u8(b'c');
                 write_message(&mut buf, |_| Ok(())).unwrap();
             }
-            FrotendMessage::CopyFail { err_msg } => {
+            FrontendMessage::CopyFail { err_msg } => {
                 buf.put_u8(b'f');
                 write_message(&mut buf, |buf| Ok(write_cstr(buf, err_msg.as_bytes())?)).unwrap();
             }
-            FrotendMessage::Close { is_portal, name } => {
+            FrontendMessage::Close { is_portal, name } => {
                 buf.put_u8(b'C');
                 write_message(&mut buf, |buf| {
                     if *is_portal {
@@ -337,7 +337,7 @@ impl FrotendMessage {
                 })
                 .unwrap();
             }
-            FrotendMessage::Execute {
+            FrontendMessage::Execute {
                 name,
                 max_no_of_rows,
             } => {
@@ -349,7 +349,7 @@ impl FrotendMessage {
                 })
                 .unwrap();
             }
-            FrotendMessage::Parse { name, query, object_ids } =>{
+            FrontendMessage::Parse { name, query, object_ids } =>{
                 buf.put_u8(b'P');
                 write_message(&mut buf, |buf| {
                     write_cstr(buf, name.as_bytes())?;
@@ -367,7 +367,7 @@ impl FrotendMessage {
         buf
     }
 
-    pub async fn decode<T>(mut conn: T) -> Result<FrotendMessage, anyhow::Error>
+    pub async fn decode<T>(mut conn: T) -> Result<FrontendMessage, anyhow::Error>
     where
         T: AsyncRead + Unpin + AsyncReadExt + AsyncWrite + AsyncWriteExt,
     {
@@ -385,7 +385,7 @@ impl FrotendMessage {
                 b'S' => {
                     buf.advance(1);
                     let name = read_cstr(&mut buf)?;
-                    return Ok(FrotendMessage::Describe {
+                    return Ok(FrontendMessage::Describe {
                         is_prepared_statement: true,
                         name: name,
                     });
@@ -393,7 +393,7 @@ impl FrotendMessage {
                 b'P' => {
                     buf.advance(1);
                     let name = read_cstr(&mut buf)?;
-                    return Ok(FrotendMessage::Describe {
+                    return Ok(FrontendMessage::Describe {
                         is_prepared_statement: false,
                         name: name,
                     });
@@ -402,14 +402,14 @@ impl FrotendMessage {
                     return Err(anyhow!("invalid frontend message"));
                 }
             },
-            b'H' => return Ok(FrotendMessage::Flush),
+            b'H' => return Ok(FrontendMessage::Flush),
             b'Q' => {
                 let query_string = read_cstr(&mut buf)?;
-                return Ok(FrotendMessage::Query { query_string });
+                return Ok(FrontendMessage::Query { query_string });
             }
-            b'S' => Ok(FrotendMessage::Sync),
+            b'S' => Ok(FrontendMessage::Sync),
             b'X' => {
-                return Ok(FrotendMessage::Terminate);
+                return Ok(FrontendMessage::Terminate);
             }
             b'B' => {
                 let destination_portal_name = read_cstr(&mut buf)?;
@@ -437,7 +437,7 @@ impl FrotendMessage {
                     buf.advance(2);
                     Ok(result)
                 })?;
-                return Ok(FrotendMessage::Bind {
+                return Ok(FrontendMessage::Bind {
                     destination_portal_name,
                     prepared_statement_name,
                     parameter_format_codes,
@@ -452,20 +452,20 @@ impl FrotendMessage {
                 }
                 buf.advance(1);
                 let name = read_cstr(&mut buf)?;
-                Ok(FrotendMessage::Close { is_portal, name })
+                Ok(FrontendMessage::Close { is_portal, name })
             }
-            b'd' => Ok(FrotendMessage::CopyData(buf.to_vec())),
+            b'd' => Ok(FrontendMessage::CopyData(buf.to_vec())),
             b'c' => {
-                return Ok(FrotendMessage::CopyDone);
+                return Ok(FrontendMessage::CopyDone);
             }
             b'f' => {
                 let err_msg = read_cstr(&mut buf)?;
-                Ok(FrotendMessage::CopyFail { err_msg })
+                Ok(FrontendMessage::CopyFail { err_msg })
             }
             b'E' => {
                 let name = read_cstr(&mut buf)?;
                 let max_no_of_rows = NetworkEndian::read_i32(&buf[0..]);
-                return Ok(FrotendMessage::Execute {
+                return Ok(FrontendMessage::Execute {
                     name,
                     max_no_of_rows,
                 });
@@ -492,7 +492,7 @@ impl FrotendMessage {
                     Ok(val)
                 })?;
                 let result_format_code = NetworkEndian::read_i16(&buf);
-                return Ok(FrotendMessage::FunctionCall {
+                return Ok(FrontendMessage::FunctionCall {
                     object_id,
                     format_codes,
                     function_arguments,
@@ -507,7 +507,7 @@ impl FrotendMessage {
                     buf.advance(4);
                     Ok(format_code)
                 })?;
-                return Ok(FrotendMessage::Parse{name, query, object_ids});
+                return Ok(FrontendMessage::Parse{name, query, object_ids});
             }
             _ => {
                 return Err(anyhow!("unrecognized frontend message"));

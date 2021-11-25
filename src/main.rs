@@ -4,8 +4,6 @@ mod config;
 mod postgres_driver;
 use apiproto::api::*;
 use apiproto::api_grpc::*;
-use burrego::opa::host_callbacks::DEFAULT_HOST_CALLBACKS;
-use burrego::opa::wasm::Evaluator;
 use clap::{App, Arg};
 use env_logger;
 use futures;

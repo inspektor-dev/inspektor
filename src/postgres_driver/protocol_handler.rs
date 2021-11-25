@@ -1,6 +1,3 @@
-use std::mem;
-use std::net::{SocketAddr, TcpListener};
-
 use crate::config::PostgresConfig;
 use crate::postgres_driver::conn::PostgresConn;
 use crate::postgres_driver::message::*;
@@ -67,7 +64,7 @@ impl ProtocolHandler {
                         }
                     }
                 }
-                n = FrotendMessage::decode(&mut self.client_conn) => {
+                n = FrontendMessage::decode(&mut self.client_conn) => {
                     match n {
                         Err(e) =>{
                                 println!("failed to read from socket; err = {:?}", e);
@@ -111,7 +108,7 @@ impl ProtocolHandler {
         ]);
         target_conn
             .write_all(
-                &FrotendMessage::Startup {
+                &FrontendMessage::Startup {
                     params: startup_params,
                     version: VERSION_3,
                 }
@@ -143,7 +140,7 @@ impl ProtocolHandler {
                         salt,
                     );
                     target_conn
-                        .write_all(&FrotendMessage::PasswordMessage { password }.encode())
+                        .write_all(&FrontendMessage::PasswordMessage { password }.encode())
                         .await
                         .map_err(|e| {
                             error!("error while sending md5 password message to target");
@@ -154,7 +151,7 @@ impl ProtocolHandler {
                 BackendMessage::AuthenticationCleartextPassword => {
                     target_conn
                         .write_all(
-                            &FrotendMessage::PasswordMessage {
+                            &FrontendMessage::PasswordMessage {
                                 password: config.target_password.as_ref().unwrap().clone(),
                             }
                             .encode(),
@@ -218,7 +215,7 @@ impl ProtocolHandler {
         match conn {
             PostgresConn::Unsecured(mut inner) => {
                 inner
-                    .write_all(&FrotendMessage::SslRequest.encode())
+                    .write_all(&FrontendMessage::SslRequest.encode())
                     .await
                     .map_err(|e| {
                         error!("unable to send ssl upgrade request to target. err: {:?}", e);
