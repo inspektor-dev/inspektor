@@ -4,6 +4,7 @@ go 1.16
 
 require (
 	github.com/golang-jwt/jwt v3.2.2+incompatible
+	github.com/goombaio/namegenerator v0.0.0-20181006234301-989e774b106e // indirect
 	github.com/gorilla/mux v1.8.0
 	github.com/open-policy-agent/opa v0.34.2 // indirect
 	github.com/spf13/cobra v1.2.1

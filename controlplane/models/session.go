@@ -19,6 +19,7 @@ type Session struct {
 type SessionMeta struct {
 	Type             string `json:"type"`
 	PostgresPassword string `json:"postgresPassword"`
+	PostgresUsername string `json:"postgresUsername"`
 }
 
 func (s *Session) UnmarshalMeta() {

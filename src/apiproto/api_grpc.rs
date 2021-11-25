@@ -16,7 +16,7 @@
 #![allow(unused_imports)]
 #![allow(unused_results)]
 
-const METHOD_INSPEKTOR_AUTH: ::grpcio::Method<super::api::AuthRequest, super::api::Empty> = ::grpcio::Method {
+const METHOD_INSPEKTOR_AUTH: ::grpcio::Method<super::api::AuthRequest, super::api::AuthResponse> = ::grpcio::Method {
     ty: ::grpcio::MethodType::Unary,
     name: "/api.Inspektor/Auth",
     req_mar: ::grpcio::Marshaller { ser: ::grpcio::pb_ser, de: ::grpcio::pb_de },
@@ -49,19 +49,19 @@ impl InspektorClient {
         }
     }
 
-    pub fn auth_opt(&self, req: &super::api::AuthRequest, opt: ::grpcio::CallOption) -> ::grpcio::Result<super::api::Empty> {
+    pub fn auth_opt(&self, req: &super::api::AuthRequest, opt: ::grpcio::CallOption) -> ::grpcio::Result<super::api::AuthResponse> {
         self.client.unary_call(&METHOD_INSPEKTOR_AUTH, req, opt)
     }
 
-    pub fn auth(&self, req: &super::api::AuthRequest) -> ::grpcio::Result<super::api::Empty> {
+    pub fn auth(&self, req: &super::api::AuthRequest) -> ::grpcio::Result<super::api::AuthResponse> {
         self.auth_opt(req, ::grpcio::CallOption::default())
     }
 
-    pub fn auth_async_opt(&self, req: &super::api::AuthRequest, opt: ::grpcio::CallOption) -> ::grpcio::Result<::grpcio::ClientUnaryReceiver<super::api::Empty>> {
+    pub fn auth_async_opt(&self, req: &super::api::AuthRequest, opt: ::grpcio::CallOption) -> ::grpcio::Result<::grpcio::ClientUnaryReceiver<super::api::AuthResponse>> {
         self.client.unary_call_async(&METHOD_INSPEKTOR_AUTH, req, opt)
     }
 
-    pub fn auth_async(&self, req: &super::api::AuthRequest) -> ::grpcio::Result<::grpcio::ClientUnaryReceiver<super::api::Empty>> {
+    pub fn auth_async(&self, req: &super::api::AuthRequest) -> ::grpcio::Result<::grpcio::ClientUnaryReceiver<super::api::AuthResponse>> {
         self.auth_async_opt(req, ::grpcio::CallOption::default())
     }
 
@@ -94,7 +94,7 @@ impl InspektorClient {
 }
 
 pub trait Inspektor {
-    fn auth(&mut self, ctx: ::grpcio::RpcContext, req: super::api::AuthRequest, sink: ::grpcio::UnarySink<super::api::Empty>);
+    fn auth(&mut self, ctx: ::grpcio::RpcContext, req: super::api::AuthRequest, sink: ::grpcio::UnarySink<super::api::AuthResponse>);
     fn policy(&mut self, ctx: ::grpcio::RpcContext, req: super::api::Empty, sink: ::grpcio::ServerStreamingSink<super::api::InspektorPolicy>);
     fn get_data_source(&mut self, ctx: ::grpcio::RpcContext, req: super::api::Empty, sink: ::grpcio::UnarySink<super::api::DataSourceResponse>);
 }

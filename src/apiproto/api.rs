@@ -27,6 +27,7 @@
 pub struct AuthRequest {
     // message fields
     pub password: ::std::string::String,
+    pub user_name: ::std::string::String,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -68,6 +69,32 @@ impl AuthRequest {
     pub fn take_password(&mut self) -> ::std::string::String {
         ::std::mem::replace(&mut self.password, ::std::string::String::new())
     }
+
+    // string user_name = 2;
+
+
+    pub fn get_user_name(&self) -> &str {
+        &self.user_name
+    }
+    pub fn clear_user_name(&mut self) {
+        self.user_name.clear();
+    }
+
+    // Param is passed by value, moved
+    pub fn set_user_name(&mut self, v: ::std::string::String) {
+        self.user_name = v;
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_user_name(&mut self) -> &mut ::std::string::String {
+        &mut self.user_name
+    }
+
+    // Take field
+    pub fn take_user_name(&mut self) -> ::std::string::String {
+        ::std::mem::replace(&mut self.user_name, ::std::string::String::new())
+    }
 }
 
 impl ::protobuf::Message for AuthRequest {
@@ -81,6 +108,9 @@ impl ::protobuf::Message for AuthRequest {
             match field_number {
                 1 => {
                     ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.password)?;
+                },
+                2 => {
+                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.user_name)?;
                 },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
@@ -97,6 +127,9 @@ impl ::protobuf::Message for AuthRequest {
         if !self.password.is_empty() {
             my_size += ::protobuf::rt::string_size(1, &self.password);
         }
+        if !self.user_name.is_empty() {
+            my_size += ::protobuf::rt::string_size(2, &self.user_name);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -105,6 +138,9 @@ impl ::protobuf::Message for AuthRequest {
     fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
         if !self.password.is_empty() {
             os.write_string(1, &self.password)?;
+        }
+        if !self.user_name.is_empty() {
+            os.write_string(2, &self.user_name)?;
         }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -149,6 +185,11 @@ impl ::protobuf::Message for AuthRequest {
                 |m: &AuthRequest| { &m.password },
                 |m: &mut AuthRequest| { &mut m.password },
             ));
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
+                "user_name",
+                |m: &AuthRequest| { &m.user_name },
+                |m: &mut AuthRequest| { &mut m.user_name },
+            ));
             ::protobuf::reflect::MessageDescriptor::new_pb_name::<AuthRequest>(
                 "AuthRequest",
                 fields,
@@ -166,6 +207,7 @@ impl ::protobuf::Message for AuthRequest {
 impl ::protobuf::Clear for AuthRequest {
     fn clear(&mut self) {
         self.password.clear();
+        self.user_name.clear();
         self.unknown_fields.clear();
     }
 }
@@ -293,6 +335,164 @@ impl ::std::fmt::Debug for Empty {
 }
 
 impl ::protobuf::reflect::ProtobufValue for Empty {
+    fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
+        ::protobuf::reflect::ReflectValueRef::Message(self)
+    }
+}
+
+#[derive(PartialEq,Clone,Default)]
+pub struct AuthResponse {
+    // message fields
+    pub groups: ::protobuf::RepeatedField<::std::string::String>,
+    // special fields
+    pub unknown_fields: ::protobuf::UnknownFields,
+    pub cached_size: ::protobuf::CachedSize,
+}
+
+impl<'a> ::std::default::Default for &'a AuthResponse {
+    fn default() -> &'a AuthResponse {
+        <AuthResponse as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl AuthResponse {
+    pub fn new() -> AuthResponse {
+        ::std::default::Default::default()
+    }
+
+    // repeated string groups = 1;
+
+
+    pub fn get_groups(&self) -> &[::std::string::String] {
+        &self.groups
+    }
+    pub fn clear_groups(&mut self) {
+        self.groups.clear();
+    }
+
+    // Param is passed by value, moved
+    pub fn set_groups(&mut self, v: ::protobuf::RepeatedField<::std::string::String>) {
+        self.groups = v;
+    }
+
+    // Mutable pointer to the field.
+    pub fn mut_groups(&mut self) -> &mut ::protobuf::RepeatedField<::std::string::String> {
+        &mut self.groups
+    }
+
+    // Take field
+    pub fn take_groups(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
+        ::std::mem::replace(&mut self.groups, ::protobuf::RepeatedField::new())
+    }
+}
+
+impl ::protobuf::Message for AuthResponse {
+    fn is_initialized(&self) -> bool {
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+            match field_number {
+                1 => {
+                    ::protobuf::rt::read_repeated_string_into(wire_type, is, &mut self.groups)?;
+                },
+                _ => {
+                    ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u32 {
+        let mut my_size = 0;
+        for value in &self.groups {
+            my_size += ::protobuf::rt::string_size(1, &value);
+        };
+        my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
+        self.cached_size.set(my_size);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        for v in &self.groups {
+            os.write_string(1, &v)?;
+        };
+        os.write_unknown_fields(self.get_unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn get_cached_size(&self) -> u32 {
+        self.cached_size.get()
+    }
+
+    fn get_unknown_fields(&self) -> &::protobuf::UnknownFields {
+        &self.unknown_fields
+    }
+
+    fn mut_unknown_fields(&mut self) -> &mut ::protobuf::UnknownFields {
+        &mut self.unknown_fields
+    }
+
+    fn as_any(&self) -> &dyn (::std::any::Any) {
+        self as &dyn (::std::any::Any)
+    }
+    fn as_any_mut(&mut self) -> &mut dyn (::std::any::Any) {
+        self as &mut dyn (::std::any::Any)
+    }
+    fn into_any(self: ::std::boxed::Box<Self>) -> ::std::boxed::Box<dyn (::std::any::Any)> {
+        self
+    }
+
+    fn descriptor(&self) -> &'static ::protobuf::reflect::MessageDescriptor {
+        Self::descriptor_static()
+    }
+
+    fn new() -> AuthResponse {
+        AuthResponse::new()
+    }
+
+    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
+        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
+        descriptor.get(|| {
+            let mut fields = ::std::vec::Vec::new();
+            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
+                "groups",
+                |m: &AuthResponse| { &m.groups },
+                |m: &mut AuthResponse| { &mut m.groups },
+            ));
+            ::protobuf::reflect::MessageDescriptor::new_pb_name::<AuthResponse>(
+                "AuthResponse",
+                fields,
+                file_descriptor_proto()
+            )
+        })
+    }
+
+    fn default_instance() -> &'static AuthResponse {
+        static instance: ::protobuf::rt::LazyV2<AuthResponse> = ::protobuf::rt::LazyV2::INIT;
+        instance.get(AuthResponse::new)
+    }
+}
+
+impl ::protobuf::Clear for AuthResponse {
+    fn clear(&mut self) {
+        self.groups.clear();
+        self.unknown_fields.clear();
+    }
+}
+
+impl ::std::fmt::Debug for AuthResponse {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        ::protobuf::text_format::fmt(self, f)
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for AuthResponse {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
@@ -617,14 +817,16 @@ impl ::protobuf::reflect::ProtobufValue for InspektorPolicy {
 }
 
 static file_descriptor_proto_data: &'static [u8] = b"\
-    \n\tapi.proto\x12\x03api\")\n\x0bAuthRequest\x12\x1a\n\x08password\x18\
-    \x01\x20\x01(\tR\x08password\"\x07\n\x05Empty\">\n\x12DataSourceResponse\
-    \x12(\n\x10data_source_name\x18\x01\x20\x01(\tR\x0edataSourceName\"7\n\
-    \x0fInspektorPolicy\x12$\n\x0ewasm_byte_code\x18\x01\x20\x01(\x0cR\x0cwa\
-    smByteCode2\x9b\x01\n\tInspektor\x12&\n\x04Auth\x12\x10.api.AuthRequest\
-    \x1a\n.api.Empty\"\0\x12.\n\x06Policy\x12\n.api.Empty\x1a\x14.api.Inspek\
-    torPolicy\"\00\x01\x126\n\rGetDataSource\x12\n.api.Empty\x1a\x17.api.Dat\
-    aSourceResponse\"\0B\x17Z\x15controlplane/apiprotob\x06proto3\
+    \n\tapi.proto\x12\x03api\"F\n\x0bAuthRequest\x12\x1a\n\x08password\x18\
+    \x01\x20\x01(\tR\x08password\x12\x1b\n\tuser_name\x18\x02\x20\x01(\tR\
+    \x08userName\"\x07\n\x05Empty\"&\n\x0cAuthResponse\x12\x16\n\x06groups\
+    \x18\x01\x20\x03(\tR\x06groups\">\n\x12DataSourceResponse\x12(\n\x10data\
+    _source_name\x18\x01\x20\x01(\tR\x0edataSourceName\"7\n\x0fInspektorPoli\
+    cy\x12$\n\x0ewasm_byte_code\x18\x01\x20\x01(\x0cR\x0cwasmByteCode2\xa2\
+    \x01\n\tInspektor\x12-\n\x04Auth\x12\x10.api.AuthRequest\x1a\x11.api.Aut\
+    hResponse\"\0\x12.\n\x06Policy\x12\n.api.Empty\x1a\x14.api.InspektorPoli\
+    cy\"\00\x01\x126\n\rGetDataSource\x12\n.api.Empty\x1a\x17.api.DataSource\
+    Response\"\0B\x17Z\x15controlplane/apiprotob\x06proto3\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;

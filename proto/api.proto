@@ -5,9 +5,14 @@ option go_package = "controlplane/apiproto";
 
 message AuthRequest {
     string password = 1;
+    string user_name = 2;
 }
 
 message Empty {
+}
+
+message AuthResponse {
+    repeated string groups = 1;
 }
 
 message DataSourceResponse {
@@ -19,7 +24,7 @@ message InspektorPolicy {
 }
 
 service Inspektor {
-    rpc Auth(AuthRequest) returns (Empty) {}
+    rpc Auth(AuthRequest) returns (AuthResponse) {}
     rpc Policy(Empty) returns (stream InspektorPolicy){}
     rpc GetDataSource(Empty) returns (DataSourceResponse) {}
 }

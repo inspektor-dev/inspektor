@@ -33,8 +33,25 @@ func NewServer(store *store.Store) *RpcServer {
 	}
 }
 
-func (r *RpcServer) Auth(ctx context.Context, req *apiproto.AuthRequest) (*apiproto.Empty, error) {
-	return nil, nil
+func (r *RpcServer) Auth(ctx context.Context, req *apiproto.AuthRequest) (*apiproto.AuthResponse, error) {
+	dataSource, ok := ctx.Value(DataSource).(*models.DataSource)
+	if !ok {
+		return nil, errors.New("unable to find the datasource")
+	}
+	// let's check whether there is as session for the given password.
+	session, err := r.store.GetSessionForAuth(dataSource.ID, req.UserName, req.Password)
+	if err != nil {
+		utils.Logger.Error("error while retriving session for auth", zap.String("err_msg", err.Error()))
+		return nil, err
+	}
+	roles, err := r.store.GetRolesForObjectID(session.UserID, models.UserType)
+	if err != nil {
+		utils.Logger.Error("error while retriving roles", zap.String("err_msg", err.Error()))
+		return nil, err
+	}
+	return &apiproto.AuthResponse{
+		Groups: roles,
+	}, nil
 }
 
 func (r *RpcServer) Policy(req *apiproto.Empty, stream apiproto.Inspektor_PolicyServer) error {

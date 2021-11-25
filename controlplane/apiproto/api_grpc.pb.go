@@ -18,7 +18,7 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type InspektorClient interface {
-	Auth(ctx context.Context, in *AuthRequest, opts ...grpc.CallOption) (*Empty, error)
+	Auth(ctx context.Context, in *AuthRequest, opts ...grpc.CallOption) (*AuthResponse, error)
 	Policy(ctx context.Context, in *Empty, opts ...grpc.CallOption) (Inspektor_PolicyClient, error)
 	GetDataSource(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*DataSourceResponse, error)
 }
@@ -31,8 +31,8 @@ func NewInspektorClient(cc grpc.ClientConnInterface) InspektorClient {
 	return &inspektorClient{cc}
 }
 
-func (c *inspektorClient) Auth(ctx context.Context, in *AuthRequest, opts ...grpc.CallOption) (*Empty, error) {
-	out := new(Empty)
+func (c *inspektorClient) Auth(ctx context.Context, in *AuthRequest, opts ...grpc.CallOption) (*AuthResponse, error) {
+	out := new(AuthResponse)
 	err := c.cc.Invoke(ctx, "/api.Inspektor/Auth", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -85,7 +85,7 @@ func (c *inspektorClient) GetDataSource(ctx context.Context, in *Empty, opts ...
 // All implementations must embed UnimplementedInspektorServer
 // for forward compatibility
 type InspektorServer interface {
-	Auth(context.Context, *AuthRequest) (*Empty, error)
+	Auth(context.Context, *AuthRequest) (*AuthResponse, error)
 	Policy(*Empty, Inspektor_PolicyServer) error
 	GetDataSource(context.Context, *Empty) (*DataSourceResponse, error)
 	mustEmbedUnimplementedInspektorServer()
@@ -95,7 +95,7 @@ type InspektorServer interface {
 type UnimplementedInspektorServer struct {
 }
 
-func (UnimplementedInspektorServer) Auth(context.Context, *AuthRequest) (*Empty, error) {
+func (UnimplementedInspektorServer) Auth(context.Context, *AuthRequest) (*AuthResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Auth not implemented")
 }
 func (UnimplementedInspektorServer) Policy(*Empty, Inspektor_PolicyServer) error {
