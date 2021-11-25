@@ -101,7 +101,7 @@ impl PostgresDriver {
                             return;
                         }
                     };
-                    let mut handler = ProtocolHandler::initialize(self.postgres_config.clone(), client_conn, params,  self.policy_watcher.clone()).await.unwrap();
+                    let mut handler = ProtocolHandler::initialize(self.postgres_config.clone(), client_conn, params,  self.policy_watcher.clone(), groups: groups).await.unwrap();
                     // prototocol handler.
                      handler.serve().await;
                      return

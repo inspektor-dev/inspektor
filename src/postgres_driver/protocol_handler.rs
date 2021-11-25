@@ -29,6 +29,7 @@ pub struct ProtocolHandler {
     client_conn: PostgresConn,
     target_conn: PostgresConn,
     policy_evaluator: Evaluator,
+    groups: Vec<String>
 }
 
 impl ProtocolHandler {
