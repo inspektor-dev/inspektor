@@ -52,7 +52,7 @@ func (r *RpcServer) Auth(ctx context.Context, req *apiproto.AuthRequest) (*apipr
 	return &apiproto.AuthResponse{
 		Groups: roles,
 	}, nil
-}
+  }
 
 func (r *RpcServer) Policy(req *apiproto.Empty, stream apiproto.Inspektor_PolicyServer) error {
 	byteCode, err := policy.Build("")

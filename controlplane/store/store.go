@@ -187,7 +187,7 @@ func (s *Store) GetSessionByWhere(query interface{}, args ...interface{}) (*mode
 
 func (s *Store) GetSessionForAuth(objectID uint, username string, password string) (*models.Session, error) {
 	session := &models.Session{}
-	err := s.db.Model(&models.Session{}).Where("object_id = ?", objectID).
+	err := s.db.Model(&models.Session{}).Exec("SELECT * FROM sessions WHERE object_id = ? AND ", objectID).Where("object_id = ?", objectID).
 		Where(datatypes.JSONQuery("postgresPassword").Equals(password)).
 		Where(datatypes.JSONQuery("postgresUsername").Equals(username)).First(session).Error
 	return session, err

@@ -21,13 +21,17 @@ func (h *Handlers) AuthMiddleWare(next func(ctx *types.Ctx)) http.HandlerFunc {
 		if err != nil {
 			utils.Logger.Error("error while parsing claim", zap.String("err_msg", err.Error()))
 			utils.WriteErrorMsg("bad token", http.StatusBadRequest, rw)
+			return
 		}
 		if !tkn.Valid {
 			utils.WriteErrorMsg("not valid token", http.StatusBadRequest, rw)
+			return
 		}
 		roles, err := h.Store.GetRolesForObjectID(claim.ObjectID, models.UserType)
 		if err != nil {
 			utils.Logger.Error("error while getting roles in auth handler", zap.String("err_msg", err.Error()))
+			utils.WriteErrorMsg("server down", http.StatusInternalServerError, rw)
+			return
 		}
 		claim.Roles = roles
 		next(&types.Ctx{

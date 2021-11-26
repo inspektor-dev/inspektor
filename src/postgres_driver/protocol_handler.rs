@@ -89,6 +89,7 @@ impl ProtocolHandler {
         client_conn: PostgresConn,
         client_parms: HashMap<String, String>,
         policy_watcher: watch::Receiver<Vec<u8>>,
+        groups: Vec<String>
     ) -> Result<ProtocolHandler, anyhow::Error> {
         debug!("intializing protocol handler");
         let mut target_conn = ProtocolHandler::connect_target(&config).await?;
@@ -178,6 +179,7 @@ impl ProtocolHandler {
                         client_conn: client_conn,
                         policy_watcher: policy_watcher,
                         policy_evaluator: evaluator,
+                        groups: groups,
                     };
                     return Ok(handler);
                 }
