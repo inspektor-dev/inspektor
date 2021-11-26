@@ -98,11 +98,10 @@ impl PostgresDriver {
                         Ok(groups) => groups,
                         Err(e) => {
                             error!("error while verifying auth. err msg: {:?}", e);
-                            return;
+                            continue;
                         }
                     };
                     let mut handler = ProtocolHandler::initialize(self.postgres_config.clone(), client_conn, params,  self.policy_watcher.clone(), groups).await.unwrap();
-                    // prototocol handler.
                      handler.serve().await;
                      return
                 }

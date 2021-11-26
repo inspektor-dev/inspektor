@@ -86,7 +86,7 @@ impl ProtocolHandler {
     // intialize will create a new connection with target and returns initialized postgres protocol handler.
     pub async fn initialize(
         config: PostgresConfig,
-        client_conn: PostgresConn,
+        mut client_conn: PostgresConn,
         client_parms: HashMap<String, String>,
         policy_watcher: watch::Receiver<Vec<u8>>,
         groups: Vec<String>
@@ -166,6 +166,9 @@ impl ProtocolHandler {
                     continue;
                 }
                 BackendMessage::AuthenticationOk { .. } => {
+                    // send authentication ok to client connection since we established connection with
+                    // target.
+                    client_conn.write_all(&rsp_msg.encode()).await?;
                     let cp = policy_watcher.clone();
                     let wasm_policy = cp.borrow();
                     let evaluator = Evaluator::new(

@@ -1,0 +1,7 @@
+{
+    "rust-analyzer.diagnostics.disabled": [
+        "unresolved-proc-macro",
+        "unresolved_import"
+    ],
+    "rust-analyzer.diagnostics.enable": false,
+}

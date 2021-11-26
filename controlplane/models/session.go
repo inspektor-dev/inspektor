@@ -10,8 +10,8 @@ import (
 
 type Session struct {
 	gorm.Model
-	ObjectID    uint
-	UserID      uint
+	ObjectID    uint `json:"objectID"`
+	UserID      uint `json:"-"`
 	Meta        datatypes.JSON
 	SessionMeta *SessionMeta `gorm:"-" json:"sessionMeta"`
 }

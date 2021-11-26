@@ -18,7 +18,7 @@ func (h *Handlers) GetSesssion() InspectorHandler {
 			utils.WriteErrorMsg("server down", http.StatusInternalServerError, ctx.Rw)
 			return
 		}
-		utils.WriteSuccesMsgWithData("ok", http.StatusOK, utils.MarshalJSON(sessions), ctx.Rw)
+		utils.WriteSuccesMsgWithData("ok", http.StatusOK, sessions, ctx.Rw)
 	}
 }
 
