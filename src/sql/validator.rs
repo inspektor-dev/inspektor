@@ -85,7 +85,10 @@ impl QueryValidator {
                             table_name = &alias.as_ref().unwrap().name.value;
                         }
                         default_table = table_name.clone();
-                        allowed_projections.insert(table_name.clone(), vec![]);
+                        // reset it if it's not pushed from the top.
+                        if let None = allowed_projections.get(table_name){
+                            allowed_projections.insert(table_name.clone(), vec![]);
+                        }
                         continue;
                     }
                     let protected_columns = protected_columns.unwrap();
@@ -381,7 +384,7 @@ mod tests {
             vec![(
                 r#"WITH DUMMY AS (SELECT * FROM kids LIMIT 1)
                 SELECT * FROM DUMMY;"#,
-                "WITH DUMMY AS (SELECT id, gender, balance FROM kids LIMIT 1) SELECT * FROM DUMMY",
+                "WITH DUMMY AS (SELECT id, gender, balance FROM kids LIMIT 1) SELECT id, gender, balance FROM DUMMY",
             )],
             validator,
         );
