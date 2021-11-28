@@ -3,5 +3,5 @@
         "unresolved-proc-macro",
         "unresolved_import"
     ],
-    "rust-analyzer.diagnostics.enable": false,
+   "rust-analyzer.diagnostics.enable": false,
 }

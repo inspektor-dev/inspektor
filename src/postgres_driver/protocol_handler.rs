@@ -260,4 +260,6 @@ impl ProtocolHandler {
             _ => Ok(conn),
         }
     }
+
+    async fn handle_frontend_message(&mut self, msg: FrontendMessage){}
 }

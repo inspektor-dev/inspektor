@@ -2,6 +2,7 @@
 mod apiproto;
 mod config;
 mod postgres_driver;
+mod sql;
 use apiproto::api::*;
 use apiproto::api_grpc::*;
 use clap::{App, Arg};

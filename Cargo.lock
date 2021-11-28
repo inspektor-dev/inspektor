@@ -865,6 +865,7 @@ dependencies = [
  "protobuf",
  "protoc-grpcio",
  "serde_json",
+ "sqlparser",
  "thiserror",
  "tokio",
  "tokio-openssl",
@@ -1679,6 +1680,15 @@ name = "smallvec"
 version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ecab6c735a6bb4139c0caafd0cc3635748bbb3acf4550e8138122099251f309"
+
+[[package]]
+name = "sqlparser"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "760e624412a15d5838ae04fad01037beeff1047781431d74360cddd6b3c1c784"
+dependencies = [
+ "log",
+]
 
 [[package]]
 name = "stable_deref_trait"
