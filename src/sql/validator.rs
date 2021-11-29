@@ -67,7 +67,7 @@ impl QueryValidator {
         let mut default_table = String::from("");
         // let's build possible selection for the soruce.
         for table in &mut select.from {
-            match &table.relation {
+            match &mut table.relation {
                 TableFactor::Table {
                     name,
                     alias,
@@ -116,6 +116,22 @@ impl QueryValidator {
                     }
                     default_table = table_name.clone();
                     allowed_projections.insert(table_name.clone(), allowed_columns);
+                },
+                TableFactor::Derived { lateral, subquery, alias } => {
+                    let mut derived_query_projections = HashMap::default();
+                    // since it's a subquery, we don't push existing projections. instead we me merge the
+                    // returned projections.
+                    let subquery_projections = self.validate_query(derived_query_projections, subquery)?;
+                    // let's merge the projection name with alias name.
+                    if let Some(alias_name) = alias{
+                        let table_name = &alias_name.name.value;
+                        for (_, val) in subquery_projections {
+                            allowed_projections.insert(table_name.clone(), val);
+                        }
+                        default_table = table_name.clone();
+                    } else {
+                        return Err(InspektorSqlError::FromNeedAlias)
+                    }
                 }
                 _ => {
                     unreachable!("unknown table relation {:?}", &table.relation)
@@ -271,22 +287,7 @@ mod tests {
     #[test]
     fn test_validate() {
         let query = String::from(
-            r#"WITH regional_sales AS (
-                SELECT region, SUM(amount) AS total_sales
-                FROM orders
-                GROUP BY region
-             ), top_regions AS (
-                SELECT region
-                FROM regional_sales
-                WHERE total_sales > (SELECT SUM(total_sales)/10 FROM regional_sales)
-             )
-        SELECT region,
-               product,
-               SUM(quantity) AS product_units,
-               SUM(amount) AS product_sales
-        FROM orders
-        WHERE region IN (SELECT region FROM top_regions)
-        GROUP BY region, product;"#,
+            r#"select id, mobile_number from (select id, mobile_number from kids limit 1) as nested;"#,
         );
         validate(&query, vec![]);
     }
@@ -385,6 +386,35 @@ mod tests {
                 r#"WITH DUMMY AS (SELECT * FROM kids LIMIT 1)
                 SELECT * FROM DUMMY;"#,
                 "WITH DUMMY AS (SELECT id, gender, balance FROM kids LIMIT 1) SELECT id, gender, balance FROM DUMMY",
+            )],
+            validator,
+        );
+    }
+
+    #[test]
+    fn test_subquery(){
+        let validator = QueryValidator {
+            table_info: HashMap::from([(
+                "kids".to_string(),
+                vec![
+                    "id".to_string(),
+                    "phone".to_string(),
+                    "gender".to_string(),
+                    "balance".to_string(),
+                ],
+            )]),
+            rule: Rule {
+                protected_fields: HashMap::from([("kids".to_string(), vec!["phone".to_string()])]),
+                limit: None,
+            },
+        };
+        test_query(
+            vec![(
+                r#"select * from (select * from kids) as nested;"#,
+                "SELECT id, gender, balance FROM (SELECT id, gender, balance FROM kids) AS nested",
+            ),(
+                "select id, gender from (select id, gender from (select * from kids) as yo limit 1) as nested;",
+                "SELECT id, gender FROM (SELECT id, gender FROM (SELECT id, gender, balance FROM kids) AS yo LIMIT 1) AS nested"
             )],
             validator,
         );

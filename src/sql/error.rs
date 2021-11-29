@@ -6,7 +6,8 @@ use thiserror::Error;
 pub enum InspektorSqlError {
     PaserError(#[from] ParserError),
     UnAuthorizedColumn((String, String)),
-    InvalidReference(String)
+    InvalidReference(String),
+    FromNeedAlias
 }
 
 impl Display for InspektorSqlError {
@@ -20,6 +21,9 @@ impl Display for InspektorSqlError {
             ),
             InspektorSqlError::InvalidReference(table) => {
                 write!(f, "invalid reference to FROM clause entry for table {:?}", table)
+            }
+            InspektorSqlError::FromNeedAlias => {
+                write!(f, "from need alias")
             }
         }
     }
