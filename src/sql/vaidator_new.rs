@@ -270,4 +270,30 @@ mod tests {
         FROM weather as w, cities
         WHERE cities.name = w.city;", "SELECT w.city, w.temp_lo, w.temp_hi, w.prcp, w.date, cities.location FROM weather AS w, cities WHERE cities.name = w.city");
     }
+
+    #[test]
+    fn test_cte(){
+        let rule_engine = RuleEngine {
+            protected_columns: HashMap::from([(Cow::from("kids"), vec![Cow::from("phone")])]),
+        };
+
+        let state = ValidationState::new(HashMap::from([(
+            Cow::from("kids"),
+            vec![
+                Cow::from("phone"),
+                Cow::from("id"),
+                Cow::from("name"),
+                Cow::from("address"),
+            ],
+        )]));
+
+        let rewriter = QueryRewriter::new(rule_engine).unwrap();
+        assert_rewriter(
+            &rewriter,
+            state,
+            "WITH DUMMY AS (SELECT * FROM kids LIMIT 1)
+            SELECT * FROM DUMMY",
+            "WITH DUMMY AS (SELECT id, name, address FROM kids LIMIT 1) SELECT id, name, address FROM DUMMY",
+        );
+    }
 }
