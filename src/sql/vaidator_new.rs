@@ -34,8 +34,8 @@ impl<'a> QueryRewriter<'a> {
         })
     }
 
-    fn validate(&self, mut statements: Vec<Statement>, state: ValidationState<'a>) -> Result<(), InspektorSqlError> {
-        for statement in &mut statements {
+    fn validate(&self, statements: &mut Vec<Statement>, state: ValidationState<'a>) -> Result<(), InspektorSqlError> {
+        for statement in statements {
             match statement {
                 Statement::Query(query) => {
                     self.handle_query(query, &state)?;
@@ -199,22 +199,30 @@ impl<'a> QueryRewriter<'a> {
 mod tests {
     use super::*;
     use std::collections::HashMap;
+
+    fn assert_rewriter(rewriter: &QueryRewriter, state: ValidationState, input: &'static str,output: &'static str){
+        let dialect = PostgreSqlDialect{};
+        let mut statements = Parser::parse_sql(&dialect, input).unwrap();
+        rewriter.validate(&mut statements, state).unwrap();
+        assert_eq!(output, format!("{}", statements[0]))
+    }
     #[test]
     fn basic_select(){
         let rule_engine = RuleEngine{
             protected_columns: HashMap::from([
                 (
-                    Cow::from("kid"),
+                    Cow::from("kids"),
                     vec![Cow::from("phone")]
                 )
             ]),
         };
 
         let state = ValidationState::new(HashMap::from([(
-            Cow::from("kid"),
+            Cow::from("kids"),
             vec![Cow::from("phone"), Cow::from("id"), Cow::from("name"), Cow::from("address")]
         )]));
 
-        let rewriter = QueryRewriter::new(rule_engine);
+        let rewriter = QueryRewriter::new(rule_engine).unwrap();
+        assert_rewriter(&rewriter, state, "select * from kids", "SELECT id, name, address FROM kids");
     }
 }
