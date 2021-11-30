@@ -120,9 +120,13 @@ impl<'a> QueryRewriter<'a> {
                     subquery,
                     alias,
                 } => {
+                    if alias.is_none(){
+                        return Err(InspektorSqlError::FromNeedAlias)
+                    }
+                    let subquery_alias = alias.as_ref().unwrap();
                     // we have a subquery now.
                     let derived_state = self.handle_query(subquery, &local_state)?;
-                    // TODO: check whether it's needs to be merged with local state.
+                    local_state.merge_allowed_selections(Cow::from(subquery_alias.name.value.clone()), derived_state);
                 }
                 _ => {
                     unreachable!("not handled statement {:?}", select.from);
@@ -294,6 +298,31 @@ mod tests {
             "WITH DUMMY AS (SELECT * FROM kids LIMIT 1)
             SELECT * FROM DUMMY",
             "WITH DUMMY AS (SELECT id, name, address FROM kids LIMIT 1) SELECT id, name, address FROM DUMMY",
+        );
+    }
+
+    #[test]
+    fn test_subquery(){
+        let rule_engine = RuleEngine {
+            protected_columns: HashMap::from([(Cow::from("kids"), vec![Cow::from("phone")])]),
+        };
+
+        let state = ValidationState::new(HashMap::from([(
+            Cow::from("kids"),
+            vec![
+                Cow::from("phone"),
+                Cow::from("id"),
+                Cow::from("name"),
+                Cow::from("address"),
+            ],
+        )]));
+
+        let rewriter = QueryRewriter::new(rule_engine).unwrap();
+        assert_rewriter(
+            &rewriter,
+            state,
+            "select * from (select * from kids) as nested",
+            "SELECT id, name, address FROM (SELECT id, name, address FROM kids) AS nested",
         );
     }
 }

@@ -71,4 +71,10 @@ impl<'a> ValidationState<'a> {
             self.table_info.insert(table_name.clone(), val);
         }
     }
+
+    pub fn merge_allowed_selections(&mut self, table_name: Cow<'a, str>, state: ValidationState<'a>) {
+        for (_, val) in state.allowed_selections {
+            self.allowed_selections.insert(table_name.clone(), val);
+        }
+    }
 }
