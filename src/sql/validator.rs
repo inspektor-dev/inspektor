@@ -61,6 +61,23 @@ impl QueryValidator {
         Ok(result_projections)
     }
 
+    pub fn handle_set_expr(&self, allowed_projections: HashMap<String, Vec<String>>, expr: &mut SetExpr)  -> Result<HashMap<String, Vec<String>>, InspektorSqlError>{
+         let mut result_projections = HashMap::default();
+         match expr{
+             SetExpr::Select(select) => {
+                  // it's select query check whether the table is protected or not.
+                result_projections = self.handle_select(allowed_projections, select)?;
+             }
+             SetExpr::SetOperation { op, all, left, right } => {
+                 self.handle_set_expr(allowed_projections, left)?;
+             }
+             _ => {
+                unreachable!("not implemented")
+            }
+         }
+         Ok(result_projections)
+    }
+
     pub fn handle_select(&self,mut allowed_projections: HashMap<String, Vec<String>>, select: &mut Select) -> Result<HashMap<String, Vec<String>>, InspektorSqlError> {
         // check from is protected or not.
         // for now we just support only one select.
@@ -118,6 +135,7 @@ impl QueryValidator {
                     allowed_projections.insert(table_name.clone(), allowed_columns);
                 },
                 TableFactor::Derived { lateral, subquery, alias } => {
+                    // TODO: how cte works here.
                     let mut derived_query_projections = HashMap::default();
                     // since it's a subquery, we don't push existing projections. instead we me merge the
                     // returned projections.
@@ -287,7 +305,9 @@ mod tests {
     #[test]
     fn test_validate() {
         let query = String::from(
-            r#"select id, mobile_number from (select id, mobile_number from kids limit 1) as nested;"#,
+            r#"SELECT * FROM top_rated_films
+            UNION
+            SELECT * FROM most_popular_films;"#,
         );
         validate(&query, vec![]);
     }
@@ -419,4 +439,7 @@ mod tests {
             validator,
         );
     }
+
+    #[test]
+    fn test_chumma(){}
 }
