@@ -26,15 +26,17 @@ pub struct QueryRewriter<'a> {
 }
 
 impl<'a> QueryRewriter<'a> {
-    fn new<'s>(
-        rule_engine: RuleEngine<'s>,
-    ) -> Result<QueryRewriter<'s>, InspektorSqlError> {
+    fn new<'s>(rule_engine: RuleEngine<'s>) -> Result<QueryRewriter<'s>, InspektorSqlError> {
         Ok(QueryRewriter {
             rule_engine: rule_engine,
         })
     }
 
-    fn validate(&self, statements: &mut Vec<Statement>, state: ValidationState<'a>) -> Result<(), InspektorSqlError> {
+    fn validate(
+        &self,
+        statements: &mut Vec<Statement>,
+        state: ValidationState<'a>,
+    ) -> Result<(), InspektorSqlError> {
         for statement in statements {
             match statement {
                 Statement::Query(query) => {
@@ -200,29 +202,72 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
-    fn assert_rewriter(rewriter: &QueryRewriter, state: ValidationState, input: &'static str,output: &'static str){
-        let dialect = PostgreSqlDialect{};
+    macro_rules! cowvec {
+        ( $( $x:expr ),* ) => {
+            {
+                let mut temp_vec = Vec::new();
+                $(
+                    temp_vec.push(Cow::from($x));
+                )*
+                temp_vec
+            }
+        };
+    }
+
+    fn assert_rewriter(
+        rewriter: &QueryRewriter,
+        state: ValidationState,
+        input: &'static str,
+        output: &'static str,
+    ) {
+        let dialect = PostgreSqlDialect {};
         let mut statements = Parser::parse_sql(&dialect, input).unwrap();
         rewriter.validate(&mut statements, state).unwrap();
         assert_eq!(output, format!("{}", statements[0]))
     }
     #[test]
-    fn basic_select(){
-        let rule_engine = RuleEngine{
-            protected_columns: HashMap::from([
-                (
-                    Cow::from("kids"),
-                    vec![Cow::from("phone")]
-                )
-            ]),
+    fn basic_select() {
+        let rule_engine = RuleEngine {
+            protected_columns: HashMap::from([(Cow::from("kids"), vec![Cow::from("phone")])]),
         };
 
         let state = ValidationState::new(HashMap::from([(
             Cow::from("kids"),
-            vec![Cow::from("phone"), Cow::from("id"), Cow::from("name"), Cow::from("address")]
+            vec![
+                Cow::from("phone"),
+                Cow::from("id"),
+                Cow::from("name"),
+                Cow::from("address"),
+            ],
         )]));
 
         let rewriter = QueryRewriter::new(rule_engine).unwrap();
-        assert_rewriter(&rewriter, state, "select * from kids", "SELECT id, name, address FROM kids");
+        assert_rewriter(
+            &rewriter,
+            state,
+            "select * from kids",
+            "SELECT id, name, address FROM kids",
+        );
+    }
+
+    #[test]
+    fn test_simple_join() {
+        let rule_engine = RuleEngine {
+            protected_columns: HashMap::from([(Cow::from("kids"), vec![Cow::from("phone")])]),
+        };
+
+        let state = ValidationState::new(HashMap::from([
+            (
+                Cow::from("weather"),
+                cowvec!("city", "temp_lo", "temp_hi", "prcp", "date"),
+            ),
+            (Cow::from("cities"), cowvec!("name", "location")),
+        ]));
+
+        let rewriter = QueryRewriter::new(rule_engine).unwrap();
+        assert_rewriter(&rewriter, state, "SELECT w.city, w.temp_lo, w.temp_hi,
+        w.prcp, w.date, cities.location
+        FROM weather as w, cities
+        WHERE cities.name = w.city;", "SELECT w.city, w.temp_lo, w.temp_hi, w.prcp, w.date, cities.location FROM weather AS w, cities WHERE cities.name = w.city");
     }
 }

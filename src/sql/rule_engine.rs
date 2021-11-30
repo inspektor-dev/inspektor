@@ -19,7 +19,7 @@ impl <'a>RuleEngine<'a> {
                 protected_columns.iter().position(|protected_column| protected_column == *column).is_none()
             }).map(|c| c.clone()).collect();
         }
-        return Vec::default();
+        return columns;
     }
 }
 
