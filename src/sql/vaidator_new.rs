@@ -294,7 +294,7 @@ mod tests {
             &rewriter,
             state,
             "select * from kids",
-            "SELECT id, name, address FROM kids",
+            "SELECT kids.id, kids.name, kids.address FROM kids",
         );
     }
 
@@ -341,7 +341,7 @@ mod tests {
             state,
             "WITH DUMMY AS (SELECT * FROM kids LIMIT 1)
             SELECT * FROM DUMMY",
-            "WITH DUMMY AS (SELECT id, name, address FROM kids LIMIT 1) SELECT id, name, address FROM DUMMY",
+            "WITH DUMMY AS (SELECT kids.id, kids.name, kids.address FROM kids LIMIT 1) SELECT DUMMY.id, DUMMY.name, DUMMY.address FROM DUMMY",
         );
     }
 
@@ -366,13 +366,13 @@ mod tests {
             &rewriter,
             state.clone(),
             "select * from (select * from kids) as nested",
-            "SELECT id, name, address FROM (SELECT id, name, address FROM kids) AS nested",
+            "SELECT nested.id, nested.name, nested.address FROM (SELECT kids.id, kids.name, kids.address FROM kids) AS nested",
         );
         assert_rewriter(
             &rewriter,
             state,
             "select * from (with dummy as (select * from kids) select * from dummy)as nested limit 1;",
-            "SELECT id, name, address FROM (WITH dummy AS (SELECT id, name, address FROM kids) SELECT id, name, address FROM dummy) AS nested LIMIT 1",
+            "SELECT nested.id, nested.name, nested.address FROM (WITH dummy AS (SELECT kids.id, kids.name, kids.address FROM kids) SELECT dummy.id, dummy.name, dummy.address FROM dummy) AS nested LIMIT 1",
         );
     }
 
@@ -410,7 +410,7 @@ mod tests {
             &rewriter,
             state.clone(),
             "select * from kids UNION select * from kids2",
-            "SELECT id, name, address FROM kids UNION SELECT id, name, address FROM kids2",
+            "SELECT kids.id, kids.name, kids.address FROM kids UNION SELECT kids2.id, kids2.name, kids2.address FROM kids2",
         );
     }
 }
