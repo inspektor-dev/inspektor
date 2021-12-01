@@ -7,7 +7,8 @@ pub enum InspektorSqlError {
     PaserError(#[from] ParserError),
     UnAuthorizedColumn((String, String)),
     InvalidReference(String),
-    FromNeedAlias
+    FromNeedAlias,
+    Error(String)
 }
 
 impl Display for InspektorSqlError {
@@ -24,6 +25,9 @@ impl Display for InspektorSqlError {
             }
             InspektorSqlError::FromNeedAlias => {
                 write!(f, "from need alias")
+            },
+            InspektorSqlError::Error(msg) => {
+                write!(f,"{}", msg)
             }
         }
     }

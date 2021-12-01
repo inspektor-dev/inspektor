@@ -67,14 +67,51 @@ impl<'a> QueryRewriter<'a> {
         }
         // we'll evaulate the body first because that is the data which will be retrived for the
         // subsequent query evaluation.
-        match &mut query.body {
-            SetExpr::Query(query) => return self.handle_query(query, &local_state),
-            SetExpr::Select(select) => return self.handle_select(select, &local_state),
+        self.handle_set_expr(&mut query.body, state)
+    }
+
+    fn handle_set_expr<'s>(
+        &self,
+        expr: &mut SetExpr,
+        state: &ValidationState<'s>,
+    ) -> Result<ValidationState<'s>, InspektorSqlError> {
+        match expr {
+            SetExpr::Query(query) => return self.handle_query(query, state),
+            SetExpr::Select(select) => return self.handle_select(select, state),
+            SetExpr::SetOperation {
+                op,
+                all: _,
+                left,
+                right,
+            } => {
+                let _left_state = self.handle_set_expr(left, state)?;
+                let right_state = self.handle_set_expr(right, state)?;
+                // usually left and right should be selection because it's a union call.
+                // so let's check the projection left and right have same number of projections
+                // so we can hit the client about the kind of error.
+                let left_count = match &**left {
+                    SetExpr::Select(select) => Some(select.projection.len()),
+                    _ => None,
+                };
+                let right_count = match &**right {
+                    SetExpr::Select(select) => Some(select.projection.len()),
+                    _ => None,
+                };
+                if left_count != right_count {
+                    return Err(
+                        InspektorSqlError::Error(
+                            format!("{} requires same number of column left and right. may be avoid using wildcard `*`", op)
+                        )
+                    );
+                }
+                // it's is safe to return one state because both left and right carries same
+                // columns.
+                Ok(right_state)
+            }
             _ => {
-                unreachable!("not handled statement {:?}", query.body);
+                unreachable!("not handled set expr {:?}", expr);
             }
         }
-        Ok(local_state)
     }
 
     fn handle_select<'s>(
@@ -120,13 +157,16 @@ impl<'a> QueryRewriter<'a> {
                     subquery,
                     alias,
                 } => {
-                    if alias.is_none(){
-                        return Err(InspektorSqlError::FromNeedAlias)
+                    if alias.is_none() {
+                        return Err(InspektorSqlError::FromNeedAlias);
                     }
                     let subquery_alias = alias.as_ref().unwrap();
                     // we have a subquery now.
                     let derived_state = self.handle_query(subquery, &local_state)?;
-                    local_state.merge_allowed_selections(Cow::from(subquery_alias.name.value.clone()), derived_state);
+                    local_state.merge_allowed_selections(
+                        Cow::from(subquery_alias.name.value.clone()),
+                        derived_state,
+                    );
                 }
                 _ => {
                     unreachable!("not handled statement {:?}", select.from);
@@ -276,7 +316,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cte(){
+    fn test_cte() {
         let rule_engine = RuleEngine {
             protected_columns: HashMap::from([(Cow::from("kids"), vec![Cow::from("phone")])]),
         };
@@ -302,7 +342,7 @@ mod tests {
     }
 
     #[test]
-    fn test_subquery(){
+    fn test_subquery() {
         let rule_engine = RuleEngine {
             protected_columns: HashMap::from([(Cow::from("kids"), vec![Cow::from("phone")])]),
         };
@@ -329,6 +369,44 @@ mod tests {
             state,
             "select * from (with dummy as (select * from kids) select * from dummy)as nested limit 1;",
             "SELECT id, name, address FROM (WITH dummy AS (SELECT id, name, address FROM kids) SELECT id, name, address FROM dummy) AS nested LIMIT 1",
+        );
+    }
+
+    #[test]
+    fn test_union() {
+        let rule_engine = RuleEngine {
+            protected_columns: HashMap::from([
+                (Cow::from("kids"), vec![Cow::from("phone")]),
+                (Cow::from("kids2"), vec![Cow::from("phone")]),
+            ]),
+        };
+
+        let state = ValidationState::new(HashMap::from([
+            (
+                Cow::from("kids"),
+                vec![
+                    Cow::from("phone"),
+                    Cow::from("id"),
+                    Cow::from("name"),
+                    Cow::from("address"),
+                ],
+            ),
+            (
+                Cow::from("kids2"),
+                vec![
+                    Cow::from("phone"),
+                    Cow::from("id"),
+                    Cow::from("name"),
+                    Cow::from("address"),
+                ],
+            ),
+        ]));
+        let rewriter = QueryRewriter::new(rule_engine).unwrap();
+        assert_rewriter(
+            &rewriter,
+            state.clone(),
+            "select * from kids UNION select * from kids2",
+            "SELECT id, name, address FROM kids UNION SELECT id, name, address FROM kids2",
         );
     }
 }
