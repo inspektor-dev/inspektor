@@ -1,3 +1,5 @@
+use sqlparser::ast::Ident;
+use sqlparser::ast::{Expr, SelectItem};
 use std::borrow::Cow;
 use std::collections::HashMap;
 
@@ -35,10 +37,10 @@ impl<'a> ValidationState<'a> {
         None
     }
 
-    pub fn get_default_table(&self) -> Option<&Cow<'a, str>> {
+    pub fn get_default_table(&self) -> Option<String> {
         if self.allowed_selections.len() == 1 {
             for (key, _) in &self.allowed_selections {
-                return Some(key);
+                return Some(key.to_string());
             }
         }
         None
@@ -50,6 +52,19 @@ impl<'a> ValidationState<'a> {
                 .iter()
                 .position(|allowed_column| *allowed_column == *column)
                 .is_none();
+        }
+        return false;
+    }
+
+    pub fn is_allowed_column_ident(&self, column: &String) -> bool {
+        for (_, columns) in &self.allowed_selections {
+            match columns
+                .iter()
+                .position(|allowed_column| *allowed_column == *column)
+            {
+                Some(_) => return true,
+                None => continue,
+            };
         }
         return false;
     }
@@ -72,18 +87,38 @@ impl<'a> ValidationState<'a> {
         }
     }
 
-    pub fn merge_allowed_selections(&mut self, table_name: Cow<'a, str>, state: ValidationState<'a>) {
+    pub fn merge_allowed_selections(
+        &mut self,
+        table_name: Cow<'a, str>,
+        state: ValidationState<'a>,
+    ) {
         for (_, val) in state.allowed_selections {
             self.allowed_selections.insert(table_name.clone(), val);
         }
     }
 
     pub fn merge_state(&mut self, state: ValidationState<'a>) {
-        for (key, val) in state.allowed_selections{
+        for (key, val) in state.allowed_selections {
             self.allowed_selections.insert(key, val);
         }
-        for (key, val) in state.table_info{
+        for (key, val) in state.table_info {
             self.table_info.insert(key, val);
         }
+    }
+
+    pub fn build_allowed_column_expr(&self) -> Vec<SelectItem> {
+        let mut selections = Vec::new();
+        for (table_name, columns) in &self.allowed_selections {
+            if columns.len() == 0 {
+                continue;
+            }
+            for column in columns {
+                selections.push(SelectItem::UnnamedExpr(Expr::CompoundIdentifier(vec![
+                    Ident::new(table_name.to_string()),
+                    Ident::new(column.to_string()),
+                ])));
+            }
+        }
+        return selections;
     }
 }

@@ -153,7 +153,7 @@ impl<'a> QueryRewriter<'a> {
                 // if the given table is protected table then we should throw error.
                 if self.rule_engine.is_table_protected(&table_name) {
                     return Err(InspektorSqlError::UnAuthorizedColumn((
-                        name.0[0].value.clone(),
+                        Some(name.0[0].value.clone()),
                         "".to_string(),
                     )));
                 }
@@ -207,13 +207,7 @@ impl<'a> QueryRewriter<'a> {
                 return Ok(vec![SelectItem::UnnamedExpr(expr.clone())]);
             }
             SelectItem::Wildcard => {
-                let table = state.get_default_table().unwrap();
-                return Ok(state
-                    .get_allowed_columns(table)
-                    .unwrap()
-                    .iter()
-                    .map(|c| SelectItem::UnnamedExpr(Expr::Identifier(Ident::new(c))))
-                    .collect());
+                return Ok(state.build_allowed_column_expr());
             }
             _ => unreachable!("unknown expr {} {:?}", selection, selection),
         }
@@ -227,13 +221,10 @@ impl<'a> QueryRewriter<'a> {
         match expr {
             Expr::Identifier(object_name) => {
                 // it's a single expression. if we have one table the we pick that.
-                let table = match state.get_default_table() {
-                    Some(table) => table,
-                    _ => unreachable!("didn't get default table"),
-                };
-                if !state.is_allowed_column(table, &object_name.value) {
+                
+                if !state.is_allowed_column_ident(&object_name.value) {
                     return Err(InspektorSqlError::UnAuthorizedColumn((
-                        table.to_string(),
+                        state.get_default_table(),
                         object_name.value.clone(),
                     )));
                 }
@@ -243,7 +234,7 @@ impl<'a> QueryRewriter<'a> {
                 let column_name = &identifiers[1].value;
                 if !state.is_allowed_column(&Cow::Borrowed(alias_name), column_name) {
                     return Err(InspektorSqlError::UnAuthorizedColumn((
-                        alias_name.to_string(),
+                        Some(alias_name.to_string()),
                         column_name.clone(),
                     )));
                 }
