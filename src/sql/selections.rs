@@ -77,4 +77,13 @@ impl<'a> ValidationState<'a> {
             self.allowed_selections.insert(table_name.clone(), val);
         }
     }
+
+    pub fn merge_state(&mut self, state: ValidationState<'a>) {
+        for (key, val) in state.allowed_selections{
+            self.allowed_selections.insert(key, val);
+        }
+        for (key, val) in state.table_info{
+            self.table_info.insert(key, val);
+        }
+    }
 }

@@ -305,9 +305,7 @@ mod tests {
     #[test]
     fn test_validate() {
         let query = String::from(
-            r#"SELECT * FROM top_rated_films
-            UNION
-            SELECT * FROM most_popular_films;"#,
+            r#"select * from blogtable1 bt1, blogtable2 bt2 where bt1.id1 < bt2.id1;"#,
         );
         validate(&query, vec![]);
     }

@@ -15,8 +15,6 @@
 use crate::sql::error::InspektorSqlError;
 use crate::sql::rule_engine::RuleEngine;
 use crate::sql::selections::ValidationState;
-use futures::StreamExt;
-use protobuf::ProtobufEnum;
 use sqlparser::ast::{Expr, Ident, Query, Select, SelectItem, SetExpr, Statement, TableFactor};
 use sqlparser::dialect::PostgreSqlDialect;
 use sqlparser::parser::Parser;
@@ -67,7 +65,7 @@ impl<'a> QueryRewriter<'a> {
         }
         // we'll evaulate the body first because that is the data which will be retrived for the
         // subsequent query evaluation.
-        self.handle_set_expr(&mut query.body, state)
+        self.handle_set_expr(&mut query.body, &local_state)
     }
 
     fn handle_set_expr<'s>(
@@ -121,57 +119,8 @@ impl<'a> QueryRewriter<'a> {
     ) -> Result<ValidationState<'s>, InspektorSqlError> {
         let mut local_state = state.clone();
         for from in &mut select.from {
-            match &mut from.relation {
-                TableFactor::Table {
-                    name,
-                    alias,
-                    args,
-                    with_hints,
-                } => {
-                    let mut table_name = Cow::Owned(name.0[0].value.clone());
-                    // if the given table is protected table then we should throw error.
-                    if self.rule_engine.is_table_protected(&table_name) {
-                        return Err(InspektorSqlError::UnAuthorizedColumn((
-                            name.0[0].value.clone(),
-                            "".to_string(),
-                        )));
-                    }
-                    let table_columns = match state.get_columns(&table_name) {
-                        Some(columns) => columns,
-                        _ => unreachable!("unable to get columns name for the table {:?}", name),
-                    };
-                    let mut allowed_columns = self
-                        .rule_engine
-                        .get_allowed_columns(&table_name, table_columns);
-                    if let Some(alias) = alias {
-                        table_name = Cow::Owned(alias.name.value.clone())
-                    }
-                    let allowed_columns = allowed_columns
-                        .iter()
-                        .map(|c| Cow::Owned(c.to_string()))
-                        .collect::<Vec<Cow<'_, str>>>();
-                    local_state.insert_allowed_columns(table_name, allowed_columns);
-                }
-                TableFactor::Derived {
-                    lateral,
-                    subquery,
-                    alias,
-                } => {
-                    if alias.is_none() {
-                        return Err(InspektorSqlError::FromNeedAlias);
-                    }
-                    let subquery_alias = alias.as_ref().unwrap();
-                    // we have a subquery now.
-                    let derived_state = self.handle_query(subquery, &local_state)?;
-                    local_state.merge_allowed_selections(
-                        Cow::from(subquery_alias.name.value.clone()),
-                        derived_state,
-                    );
-                }
-                _ => {
-                    unreachable!("not handled statement {:?}", select.from);
-                }
-            }
+            let factor_state = self.handle_table_factor(state, &mut from.relation)?;
+            local_state.merge_state(factor_state);
         }
         let mut projection = Vec::with_capacity(select.projection.len());
         // filter out the the allowed projection if it's wildcard. otherwise,
@@ -180,6 +129,62 @@ impl<'a> QueryRewriter<'a> {
             projection.extend(self.handle_selection(&local_state, selection)?);
         }
         select.projection = projection;
+        Ok(local_state)
+    }
+
+    fn handle_table_factor<'s>(&self, state: &ValidationState<'s>, table_factor: &mut TableFactor) -> Result<ValidationState<'s>, InspektorSqlError> {
+        let mut local_state = state.clone();
+        match table_factor {
+            TableFactor::Table {
+                name,
+                alias,
+                args,
+                with_hints,
+            } => {
+                let mut table_name = Cow::Owned(name.0[0].value.clone());
+                // if the given table is protected table then we should throw error.
+                if self.rule_engine.is_table_protected(&table_name) {
+                    return Err(InspektorSqlError::UnAuthorizedColumn((
+                        name.0[0].value.clone(),
+                        "".to_string(),
+                    )));
+                }
+                let table_columns = match state.get_columns(&table_name) {
+                    Some(columns) => columns,
+                    _ => unreachable!("unable to get columns name for the table {:?}", name),
+                };
+                let mut allowed_columns = self
+                    .rule_engine
+                    .get_allowed_columns(&table_name, table_columns);
+                if let Some(alias) = alias {
+                    table_name = Cow::Owned(alias.name.value.clone())
+                }
+                let allowed_columns = allowed_columns
+                    .iter()
+                    .map(|c| Cow::Owned(c.to_string()))
+                    .collect::<Vec<Cow<'_, str>>>();
+                local_state.insert_allowed_columns(table_name, allowed_columns);
+            }
+            TableFactor::Derived {
+                lateral,
+                subquery,
+                alias,
+            } => {
+                if alias.is_none() {
+                    return Err(InspektorSqlError::FromNeedAlias);
+                }
+                let subquery_alias = alias.as_ref().unwrap();
+                // we have a subquery now.
+                let derived_state = self.handle_query(subquery, &local_state)?;
+                local_state.merge_allowed_selections(
+                    Cow::from(subquery_alias.name.value.clone()),
+                    derived_state,
+                );
+            }
+            _ => {
+                unreachable!("not handled statement {:?}", table_factor);
+            }
+        }
         Ok(local_state)
     }
 
