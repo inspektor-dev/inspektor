@@ -305,7 +305,14 @@ mod tests {
     #[test]
     fn test_validate() {
         let query = String::from(
-            r#"select * from blogtable1 bt1, blogtable2 bt2 where bt1.id1 < bt2.id1;"#,
+            r#"SELECT
+            zoo_1.id,
+            zoo_1.animal,
+            zoo_2.id,
+            zoo_2.animal
+        FROM
+            zoo_1
+        RIGHT JOIN zoo_2 ON zoo_1.animal = zoo_2.animal;"#,
         );
         validate(&query, vec![]);
     }

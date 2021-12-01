@@ -121,6 +121,10 @@ impl<'a> QueryRewriter<'a> {
         for from in &mut select.from {
             let factor_state = self.handle_table_factor(state, &mut from.relation)?;
             local_state.merge_state(factor_state);
+            for join in &mut from.joins {
+                let factor_state = self.handle_table_factor(state, &mut join.relation)?;
+                local_state.merge_state(factor_state);
+            }
         }
         let mut projection = Vec::with_capacity(select.projection.len());
         // filter out the the allowed projection if it's wildcard. otherwise,
@@ -132,7 +136,11 @@ impl<'a> QueryRewriter<'a> {
         Ok(local_state)
     }
 
-    fn handle_table_factor<'s>(&self, state: &ValidationState<'s>, table_factor: &mut TableFactor) -> Result<ValidationState<'s>, InspektorSqlError> {
+    fn handle_table_factor<'s>(
+        &self,
+        state: &ValidationState<'s>,
+        table_factor: &mut TableFactor,
+    ) -> Result<ValidationState<'s>, InspektorSqlError> {
         let mut local_state = state.clone();
         match table_factor {
             TableFactor::Table {
