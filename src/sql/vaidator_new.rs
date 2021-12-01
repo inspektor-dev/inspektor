@@ -320,9 +320,15 @@ mod tests {
         let rewriter = QueryRewriter::new(rule_engine).unwrap();
         assert_rewriter(
             &rewriter,
-            state,
+            state.clone(),
             "select * from (select * from kids) as nested",
             "SELECT id, name, address FROM (SELECT id, name, address FROM kids) AS nested",
+        );
+        assert_rewriter(
+            &rewriter,
+            state,
+            "select * from (with dummy as (select * from kids) select * from dummy)as nested limit 1;",
+            "SELECT id, name, address FROM (WITH dummy AS (SELECT id, name, address FROM kids) SELECT id, name, address FROM dummy) AS nested LIMIT 1",
         );
     }
 }
