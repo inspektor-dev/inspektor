@@ -1,7 +1,7 @@
 use sqlparser::ast::Ident;
 use sqlparser::ast::{Expr, SelectItem};
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{HashMap, BTreeMap};
 
 // validation state contains all the required metadata that will be used for
 // validating the selections.
@@ -11,7 +11,7 @@ pub struct ValidationState<'a> {
     // eg: cte and processed sub query.
     global_allowed_selections: HashMap<Cow<'a, str>, Vec<Cow<'a, str>>>,
     // allowed_selection hold the selections that is allowed only for the current execution block.
-    allowed_selections: HashMap<Cow<'a, str>, Vec<Cow<'a, str>>>,
+    allowed_selections: BTreeMap<Cow<'a, str>, Vec<Cow<'a, str>>>,
     //table info holds the informaion about the table.
     table_info: HashMap<Cow<'a, str>, Vec<Cow<'a, str>>>,
 }

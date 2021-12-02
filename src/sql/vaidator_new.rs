@@ -413,4 +413,52 @@ mod tests {
             "SELECT kids.id, kids.name, kids.address FROM kids UNION SELECT kids2.id, kids2.name, kids2.address FROM kids2",
         );
     }
+
+    #[test]
+    fn test_joins(){
+        let rule_engine = RuleEngine {
+            protected_columns: HashMap::from([
+                (Cow::from("kids"), vec![Cow::from("phone")]),
+                (Cow::from("kids2"), vec![Cow::from("phone")]),
+            ]),
+        };
+
+        let state = ValidationState::new(HashMap::from([
+            (
+                Cow::from("weather"),
+                vec![
+                    Cow::from("city"),
+                    Cow::from("temp_lo"),
+                    Cow::from("temp_hi"),
+                    Cow::from("prcp"),
+                ],
+            ),
+            (
+                Cow::from("cities"),
+                vec![
+                    Cow::from("name"),
+                    Cow::from("state"),
+                    Cow::from("country"),
+                    Cow::from("location")
+                ],
+            ),
+        ]));
+        let rewriter = QueryRewriter::new(rule_engine).unwrap();
+        assert_rewriter(
+            &rewriter,
+            state.clone(),
+            "SELECT *
+            FROM weather INNER JOIN cities ON (weather.city = cities.name);",
+            "SELECT cities.name, cities.state, cities.country, cities.location, weather.city, weather.temp_lo, weather.temp_hi, weather.prcp FROM weather JOIN cities ON (weather.city = cities.name)",
+        );
+        assert_rewriter(
+            &rewriter,
+            state.clone(),
+            "SELECT w.city, w.temp_lo, w.temp_hi,
+                         w.prcp, cities.location
+                      FROM weather as w, cities
+                      WHERE cities.name = w.city;",
+            "SELECT w.city, w.temp_lo, w.temp_hi, w.prcp, cities.location FROM weather AS w, cities WHERE cities.name = w.city",
+        );
+    }
 }
