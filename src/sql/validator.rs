@@ -305,14 +305,16 @@ mod tests {
     #[test]
     fn test_validate() {
         let query = String::from(
-            r#"SELECT
-            zoo_1.id,
-            zoo_1.animal,
-            zoo_2.id,
-            zoo_2.animal
-        FROM
-            zoo_1
-        RIGHT JOIN zoo_2 ON zoo_1.animal = zoo_2.animal;"#,
+            r#"SELECT po.id,
+            (
+                SELECT SUM(quantity)
+                FROM items
+                WHERE purchase_order_id = po.id
+                GROUP BY purchase_order_id
+            ) AS total_quantity
+     FROM purchase_orders po
+     WHERE shop_id = 195
+     GROUP BY po.id"#,
         );
         validate(&query, vec![]);
     }

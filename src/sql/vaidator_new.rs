@@ -15,7 +15,9 @@
 use crate::sql::error::InspektorSqlError;
 use crate::sql::rule_engine::RuleEngine;
 use crate::sql::selections::ValidationState;
-use sqlparser::ast::{Expr, Ident, Query, Select, SelectItem, SetExpr, Statement, TableFactor};
+use sqlparser::ast::{
+    Expr, FunctionArg, Ident, Query, Select, SelectItem, SetExpr, Statement, TableFactor,
+};
 use sqlparser::dialect::PostgreSqlDialect;
 use sqlparser::parser::Parser;
 use std::borrow::Cow;
@@ -209,6 +211,13 @@ impl<'a> QueryRewriter<'a> {
             SelectItem::Wildcard => {
                 return Ok(state.build_allowed_column_expr());
             }
+            SelectItem::ExprWithAlias {
+                expr,
+                alias: _alias,
+            } => {
+                self.handle_expr(state, expr)?;
+                return Ok(vec![selection.clone()]);
+            }
             _ => unreachable!("unknown expr {} {:?}", selection, selection),
         }
     }
@@ -221,7 +230,6 @@ impl<'a> QueryRewriter<'a> {
         match expr {
             Expr::Identifier(object_name) => {
                 // it's a single expression. if we have one table the we pick that.
-                
                 if !state.is_allowed_column_ident(&object_name.value) {
                     return Err(InspektorSqlError::UnAuthorizedColumn((
                         state.get_default_table(),
@@ -237,6 +245,24 @@ impl<'a> QueryRewriter<'a> {
                         Some(alias_name.to_string()),
                         column_name.clone(),
                     )));
+                }
+            }
+            Expr::Subquery(query) => {
+                // we don't need to do any merge of the state.
+                // because this comes as select projection.
+                self.handle_query(query, state)?;
+            }
+            Expr::Function(function) => {
+                // validate all the args whether it's allowed or not.
+                for arg in &mut function.args {
+                    match arg {
+                        FunctionArg::Unnamed(expr) => {
+                            return self.handle_expr(state, expr)
+                        }
+                        _ => {
+                            unreachable!("unknown fucntion args {} {:?}", arg, arg);
+                        }
+                    };
                 }
             }
             _ => unreachable!("unknown expression {} {:?}", expr, expr),
@@ -415,7 +441,7 @@ mod tests {
     }
 
     #[test]
-    fn test_joins(){
+    fn test_joins() {
         let rule_engine = RuleEngine {
             protected_columns: HashMap::from([
                 (Cow::from("kids"), vec![Cow::from("phone")]),
@@ -439,7 +465,7 @@ mod tests {
                     Cow::from("name"),
                     Cow::from("state"),
                     Cow::from("country"),
-                    Cow::from("location")
+                    Cow::from("location"),
                 ],
             ),
         ]));
@@ -459,6 +485,45 @@ mod tests {
                       FROM weather as w, cities
                       WHERE cities.name = w.city;",
             "SELECT w.city, w.temp_lo, w.temp_hi, w.prcp, cities.location FROM weather AS w, cities WHERE cities.name = w.city",
+        );
+    }
+
+    #[test]
+    fn test_projection_expr() {
+        let rule_engine = RuleEngine {
+            protected_columns: HashMap::from([
+                (Cow::from("kids"), vec![Cow::from("phone")]),
+                (Cow::from("kids2"), vec![Cow::from("phone")]),
+            ]),
+        };
+
+        let state = ValidationState::new(HashMap::from([
+            (
+                Cow::from("weather"),
+                vec![
+                    Cow::from("city"),
+                    Cow::from("temp_lo"),
+                    Cow::from("temp_hi"),
+                    Cow::from("prcp"),
+                ],
+            ),
+            (
+                Cow::from("cities"),
+                vec![
+                    Cow::from("name"),
+                    Cow::from("state"),
+                    Cow::from("country"),
+                    Cow::from("location"),
+                ],
+            ),
+        ]));
+        let rewriter = QueryRewriter::new(rule_engine).unwrap();
+        assert_rewriter(
+            &rewriter,
+            state.clone(),
+            "SELECT *, (select sum(temp_hi) from weather) as temp_hi
+            FROM cities",
+            "SELECT cities.name, cities.state, cities.country, cities.location, (SELECT sum(temp_hi) FROM weather) AS temp_hi FROM cities",
         );
     }
 }
