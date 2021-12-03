@@ -1,7 +1,7 @@
 use sqlparser::ast::Ident;
 use sqlparser::ast::{Expr, SelectItem};
 use std::borrow::Cow;
-use std::collections::{HashMap, BTreeMap};
+use std::collections::{BTreeMap, HashMap};
 
 // validation state contains all the required metadata that will be used for
 // validating the selections.
@@ -120,5 +120,20 @@ impl<'a> ValidationState<'a> {
             }
         }
         return selections;
+    }
+
+    pub fn column_expr_for_table(&self, table_name: &Cow<'a, str>) -> Vec<SelectItem> {
+        let columns = match self.allowed_selections.get(table_name) {
+            Some(columns) => columns,
+            None => return Vec::new(),
+        };
+        let mut result = Vec::with_capacity(columns.len());
+        for column in columns {
+            result.push(SelectItem::UnnamedExpr(Expr::CompoundIdentifier(vec![
+                Ident::new(table_name.to_string()),
+                Ident::new(column.to_string()),
+            ])))
+        }
+        result
     }
 }

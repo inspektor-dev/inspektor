@@ -218,7 +218,11 @@ impl<'a> QueryRewriter<'a> {
                 self.handle_expr(state, expr)?;
                 return Ok(vec![selection.clone()]);
             }
-            _ => unreachable!("unknown expr {} {:?}", selection, selection),
+            SelectItem::QualifiedWildcard(object_name) => {
+                // first ident must be table.
+                let table_name = &object_name.0[0].value;
+                return Ok(state.column_expr_for_table(&Cow::Borrowed(table_name)))
+            }
         }
     }
 
@@ -524,6 +528,31 @@ mod tests {
             "SELECT *, (select sum(temp_hi) from weather) as temp_hi
             FROM cities",
             "SELECT cities.name, cities.state, cities.country, cities.location, (SELECT sum(temp_hi) FROM weather) AS temp_hi FROM cities",
+        );
+    }
+
+    #[test]
+    fn test_wildcard_qualified_wildcard(){
+        let rule_engine = RuleEngine {
+            protected_columns: HashMap::from([(Cow::from("kids"), vec![Cow::from("phone")])]),
+        };
+
+        let state = ValidationState::new(HashMap::from([(
+            Cow::from("kids"),
+            vec![
+                Cow::from("phone"),
+                Cow::from("id"),
+                Cow::from("name"),
+                Cow::from("address"),
+            ],
+        )]));
+
+        let rewriter = QueryRewriter::new(rule_engine).unwrap();
+        assert_rewriter(
+            &rewriter,
+            state,
+            "select kids.* from kids",
+            "SELECT kids.id, kids.name, kids.address FROM kids",
         );
     }
 }
