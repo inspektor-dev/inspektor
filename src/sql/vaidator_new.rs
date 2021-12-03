@@ -291,38 +291,67 @@ impl<'a> QueryRewriter<'a> {
                 if let Some(operand) = operand {
                     self.handle_expr(state, operand)?;
                 }
-                for condition in conditions{
+                for condition in conditions {
                     self.handle_expr(state, condition)?
                 }
                 for result in results {
                     self.handle_expr(state, result)?
                 }
-                if let Some(else_result) = else_result{
+                if let Some(else_result) = else_result {
                     self.handle_expr(state, else_result)?
                 }
-                return Ok(());
+            }
+            Expr::Cast { expr, .. }
+            | Expr::TryCast { expr, .. }
+            | Expr::Extract { expr, .. }
+            | Expr::Collate { expr, .. }
+            | Expr::Nested(expr) => {
+                self.handle_expr(state, expr)?;
+            }
+            Expr::Trim { expr, trim_where } => {
+                self.handle_expr(state, expr)?;
+                if let Some((_, expr)) = trim_where {
+                    self.handle_expr(state, expr)?;
+                }
+            }
+            Expr::Substring {
+                expr,
+                substring_from,
+                substring_for,
+            } => {
+                self.handle_expr(state, expr)?;
+                if let Some(from) = substring_from {
+                    self.handle_expr(state, from)?;
+                }
+                if let Some(expr) = substring_for {
+                    self.handle_expr(state, expr)?;
+                }
             }
             Expr::Wildcard | Expr::QualifiedWildcard(_) => {
                 // expr wild card come as parameter to a function.
                 // eg: count(*) so we don't need to change anything.
-                return Ok(());
             }
-            Expr::Value(_) => {
+            Expr::Value(_) | Expr::TypedString { .. } => {
                 // things that needs no evaluation.
-                return Ok(());
             }
+            Expr::BinaryOp {
+                left,
+                op: _op,
+                right,
+            } => {
+                self.handle_expr(state, left)?;
+                self.handle_expr(state, right)?;
+            }
+            Expr::UnaryOp { op: _op, expr } => self.handle_expr(state, expr)?,
             Expr::IsNull(_)
             | Expr::IsNotNull(_)
             | Expr::IsDistinctFrom(_, _)
             | Expr::IsNotDistinctFrom(_, _)
             | Expr::InList { .. }
             | Expr::InSubquery { .. }
-            | Expr::Between { .. }
-            | Expr::BinaryOp { .. }
-            | Expr::UnaryOp { .. } => {
+            | Expr::Between { .. } => {
                 // these are list of expression used by where cause so we just
                 // simply don't do anything.
-                return Ok(());
             }
             _ => unreachable!("unknown expression {} {:?}", expr, expr),
         }
@@ -357,6 +386,18 @@ mod tests {
         let mut statements = Parser::parse_sql(&dialect, input).unwrap();
         rewriter.validate(&mut statements, state).unwrap();
         assert_eq!(output, format!("{}", statements[0]))
+    }
+
+    fn assert_error(
+        rewriter: &QueryRewriter,
+        state: ValidationState,
+        input: &'static str,
+        err: InspektorSqlError,
+    ) {
+        let dialect = PostgreSqlDialect {};
+        let mut statements = Parser::parse_sql(&dialect, input).unwrap();
+        let rewriter_err = rewriter.validate(&mut statements, state).unwrap_err();
+        assert_eq!(rewriter_err, err)
     }
     #[test]
     fn basic_select() {
@@ -632,9 +673,56 @@ mod tests {
 
         assert_rewriter(
             &rewriter,
-            state,
+            state.clone(),
             "SELECT count(*) from kids",
             "SELECT count(*) FROM kids",
+        );
+
+        assert_rewriter(
+            &rewriter,
+            state.clone(),
+            "SELECT CASE when address > 10 then address else 0 end from kids",
+            "SELECT CASE WHEN address > 10 THEN address ELSE 0 END FROM kids",
+        );
+
+        assert_rewriter(
+            &rewriter,
+            state.clone(),
+            r#"SELECT name < address COLLATE "de_DE" FROM kids"#,
+            r#"SELECT name < address COLLATE "de_DE" FROM kids"#,
+        );
+
+        assert_rewriter(
+            &rewriter,
+            state.clone(),
+            r#"SELECT name < address COLLATE "de_DE" FROM kids"#,
+            r#"SELECT name < address COLLATE "de_DE" FROM kids"#,
+        );
+
+        assert_error(
+            &rewriter,
+            state.clone(),
+            r#"SELECT phone < address COLLATE "de_DE" FROM kids"#,
+            InspektorSqlError::UnAuthorizedColumn((Some("kids".to_string()), "phone".to_string())),
+        );
+
+        assert_rewriter(
+            &rewriter,
+            state.clone(),
+            r#"SELECT CAST(name as INTEGER), EXTRACT(month from id) FROM kids"#,
+            r#"SELECT CAST(name AS INT), EXTRACT(MONTH FROM id) FROM kids"#,
+        );
+        assert_error(
+            &rewriter,
+            state.clone(),
+            r#"SELECT CAST(name as INTEGER), EXTRACT(month from phone) FROM kids"#,
+            InspektorSqlError::UnAuthorizedColumn((Some("kids".to_string()), "phone".to_string())),
+        );
+        assert_error(
+            &rewriter,
+            state.clone(),
+            r#"SELECT CAST(phone as INTEGER), EXTRACT(month from id) FROM kids"#,
+            InspektorSqlError::UnAuthorizedColumn((Some("kids".to_string()), "phone".to_string())),
         );
     }
 }

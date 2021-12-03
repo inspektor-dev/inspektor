@@ -2,7 +2,7 @@ use sqlparser::parser::ParserError;
 use std;
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum InspektorSqlError {
     PaserError(#[from] ParserError),
     UnAuthorizedColumn((Option<String>, String)),
