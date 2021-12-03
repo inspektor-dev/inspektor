@@ -122,7 +122,7 @@ impl<'a> QueryRewriter<'a> {
         let mut local_state = state.clone();
         // select projection are not from a table so we don't need to do anythings here.
         if select.from.len() == 0 {
-            return  Ok(local_state);
+            return Ok(local_state);
         }
         for from in &mut select.from {
             let factor_state = self.handle_table_factor(state, &mut from.relation)?;
@@ -225,7 +225,7 @@ impl<'a> QueryRewriter<'a> {
             SelectItem::QualifiedWildcard(object_name) => {
                 // first ident must be table.
                 let table_name = &object_name.0[0].value;
-                return Ok(state.column_expr_for_table(&Cow::Borrowed(table_name)))
+                return Ok(state.column_expr_for_table(&Cow::Borrowed(table_name)));
             }
         }
     }
@@ -264,14 +264,65 @@ impl<'a> QueryRewriter<'a> {
                 // validate all the args whether it's allowed or not.
                 for arg in &mut function.args {
                     match arg {
-                        FunctionArg::Unnamed(expr) => {
-                            return self.handle_expr(state, expr)
-                        }
+                        FunctionArg::Unnamed(expr) => return self.handle_expr(state, expr),
                         _ => {
                             unreachable!("unknown fucntion args {} {:?}", arg, arg);
                         }
                     };
                 }
+            }
+            Expr::Case {
+                operand,
+                conditions,
+                results,
+                else_result,
+            } => {
+                // example query:
+                // SELECT
+                //     id,
+                //     CASE
+                //         WHEN rating~E'^\\d+$' THEN
+                //             CAST (rating AS INTEGER)
+                //         ELSE
+                //             0
+                //         END as rating
+                // FROM
+                //     ratings
+                if let Some(operand) = operand {
+                    self.handle_expr(state, operand)?;
+                }
+                for condition in conditions{
+                    self.handle_expr(state, condition)?
+                }
+                for result in results {
+                    self.handle_expr(state, result)?
+                }
+                if let Some(else_result) = else_result{
+                    self.handle_expr(state, else_result)?
+                }
+                return Ok(());
+            }
+            Expr::Wildcard | Expr::QualifiedWildcard(_) => {
+                // expr wild card come as parameter to a function.
+                // eg: count(*) so we don't need to change anything.
+                return Ok(());
+            }
+            Expr::Value(_) => {
+                // things that needs no evaluation.
+                return Ok(());
+            }
+            Expr::IsNull(_)
+            | Expr::IsNotNull(_)
+            | Expr::IsDistinctFrom(_, _)
+            | Expr::IsNotDistinctFrom(_, _)
+            | Expr::InList { .. }
+            | Expr::InSubquery { .. }
+            | Expr::Between { .. }
+            | Expr::BinaryOp { .. }
+            | Expr::UnaryOp { .. } => {
+                // these are list of expression used by where cause so we just
+                // simply don't do anything.
+                return Ok(());
             }
             _ => unreachable!("unknown expression {} {:?}", expr, expr),
         }
@@ -536,7 +587,7 @@ mod tests {
     }
 
     #[test]
-    fn test_wildcard_qualified_wildcard(){
+    fn test_wildcard_qualified_wildcard() {
         let rule_engine = RuleEngine {
             protected_columns: HashMap::from([(Cow::from("kids"), vec![Cow::from("phone")])]),
         };
@@ -561,16 +612,29 @@ mod tests {
     }
 
     #[test]
-    fn test_select_with_no_from(){
-        let rule_engine = RuleEngine::default();
-        let state = ValidationState::default();
+    fn test_expr() {
+        let rule_engine = RuleEngine {
+            protected_columns: HashMap::from([(Cow::from("kids"), vec![Cow::from("phone")])]),
+        };
+
+        let state = ValidationState::new(HashMap::from([(
+            Cow::from("kids"),
+            vec![
+                Cow::from("phone"),
+                Cow::from("id"),
+                Cow::from("name"),
+                Cow::from("address"),
+            ],
+        )]));
+
         let rewriter = QueryRewriter::new(rule_engine).unwrap();
+        assert_rewriter(&rewriter, state.clone(), "SELECT 1", "SELECT 1");
+
         assert_rewriter(
             &rewriter,
             state,
-            "SELECT 1",
-            "SELECT 1",
+            "SELECT count(*) from kids",
+            "SELECT count(*) FROM kids",
         );
     }
-
 }

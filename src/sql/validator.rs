@@ -305,16 +305,16 @@ mod tests {
     #[test]
     fn test_validate() {
         let query = String::from(
-            r#"SELECT po.id,
-            (
-                SELECT SUM(quantity)
-                FROM items
-                WHERE purchase_order_id = po.id
-                GROUP BY purchase_order_id
-            ) AS total_quantity
-     FROM purchase_orders po
-     WHERE shop_id = 195
-     GROUP BY po.id"#,
+            r#"SELECT
+            id,
+            CASE
+                WHEN rating THEN
+                    CAST (rating AS INTEGER)
+                ELSE
+                    0
+                END as rating
+        FROM
+            ratings;"#,
         );
         validate(&query, vec![]);
     }

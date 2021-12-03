@@ -21,3 +21,14 @@ mod rule_engine;
 
 // TODO: things that needs to be revisied
 // 1) table function
+// 2) not supported sql by sql parser
+// SELECT
+        //     id,
+        //     CASE
+        //         WHEN rating~E'^\\d+$' THEN
+        //             CAST (rating AS INTEGER)
+        //         ELSE
+        //             0
+        //         END as rating
+        // FROM
+        //     ratings
