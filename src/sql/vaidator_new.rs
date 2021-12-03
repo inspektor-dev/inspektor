@@ -120,6 +120,10 @@ impl<'a> QueryRewriter<'a> {
         state: &ValidationState<'s>,
     ) -> Result<ValidationState<'s>, InspektorSqlError> {
         let mut local_state = state.clone();
+        // select projection are not from a table so we don't need to do anythings here.
+        if select.from.len() == 0 {
+            return  Ok(local_state);
+        }
         for from in &mut select.from {
             let factor_state = self.handle_table_factor(state, &mut from.relation)?;
             local_state.merge_state(factor_state);
@@ -555,4 +559,18 @@ mod tests {
             "SELECT kids.id, kids.name, kids.address FROM kids",
         );
     }
+
+    #[test]
+    fn test_select_with_no_from(){
+        let rule_engine = RuleEngine::default();
+        let state = ValidationState::default();
+        let rewriter = QueryRewriter::new(rule_engine).unwrap();
+        assert_rewriter(
+            &rewriter,
+            state,
+            "SELECT 1",
+            "SELECT 1",
+        );
+    }
+
 }
