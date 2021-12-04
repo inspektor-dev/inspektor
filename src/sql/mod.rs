@@ -12,11 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod validator;
-mod query_builder;
 mod error;
-mod selections;
-mod vaidator_new;
+mod state;
+mod query_rewriter;
 mod rule_engine;
 
 // TODO: things that needs to be revisied

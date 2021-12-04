@@ -14,22 +14,27 @@
 
 use crate::sql::error::InspektorSqlError;
 use crate::sql::rule_engine::RuleEngine;
-use crate::sql::selections::ValidationState;
+use crate::sql::state::ValidationState;
 use sqlparser::ast::{
     Expr, FunctionArg, Ident, Query, Select, SelectItem, SetExpr, Statement, TableFactor,
 };
 use sqlparser::dialect::PostgreSqlDialect;
 use sqlparser::parser::Parser;
 use std::borrow::Cow;
+
+// QueryRewriter validates the user query and rewrites if neccessary.
 pub struct QueryRewriter<'a> {
+    // rule engine is responsible for handling all the rules which are enforced by
+    // the end user.
     rule_engine: RuleEngine<'a>,
 }
 
 impl<'a> QueryRewriter<'a> {
-    fn new<'s>(rule_engine: RuleEngine<'s>) -> Result<QueryRewriter<'s>, InspektorSqlError> {
-        Ok(QueryRewriter {
+    // new will return query rewriter
+    pub fn new<'s>(rule_engine: RuleEngine<'s>) -> QueryRewriter<'s> {
+        return QueryRewriter {
             rule_engine: rule_engine,
-        })
+        };
     }
 
     fn validate(
@@ -50,12 +55,18 @@ impl<'a> QueryRewriter<'a> {
         Ok(())
     }
 
-    fn handle_query<'s>(
+    // handle_query will validate the query with the rule engine. it's not valid
+    // it's throw an error or it' try to rewrite to make the query to match
+    // the rule.
+    pub fn handle_query<'s>(
         &self,
         query: &mut Query,
         state: &ValidationState<'s>,
     ) -> Result<ValidationState<'s>, InspektorSqlError> {
         let mut local_state = state.clone();
+        // cte table are user created temp table passed down to the subsequent query.
+        // so it's is mandatory to validate cte first and build the state
+        // to push down to the subsequent statement.
         if let Some(with) = &mut query.with {
             for cte in &mut with.cte_tables {
                 let cte_state = self.handle_query(&mut cte.query, state)?;
@@ -70,6 +81,8 @@ impl<'a> QueryRewriter<'a> {
         self.handle_set_expr(&mut query.body, &local_state)
     }
 
+    // handle_set_expr handles set exprs which are basically query, insert,
+    // select.. all the core block of the ANSI SQL.
     fn handle_set_expr<'s>(
         &self,
         expr: &mut SetExpr,
@@ -84,6 +97,8 @@ impl<'a> QueryRewriter<'a> {
                 left,
                 right,
             } => {
+                // set operation are union or intersect of set_expr
+                // eg (select * from premimum users) UNION (select * from users);
                 let _left_state = self.handle_set_expr(left, state)?;
                 let right_state = self.handle_set_expr(right, state)?;
                 // usually left and right should be selection because it's a union call.
@@ -114,6 +129,8 @@ impl<'a> QueryRewriter<'a> {
         }
     }
 
+    // handle_select handles select statement. select statement data are the one which are
+    // returned to the user.
     fn handle_select<'s>(
         &self,
         select: &mut Select,
@@ -121,9 +138,11 @@ impl<'a> QueryRewriter<'a> {
     ) -> Result<ValidationState<'s>, InspektorSqlError> {
         let mut local_state = state.clone();
         // select projection are not from a table so we don't need to do anythings here.
+        // TODO: I'm not convinced about the fast path.
         if select.from.len() == 0 {
             return Ok(local_state);
         }
+        // from selection defines what all fields that are allowed for the from tables.
         for from in &mut select.from {
             let factor_state = self.handle_table_factor(state, &mut from.relation)?;
             local_state.merge_state(factor_state);
@@ -142,6 +161,8 @@ impl<'a> QueryRewriter<'a> {
         Ok(local_state)
     }
 
+    // handle_table_factor handles (FROM table). here all the possible columns allowed for the
+    // given table is decided.
     fn handle_table_factor<'s>(
         &self,
         state: &ValidationState<'s>,
@@ -152,8 +173,8 @@ impl<'a> QueryRewriter<'a> {
             TableFactor::Table {
                 name,
                 alias,
-                args,
-                with_hints,
+                args: _args,
+                with_hints: _with_hints,
             } => {
                 let mut table_name = Cow::Owned(name.0[0].value.clone());
                 // if the given table is protected table then we should throw error.
@@ -184,6 +205,8 @@ impl<'a> QueryRewriter<'a> {
                 subquery,
                 alias,
             } => {
+                // derived table are the subquery in the FROM clause.
+                // eg: SELECT * from (select * from premimum users limit by 10) as users;
                 if alias.is_none() {
                     return Err(InspektorSqlError::FromNeedAlias);
                 }
@@ -195,6 +218,14 @@ impl<'a> QueryRewriter<'a> {
                     derived_state,
                 );
             }
+            TableFactor::NestedJoin(table) => {
+                let factor_state = self.handle_table_factor(state, &mut table.relation)?;
+                local_state.merge_state(factor_state);
+                for join in &mut table.joins{
+                    let factor_state = self.handle_table_factor(state, &mut join.relation)?;
+                    local_state.merge_state(factor_state);
+                }
+            }
             _ => {
                 unreachable!("not handled statement {:?}", table_factor);
             }
@@ -202,6 +233,10 @@ impl<'a> QueryRewriter<'a> {
         Ok(local_state)
     }
 
+    // handle_selection handles the selected field. This is bottom down of the evaluation, here
+    // we validate that the selected field is in the allowed columns. if not it'll throw an
+    // unauthorized error. But, query rewriter always tries to rewrite it's possible to 
+    // adhere the rule.
     fn handle_selection(
         &self,
         state: &ValidationState<'a>,
@@ -213,6 +248,7 @@ impl<'a> QueryRewriter<'a> {
                 return Ok(vec![SelectItem::UnnamedExpr(expr.clone())]);
             }
             SelectItem::Wildcard => {
+                // for wildcard we just rewrite with all the allowed columns.
                 return Ok(state.build_allowed_column_expr());
             }
             SelectItem::ExprWithAlias {
@@ -230,6 +266,8 @@ impl<'a> QueryRewriter<'a> {
         }
     }
 
+    // handle_expr will handle all the selection expr. eg:
+    // SUM(balance) or balance...
     fn handle_expr(
         &self,
         state: &ValidationState<'a>,
@@ -415,7 +453,7 @@ mod tests {
             ],
         )]));
 
-        let rewriter = QueryRewriter::new(rule_engine).unwrap();
+        let rewriter = QueryRewriter::new(rule_engine);
         assert_rewriter(
             &rewriter,
             state,
@@ -438,7 +476,7 @@ mod tests {
             (Cow::from("cities"), cowvec!("name", "location")),
         ]));
 
-        let rewriter = QueryRewriter::new(rule_engine).unwrap();
+        let rewriter = QueryRewriter::new(rule_engine);
         assert_rewriter(&rewriter, state, "SELECT w.city, w.temp_lo, w.temp_hi,
         w.prcp, w.date, cities.location
         FROM weather as w, cities
@@ -461,7 +499,7 @@ mod tests {
             ],
         )]));
 
-        let rewriter = QueryRewriter::new(rule_engine).unwrap();
+        let rewriter = QueryRewriter::new(rule_engine);
         assert_rewriter(
             &rewriter,
             state,
@@ -487,7 +525,7 @@ mod tests {
             ],
         )]));
 
-        let rewriter = QueryRewriter::new(rule_engine).unwrap();
+        let rewriter = QueryRewriter::new(rule_engine);
         assert_rewriter(
             &rewriter,
             state.clone(),
@@ -531,7 +569,7 @@ mod tests {
                 ],
             ),
         ]));
-        let rewriter = QueryRewriter::new(rule_engine).unwrap();
+        let rewriter = QueryRewriter::new(rule_engine);
         assert_rewriter(
             &rewriter,
             state.clone(),
@@ -569,7 +607,7 @@ mod tests {
                 ],
             ),
         ]));
-        let rewriter = QueryRewriter::new(rule_engine).unwrap();
+        let rewriter = QueryRewriter::new(rule_engine);
         assert_rewriter(
             &rewriter,
             state.clone(),
@@ -617,7 +655,7 @@ mod tests {
                 ],
             ),
         ]));
-        let rewriter = QueryRewriter::new(rule_engine).unwrap();
+        let rewriter = QueryRewriter::new(rule_engine);
         assert_rewriter(
             &rewriter,
             state.clone(),
@@ -643,7 +681,7 @@ mod tests {
             ],
         )]));
 
-        let rewriter = QueryRewriter::new(rule_engine).unwrap();
+        let rewriter = QueryRewriter::new(rule_engine);
         assert_rewriter(
             &rewriter,
             state,
@@ -668,7 +706,7 @@ mod tests {
             ],
         )]));
 
-        let rewriter = QueryRewriter::new(rule_engine).unwrap();
+        let rewriter = QueryRewriter::new(rule_engine);
         assert_rewriter(&rewriter, state.clone(), "SELECT 1", "SELECT 1");
 
         assert_rewriter(
