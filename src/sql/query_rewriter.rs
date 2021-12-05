@@ -14,7 +14,7 @@
 
 use crate::sql::error::InspektorSqlError;
 use crate::sql::rule_engine::{HardRuleEngine, RuleEngine};
-use crate::sql::state::ValidationState;
+use crate::sql::ctx::Ctx;
 use sqlparser::ast::{
     Expr, FunctionArg, Ident, Query, Select, SelectItem, SetExpr, Statement, TableFactor,
 };
@@ -37,10 +37,10 @@ impl<T: RuleEngine> QueryRewriter< T> {
         };
     }
 
-    fn validate(
+    pub fn rewrite(
         &self,
         statements: &mut Vec<Statement>,
-        state: ValidationState,
+        state: Ctx,
     ) -> Result<(), InspektorSqlError> {
         for statement in statements {
             match statement {
@@ -48,7 +48,7 @@ impl<T: RuleEngine> QueryRewriter< T> {
                     self.handle_query(query, &state)?;
                 }
                 _ => {
-                    unreachable!("unknown statement {:?}", statement);
+                    continue;
                 }
             }
         }
@@ -61,8 +61,8 @@ impl<T: RuleEngine> QueryRewriter< T> {
     pub fn handle_query(
         &self,
         query: &mut Query,
-        state: &ValidationState,
-    ) -> Result<ValidationState, InspektorSqlError> {
+        state: &Ctx,
+    ) -> Result<Ctx, InspektorSqlError> {
         let mut local_state = state.clone();
         // cte table are user created temp table passed down to the subsequent query.
         // so it's is mandatory to validate cte first and build the state
@@ -86,8 +86,8 @@ impl<T: RuleEngine> QueryRewriter< T> {
     fn handle_set_expr(
         &self,
         expr: &mut SetExpr,
-        state: &ValidationState,
-    ) -> Result<ValidationState, InspektorSqlError> {
+        state: &Ctx,
+    ) -> Result<Ctx, InspektorSqlError> {
         match expr {
             SetExpr::Query(query) => return self.handle_query(query, state),
             SetExpr::Select(select) => return self.handle_select(select, state),
@@ -134,8 +134,8 @@ impl<T: RuleEngine> QueryRewriter< T> {
     fn handle_select(
         &self,
         select: &mut Select,
-        state: &ValidationState,
-    ) -> Result<ValidationState, InspektorSqlError> {
+        state: &Ctx,
+    ) -> Result<Ctx, InspektorSqlError> {
         let mut local_state = state.clone();
         // select projection are not from a table so we don't need to do anythings here.
         // TODO: I'm not convinced about the fast path.
@@ -165,9 +165,9 @@ impl<T: RuleEngine> QueryRewriter< T> {
     // given table is decided.
     fn handle_table_factor(
         &self,
-        state: &ValidationState,
+        state: &Ctx,
         table_factor: &mut TableFactor,
-    ) -> Result<ValidationState, InspektorSqlError> {
+    ) -> Result<Ctx, InspektorSqlError> {
         let mut local_state = state.clone();
         match table_factor {
             TableFactor::Table {
@@ -239,7 +239,7 @@ impl<T: RuleEngine> QueryRewriter< T> {
     // adhere the rule.
     fn handle_selection(
         &self,
-        state: &ValidationState,
+        state: &Ctx,
         selection: &mut SelectItem,
     ) -> Result<Vec<SelectItem>, InspektorSqlError> {
         match selection {
@@ -270,7 +270,7 @@ impl<T: RuleEngine> QueryRewriter< T> {
     // SUM(balance) or balance...
     fn handle_expr(
         &self,
-        state: &ValidationState,
+        state: &Ctx,
         expr: &mut Expr,
     ) -> Result<(), InspektorSqlError> {
         match expr {
@@ -416,25 +416,25 @@ mod tests {
 
     fn assert_rewriter<T: RuleEngine>(
         rewriter: &QueryRewriter<T>,
-        state: ValidationState,
+        state: Ctx,
         input: &'static str,
         output: &'static str,
     ) {
         let dialect = PostgreSqlDialect {};
         let mut statements = Parser::parse_sql(&dialect, input).unwrap();
-        rewriter.validate(&mut statements, state).unwrap();
+        rewriter.rewrite(&mut statements, state).unwrap();
         assert_eq!(output, format!("{}", statements[0]))
     }
 
     fn assert_error<T: RuleEngine>(
         rewriter: &QueryRewriter<T>,
-        state: ValidationState,
+        state: Ctx,
         input: &'static str,
         err: InspektorSqlError,
     ) {
         let dialect = PostgreSqlDialect {};
         let mut statements = Parser::parse_sql(&dialect, input).unwrap();
-        let rewriter_err = rewriter.validate(&mut statements, state).unwrap_err();
+        let rewriter_err = rewriter.rewrite(&mut statements, state).unwrap_err();
         assert_eq!(rewriter_err, err)
     }
     #[test]
@@ -443,7 +443,7 @@ mod tests {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
         };
 
-        let state = ValidationState::new(HashMap::from([(
+        let state = Ctx::new(HashMap::from([(
             String::from("kids"),
             vec![
                 String::from("phone"),
@@ -468,7 +468,7 @@ mod tests {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
         };
 
-        let state = ValidationState::new(HashMap::from([
+        let state = Ctx::new(HashMap::from([
             (
                 String::from("weather"),
                 cowvec!("city", "temp_lo", "temp_hi", "prcp", "date"),
@@ -489,7 +489,7 @@ mod tests {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
         };
 
-        let state = ValidationState::new(HashMap::from([(
+        let state = Ctx::new(HashMap::from([(
             String::from("kids"),
             vec![
                 String::from("phone"),
@@ -515,7 +515,7 @@ mod tests {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
         };
 
-        let state = ValidationState::new(HashMap::from([(
+        let state = Ctx::new(HashMap::from([(
             String::from("kids"),
             vec![
                 String::from("phone"),
@@ -549,7 +549,7 @@ mod tests {
             ]),
         };
 
-        let state = ValidationState::new(HashMap::from([
+        let state = Ctx::new(HashMap::from([
             (
                 String::from("kids"),
                 vec![
@@ -587,7 +587,7 @@ mod tests {
             ]),
         };
 
-        let state = ValidationState::new(HashMap::from([
+        let state = Ctx::new(HashMap::from([
             (
                 String::from("weather"),
                 vec![
@@ -635,7 +635,7 @@ mod tests {
             ]),
         };
 
-        let state = ValidationState::new(HashMap::from([
+        let state = Ctx::new(HashMap::from([
             (
                 String::from("weather"),
                 vec![
@@ -671,7 +671,7 @@ mod tests {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
         };
 
-        let state = ValidationState::new(HashMap::from([(
+        let state = Ctx::new(HashMap::from([(
             String::from("kids"),
             vec![
                 String::from("phone"),
@@ -696,7 +696,7 @@ mod tests {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
         };
 
-        let state = ValidationState::new(HashMap::from([(
+        let state = Ctx::new(HashMap::from([(
             String::from("kids"),
             vec![
                 String::from("phone"),

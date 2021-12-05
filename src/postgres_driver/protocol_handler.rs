@@ -1,18 +1,25 @@
 use crate::config::PostgresConfig;
 use crate::postgres_driver::conn::PostgresConn;
 use crate::postgres_driver::message::*;
+use crate::sql::ctx::Ctx;
+use crate::sql::query_rewriter::QueryRewriter;
+use crate::sql::rule_engine::{self, HardRuleEngine};
 use anyhow::*;
 use burrego::opa::host_callbacks::DEFAULT_HOST_CALLBACKS;
 use burrego::opa::wasm::Evaluator;
+use futures::FutureExt;
 use log::*;
 use md5::{Digest, Md5};
-use openssl::ssl::{SslConnector, SslMethod};
+use openssl::ssl::{Ssl, SslConnector, SslMethod};
 use std::collections::HashMap;
 use std::pin::Pin;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::watch;
 use tokio_openssl::SslStream;
+use tokio_postgres::tls::TlsConnect;
+use tokio_postgres::SimpleQueryMessage;
+use tokio_postgres_openssl::MakeTlsConnector;
 
 fn md5_password(username: &String, password: &String, salt: Vec<u8>) -> String {
     let mut md5 = Md5::new();
@@ -29,14 +36,57 @@ pub struct ProtocolHandler {
     client_conn: PostgresConn,
     target_conn: PostgresConn,
     policy_evaluator: Evaluator,
-    groups: Vec<String>
+    groups: Vec<String>,
+    config: PostgresConfig,
+    connected_db: String,
 }
 
 impl ProtocolHandler {
+    async fn get_table_info(
+        &self,
+        client: &tokio_postgres::Client,
+    ) -> Result<HashMap<String, Vec<String>>, anyhow::Error> {
+        let rows = client
+            .query(
+                "
+                SELECT table_schema, table_name, column_name, data_type
+	FROM information_schema.columns
+	 WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+	 AND table_name !~ '^pg_';",
+                &[],
+            )
+            .await?;
+
+        let mut table_info: HashMap<String, Vec<String>> = HashMap::default();
+        for row in rows {
+            let table_name: String = row.get(1);
+            let column_name: String = row.get(2);
+            if let Some(columns) = table_info.get_mut(&table_name) {
+                columns.push(column_name);
+                continue;
+            }
+            table_info.insert(table_name, vec![column_name]);
+        }
+        Ok(table_info)
+    }
     // serve will listen to client packets and decide whether to process
     // the packet based on the opa policy.
-    pub async fn serve(&mut self) {
-        let mut target_buf = [0;1024];
+    pub async fn serve(&mut self) -> Result<(), anyhow::Error> {
+        debug!("started serving");
+        let (client, connection) = tokio_postgres::connect(
+            &format!(
+                "host=localhost port=5432 user={} dbname = {} password = {}",
+                self.config.target_username.as_ref().unwrap(),
+                self.connected_db,
+                self.config.target_password.as_ref().unwrap()
+            ),
+            tokio_postgres::NoTls,
+        )
+        .await?;
+        tokio::spawn(connection);
+        let table_info = self.get_table_info(&client).await?;
+        debug!("got table info: {:?}", table_info);
+        let mut target_buf = [0; 1024];
         loop {
             tokio::select! {
                 evaluator = self.policy_watcher.changed() => {
@@ -53,14 +103,14 @@ impl ProtocolHandler {
                     match n {
                         Err(e) =>{
                                 println!("failed to read from socket; err = {:?}", e);
-                                return ();
+                                return Ok(());
                         },
                         Ok(n) =>{
                             if n == 0 {
-                                return ()
+                               return Ok(());
                             }
                             if let Err(e) = self.client_conn.write_all(&target_buf[0..n]).await{
-                                return
+                                return Ok(());
                             }
                         }
                     }
@@ -69,12 +119,14 @@ impl ProtocolHandler {
                     match n {
                         Err(e) =>{
                                 println!("failed to read from socket; err = {:?}", e);
-                                return ();
+                                return Ok(());
                         },
-                        Ok(msg) =>{
-                            debug!("got frontend message {:?}", msg);
+                        Ok(mut msg) =>{
+                            info!("got frontend message {:?}", msg);
+                            let ctx =  Ctx::new(table_info.clone());
+                            self.handle_frontend_message(&mut msg, ctx).unwrap();
                             if let Err(e) = self.target_conn.write_all(&msg.encode()).await{
-                                return;
+                                return Ok(());
                             }
                         }
                     }
@@ -89,7 +141,7 @@ impl ProtocolHandler {
         mut client_conn: PostgresConn,
         client_parms: HashMap<String, String>,
         policy_watcher: watch::Receiver<Vec<u8>>,
-        groups: Vec<String>
+        groups: Vec<String>,
     ) -> Result<ProtocolHandler, anyhow::Error> {
         debug!("intializing protocol handler");
         let mut target_conn = ProtocolHandler::connect_target(&config).await?;
@@ -183,6 +235,8 @@ impl ProtocolHandler {
                         policy_watcher: policy_watcher,
                         policy_evaluator: evaluator,
                         groups: groups,
+                        config: config.clone(),
+                        connected_db: client_parms.get("database").unwrap().clone(),
                     };
                     return Ok(handler);
                 }
@@ -238,15 +292,7 @@ impl ProtocolHandler {
                     // current connection and create a new unsecured connection.
                     return ProtocolHandler::connect_target(config).await;
                 }
-                let connector = SslConnector::builder(SslMethod::tls())
-                    .unwrap()
-                    .build()
-                    .configure()
-                    .unwrap()
-                    .verify_hostname(false)
-                    .use_server_name_indication(false)
-                    .into_ssl("")
-                    .unwrap();
+                let connector = ProtocolHandler::get_ssl_connector();
                 let mut stream = SslStream::new(connector, inner).unwrap();
                 Pin::new(&mut stream).connect().await.map_err(|e| {
                     error!(
@@ -261,5 +307,67 @@ impl ProtocolHandler {
         }
     }
 
-    async fn handle_frontend_message(&mut self, msg: FrontendMessage){}
+    fn get_ssl_connector() -> Ssl {
+        SslConnector::builder(SslMethod::tls())
+            .unwrap()
+            .build()
+            .configure()
+            .unwrap()
+            .verify_hostname(false)
+            .use_server_name_indication(false)
+            .into_ssl("")
+            .unwrap()
+    }
+
+    fn get_ssl_builder() -> SslConnector {
+        SslConnector::builder(SslMethod::tls()).unwrap().build()
+    }
+
+     fn handle_frontend_message(
+        &mut self,
+        msg: &mut FrontendMessage,
+        ctx: Ctx,
+    ) -> Result<(), anyhow::Error> {
+        match msg {
+            FrontendMessage::Query { query_string } => {
+                let dialect = sqlparser::dialect::PostgreSqlDialect {};
+                let mut statements =
+                    match sqlparser::parser::Parser::parse_sql(&dialect, query_string) {
+                        Ok(statements) => statements,
+                        Err(e) => {
+                            error!(
+                                "error while parsing user query error: {} query string: {}",
+                                e, query_string
+                            );
+                            return Ok(());
+                        }
+                    };
+                let rule = rule_engine::HardRuleEngine::default();
+                let rewriter = QueryRewriter::new(rule);
+                rewriter.rewrite(&mut statements, ctx)?;
+                // convert the statement back to string.
+                let mut out = String::from("");
+                for statement in statements {
+                    out = format!("{}{};", out, statement);
+                }
+                debug!("rewritten query {}", out);
+                *query_string = out;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    async fn get_postgres_client(&self) {
+        // let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+        // builder.set_ca_file("../test/server.crt").unwrap();
+        // let connector = MakeTlsConnector::new(builder.build());
+
+        // let (client, connection) = tokio_postgres::connect(
+        //     "host=localhost port=5433 user=postgres sslmode=require",
+        //     connector,
+        // )
+        // .await
+        // .unwrap();
+    }
 }

@@ -13,6 +13,9 @@ use grpcio::{ChannelBuilder, EnvBuilder};
 use log::*;
 use std::sync::Arc;
 use tokio::sync::watch;
+use openssl::ssl::{SslConnector, SslMethod};
+use tokio_postgres_openssl::MakeTlsConnector;
+
 fn main() {
     env_logger::init();
     // let app = App::new("inspektor")
@@ -30,7 +33,8 @@ fn main() {
     // let config_path = app.value_of("config_file").unwrap();
     // println!("{:?}", config_path)
     // create grpc connection with control plane.
-    let config = config::Config::default();
+     let config = config::Config::default();
+
     let env = Arc::new(EnvBuilder::new().build());
     let ch = ChannelBuilder::new(env).connect(config.controlplane_addr.as_ref().unwrap());
     let client = InspektorClient::new(ch);

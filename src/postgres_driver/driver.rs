@@ -102,7 +102,7 @@ impl PostgresDriver {
                         }
                     };
                     let mut handler = ProtocolHandler::initialize(self.postgres_config.clone(), client_conn, params,  self.policy_watcher.clone(), groups).await.unwrap();
-                     handler.serve().await;
+                     handler.serve().await.unwrap();
                      return
                 }
                 FrontendMessage::SslRequest =>{

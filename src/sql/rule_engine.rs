@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use std::collections::HashMap;
-use std::borrow::Cow;
 
 pub trait RuleEngine {
     fn is_table_protected(&self, table_name: &String) -> bool;

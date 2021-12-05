@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, HashMap};
 // validation state contains all the required metadata that will be used for
 // validating the selections.
 #[derive(Debug, Default, Clone)]
-pub struct ValidationState{
+pub struct Ctx{
     // global_allowed_selections holds all the allowed column name for the entire query statement.
     // eg: cte and processed sub query.
     global_allowed_selections: HashMap<String, Vec<String>>,
@@ -16,9 +16,9 @@ pub struct ValidationState{
     table_info: HashMap<String, Vec<String>>,
 }
 
-impl ValidationState {
-    pub fn new(table_info: HashMap<String ,Vec<String>>) -> ValidationState {
-        let mut state = ValidationState::default();
+impl Ctx {
+    pub fn new(table_info: HashMap<String ,Vec<String>>) -> Ctx {
+        let mut state = Ctx::default();
         state.table_info = table_info;
         state
     }
@@ -81,7 +81,7 @@ impl ValidationState {
         None
     }
 
-    pub fn merge_table_info(&mut self, table_name: String, state: ValidationState) {
+    pub fn merge_table_info(&mut self, table_name: String, state: Ctx) {
         for (_, val) in state.allowed_selections {
             self.table_info.insert(table_name.clone(), val);
         }
@@ -90,14 +90,14 @@ impl ValidationState {
     pub fn merge_allowed_selections(
         &mut self,
         table_name: String,
-        state: ValidationState,
+        state: Ctx,
     ) {
         for (_, val) in state.allowed_selections {
             self.allowed_selections.insert(table_name.clone(), val);
         }
     }
 
-    pub fn merge_state(&mut self, state: ValidationState) {
+    pub fn merge_state(&mut self, state: Ctx) {
         for (key, val) in state.allowed_selections {
             self.allowed_selections.insert(key, val);
         }

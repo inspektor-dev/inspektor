@@ -13,9 +13,9 @@
 // limitations under the License.
 
 mod error;
-mod state;
-mod query_rewriter;
-mod rule_engine;
+pub mod ctx;
+pub mod query_rewriter;
+pub mod rule_engine;
 
 // TODO: things that needs to be revisied
 // 1) table function
