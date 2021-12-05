@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::sql::error::InspektorSqlError;
-use crate::sql::rule_engine::RuleEngine;
+use crate::sql::rule_engine::{HardRuleEngine, RuleEngine};
 use crate::sql::state::ValidationState;
 use sqlparser::ast::{
     Expr, FunctionArg, Ident, Query, Select, SelectItem, SetExpr, Statement, TableFactor,
@@ -21,17 +21,17 @@ use sqlparser::ast::{
 use sqlparser::dialect::PostgreSqlDialect;
 use sqlparser::parser::Parser;
 use std::borrow::Cow;
-
+use std::marker::PhantomData;
 // QueryRewriter validates the user query and rewrites if neccessary.
-pub struct QueryRewriter<'a> {
+pub struct QueryRewriter< T: RuleEngine> {
     // rule engine is responsible for handling all the rules which are enforced by
     // the end user.
-    rule_engine: RuleEngine<'a>,
+    rule_engine: T,
 }
 
-impl<'a> QueryRewriter<'a> {
+impl<T: RuleEngine> QueryRewriter< T> {
     // new will return query rewriter
-    pub fn new<'s>(rule_engine: RuleEngine<'s>) -> QueryRewriter<'s> {
+    pub fn new(rule_engine: T) -> QueryRewriter<T> {
         return QueryRewriter {
             rule_engine: rule_engine,
         };
@@ -40,7 +40,7 @@ impl<'a> QueryRewriter<'a> {
     fn validate(
         &self,
         statements: &mut Vec<Statement>,
-        state: ValidationState<'a>,
+        state: ValidationState,
     ) -> Result<(), InspektorSqlError> {
         for statement in statements {
             match statement {
@@ -58,11 +58,11 @@ impl<'a> QueryRewriter<'a> {
     // handle_query will validate the query with the rule engine. it's not valid
     // it's throw an error or it' try to rewrite to make the query to match
     // the rule.
-    pub fn handle_query<'s>(
+    pub fn handle_query(
         &self,
         query: &mut Query,
-        state: &ValidationState<'s>,
-    ) -> Result<ValidationState<'s>, InspektorSqlError> {
+        state: &ValidationState,
+    ) -> Result<ValidationState, InspektorSqlError> {
         let mut local_state = state.clone();
         // cte table are user created temp table passed down to the subsequent query.
         // so it's is mandatory to validate cte first and build the state
@@ -73,7 +73,7 @@ impl<'a> QueryRewriter<'a> {
                 // cte state are pushed to the underlying table so let's merge allowed columns
                 // to table info.
                 let table_name = cte.alias.name.value.clone();
-                local_state.merge_table_info(Cow::from(table_name), cte_state);
+                local_state.merge_table_info(table_name, cte_state);
             }
         }
         // we'll evaulate the body first because that is the data which will be retrived for the
@@ -83,11 +83,11 @@ impl<'a> QueryRewriter<'a> {
 
     // handle_set_expr handles set exprs which are basically query, insert,
     // select.. all the core block of the ANSI SQL.
-    fn handle_set_expr<'s>(
+    fn handle_set_expr(
         &self,
         expr: &mut SetExpr,
-        state: &ValidationState<'s>,
-    ) -> Result<ValidationState<'s>, InspektorSqlError> {
+        state: &ValidationState,
+    ) -> Result<ValidationState, InspektorSqlError> {
         match expr {
             SetExpr::Query(query) => return self.handle_query(query, state),
             SetExpr::Select(select) => return self.handle_select(select, state),
@@ -131,11 +131,11 @@ impl<'a> QueryRewriter<'a> {
 
     // handle_select handles select statement. select statement data are the one which are
     // returned to the user.
-    fn handle_select<'s>(
+    fn handle_select(
         &self,
         select: &mut Select,
-        state: &ValidationState<'s>,
-    ) -> Result<ValidationState<'s>, InspektorSqlError> {
+        state: &ValidationState,
+    ) -> Result<ValidationState, InspektorSqlError> {
         let mut local_state = state.clone();
         // select projection are not from a table so we don't need to do anythings here.
         // TODO: I'm not convinced about the fast path.
@@ -163,11 +163,11 @@ impl<'a> QueryRewriter<'a> {
 
     // handle_table_factor handles (FROM table). here all the possible columns allowed for the
     // given table is decided.
-    fn handle_table_factor<'s>(
+    fn handle_table_factor(
         &self,
-        state: &ValidationState<'s>,
+        state: &ValidationState,
         table_factor: &mut TableFactor,
-    ) -> Result<ValidationState<'s>, InspektorSqlError> {
+    ) -> Result<ValidationState, InspektorSqlError> {
         let mut local_state = state.clone();
         match table_factor {
             TableFactor::Table {
@@ -176,7 +176,7 @@ impl<'a> QueryRewriter<'a> {
                 args: _args,
                 with_hints: _with_hints,
             } => {
-                let mut table_name = Cow::Owned(name.0[0].value.clone());
+                let mut table_name = name.0[0].value.clone();
                 // if the given table is protected table then we should throw error.
                 if self.rule_engine.is_table_protected(&table_name) {
                     return Err(InspektorSqlError::UnAuthorizedColumn((
@@ -192,12 +192,12 @@ impl<'a> QueryRewriter<'a> {
                     .rule_engine
                     .get_allowed_columns(&table_name, table_columns);
                 if let Some(alias) = alias {
-                    table_name = Cow::Owned(alias.name.value.clone())
+                    table_name = alias.name.value.clone()
                 }
                 let allowed_columns = allowed_columns
                     .iter()
-                    .map(|c| Cow::Owned(c.to_string()))
-                    .collect::<Vec<Cow<'_, str>>>();
+                    .map(|c| c.to_string())
+                    .collect::<Vec<String>>();
                 local_state.insert_allowed_columns(table_name, allowed_columns);
             }
             TableFactor::Derived {
@@ -214,7 +214,7 @@ impl<'a> QueryRewriter<'a> {
                 // we have a subquery now.
                 let derived_state = self.handle_query(subquery, &local_state)?;
                 local_state.merge_allowed_selections(
-                    Cow::from(subquery_alias.name.value.clone()),
+                    subquery_alias.name.value.clone(),
                     derived_state,
                 );
             }
@@ -239,7 +239,7 @@ impl<'a> QueryRewriter<'a> {
     // adhere the rule.
     fn handle_selection(
         &self,
-        state: &ValidationState<'a>,
+        state: &ValidationState,
         selection: &mut SelectItem,
     ) -> Result<Vec<SelectItem>, InspektorSqlError> {
         match selection {
@@ -270,7 +270,7 @@ impl<'a> QueryRewriter<'a> {
     // SUM(balance) or balance...
     fn handle_expr(
         &self,
-        state: &ValidationState<'a>,
+        state: &ValidationState,
         expr: &mut Expr,
     ) -> Result<(), InspektorSqlError> {
         match expr {
@@ -407,15 +407,15 @@ mod tests {
             {
                 let mut temp_vec = Vec::new();
                 $(
-                    temp_vec.push(Cow::from($x));
+                    temp_vec.push(String::from($x));
                 )*
                 temp_vec
             }
         };
     }
 
-    fn assert_rewriter(
-        rewriter: &QueryRewriter,
+    fn assert_rewriter<T: RuleEngine>(
+        rewriter: &QueryRewriter<T>,
         state: ValidationState,
         input: &'static str,
         output: &'static str,
@@ -426,8 +426,8 @@ mod tests {
         assert_eq!(output, format!("{}", statements[0]))
     }
 
-    fn assert_error(
-        rewriter: &QueryRewriter,
+    fn assert_error<T: RuleEngine>(
+        rewriter: &QueryRewriter<T>,
         state: ValidationState,
         input: &'static str,
         err: InspektorSqlError,
@@ -439,17 +439,17 @@ mod tests {
     }
     #[test]
     fn basic_select() {
-        let rule_engine = RuleEngine {
-            protected_columns: HashMap::from([(Cow::from("kids"), vec![Cow::from("phone")])]),
+        let rule_engine = HardRuleEngine {
+            protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
         };
 
         let state = ValidationState::new(HashMap::from([(
-            Cow::from("kids"),
+            String::from("kids"),
             vec![
-                Cow::from("phone"),
-                Cow::from("id"),
-                Cow::from("name"),
-                Cow::from("address"),
+                String::from("phone"),
+                String::from("id"),
+                String::from("name"),
+                String::from("address"),
             ],
         )]));
 
@@ -464,16 +464,16 @@ mod tests {
 
     #[test]
     fn test_simple_join() {
-        let rule_engine = RuleEngine {
-            protected_columns: HashMap::from([(Cow::from("kids"), vec![Cow::from("phone")])]),
+        let rule_engine = HardRuleEngine {
+            protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
         };
 
         let state = ValidationState::new(HashMap::from([
             (
-                Cow::from("weather"),
+                String::from("weather"),
                 cowvec!("city", "temp_lo", "temp_hi", "prcp", "date"),
             ),
-            (Cow::from("cities"), cowvec!("name", "location")),
+            (String::from("cities"), cowvec!("name", "location")),
         ]));
 
         let rewriter = QueryRewriter::new(rule_engine);
@@ -485,17 +485,17 @@ mod tests {
 
     #[test]
     fn test_cte() {
-        let rule_engine = RuleEngine {
-            protected_columns: HashMap::from([(Cow::from("kids"), vec![Cow::from("phone")])]),
+        let rule_engine = HardRuleEngine {
+            protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
         };
 
         let state = ValidationState::new(HashMap::from([(
-            Cow::from("kids"),
+            String::from("kids"),
             vec![
-                Cow::from("phone"),
-                Cow::from("id"),
-                Cow::from("name"),
-                Cow::from("address"),
+                String::from("phone"),
+                String::from("id"),
+                String::from("name"),
+                String::from("address"),
             ],
         )]));
 
@@ -511,17 +511,17 @@ mod tests {
 
     #[test]
     fn test_subquery() {
-        let rule_engine = RuleEngine {
-            protected_columns: HashMap::from([(Cow::from("kids"), vec![Cow::from("phone")])]),
+        let rule_engine = HardRuleEngine {
+            protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
         };
 
         let state = ValidationState::new(HashMap::from([(
-            Cow::from("kids"),
+            String::from("kids"),
             vec![
-                Cow::from("phone"),
-                Cow::from("id"),
-                Cow::from("name"),
-                Cow::from("address"),
+                String::from("phone"),
+                String::from("id"),
+                String::from("name"),
+                String::from("address"),
             ],
         )]));
 
@@ -542,30 +542,30 @@ mod tests {
 
     #[test]
     fn test_union() {
-        let rule_engine = RuleEngine {
+        let rule_engine = HardRuleEngine {
             protected_columns: HashMap::from([
-                (Cow::from("kids"), vec![Cow::from("phone")]),
-                (Cow::from("kids2"), vec![Cow::from("phone")]),
+                (String::from("kids"), vec![String::from("phone")]),
+                (String::from("kids2"), vec![String::from("phone")]),
             ]),
         };
 
         let state = ValidationState::new(HashMap::from([
             (
-                Cow::from("kids"),
+                String::from("kids"),
                 vec![
-                    Cow::from("phone"),
-                    Cow::from("id"),
-                    Cow::from("name"),
-                    Cow::from("address"),
+                    String::from("phone"),
+                    String::from("id"),
+                    String::from("name"),
+                    String::from("address"),
                 ],
             ),
             (
-                Cow::from("kids2"),
+                String::from("kids2"),
                 vec![
-                    Cow::from("phone"),
-                    Cow::from("id"),
-                    Cow::from("name"),
-                    Cow::from("address"),
+                    String::from("phone"),
+                    String::from("id"),
+                    String::from("name"),
+                    String::from("address"),
                 ],
             ),
         ]));
@@ -580,30 +580,30 @@ mod tests {
 
     #[test]
     fn test_joins() {
-        let rule_engine = RuleEngine {
+        let rule_engine = HardRuleEngine {
             protected_columns: HashMap::from([
-                (Cow::from("kids"), vec![Cow::from("phone")]),
-                (Cow::from("kids2"), vec![Cow::from("phone")]),
+                (String::from("kids"), vec![String::from("phone")]),
+                (String::from("kids2"), vec![String::from("phone")]),
             ]),
         };
 
         let state = ValidationState::new(HashMap::from([
             (
-                Cow::from("weather"),
+                String::from("weather"),
                 vec![
-                    Cow::from("city"),
-                    Cow::from("temp_lo"),
-                    Cow::from("temp_hi"),
-                    Cow::from("prcp"),
+                    String::from("city"),
+                    String::from("temp_lo"),
+                    String::from("temp_hi"),
+                    String::from("prcp"),
                 ],
             ),
             (
-                Cow::from("cities"),
+                String::from("cities"),
                 vec![
-                    Cow::from("name"),
-                    Cow::from("state"),
-                    Cow::from("country"),
-                    Cow::from("location"),
+                    String::from("name"),
+                    String::from("state"),
+                    String::from("country"),
+                    String::from("location"),
                 ],
             ),
         ]));
@@ -628,30 +628,30 @@ mod tests {
 
     #[test]
     fn test_projection_expr() {
-        let rule_engine = RuleEngine {
+        let rule_engine = HardRuleEngine {
             protected_columns: HashMap::from([
-                (Cow::from("kids"), vec![Cow::from("phone")]),
-                (Cow::from("kids2"), vec![Cow::from("phone")]),
+                (String::from("kids"), vec![String::from("phone")]),
+                (String::from("kids2"), vec![String::from("phone")]),
             ]),
         };
 
         let state = ValidationState::new(HashMap::from([
             (
-                Cow::from("weather"),
+                String::from("weather"),
                 vec![
-                    Cow::from("city"),
-                    Cow::from("temp_lo"),
-                    Cow::from("temp_hi"),
-                    Cow::from("prcp"),
+                    String::from("city"),
+                    String::from("temp_lo"),
+                    String::from("temp_hi"),
+                    String::from("prcp"),
                 ],
             ),
             (
-                Cow::from("cities"),
+                String::from("cities"),
                 vec![
-                    Cow::from("name"),
-                    Cow::from("state"),
-                    Cow::from("country"),
-                    Cow::from("location"),
+                    String::from("name"),
+                    String::from("state"),
+                    String::from("country"),
+                    String::from("location"),
                 ],
             ),
         ]));
@@ -667,17 +667,17 @@ mod tests {
 
     #[test]
     fn test_wildcard_qualified_wildcard() {
-        let rule_engine = RuleEngine {
-            protected_columns: HashMap::from([(Cow::from("kids"), vec![Cow::from("phone")])]),
+        let rule_engine = HardRuleEngine {
+            protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
         };
 
         let state = ValidationState::new(HashMap::from([(
-            Cow::from("kids"),
+            String::from("kids"),
             vec![
-                Cow::from("phone"),
-                Cow::from("id"),
-                Cow::from("name"),
-                Cow::from("address"),
+                String::from("phone"),
+                String::from("id"),
+                String::from("name"),
+                String::from("address"),
             ],
         )]));
 
@@ -692,17 +692,17 @@ mod tests {
 
     #[test]
     fn test_expr() {
-        let rule_engine = RuleEngine {
-            protected_columns: HashMap::from([(Cow::from("kids"), vec![Cow::from("phone")])]),
+        let rule_engine = HardRuleEngine {
+            protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
         };
 
         let state = ValidationState::new(HashMap::from([(
-            Cow::from("kids"),
+            String::from("kids"),
             vec![
-                Cow::from("phone"),
-                Cow::from("id"),
-                Cow::from("name"),
-                Cow::from("address"),
+                String::from("phone"),
+                String::from("id"),
+                String::from("name"),
+                String::from("address"),
             ],
         )]));
 
