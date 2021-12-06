@@ -20,6 +20,8 @@ use tokio_openssl::SslStream;
 use tokio_postgres::tls::TlsConnect;
 use tokio_postgres::SimpleQueryMessage;
 use tokio_postgres_openssl::MakeTlsConnector;
+use tokio::time as tokio_time;
+use std::time::Duration;
 
 fn md5_password(username: &String, password: &String, salt: Vec<u8>) -> String {
     let mut md5 = Md5::new();
@@ -73,6 +75,7 @@ impl ProtocolHandler {
     // the packet based on the opa policy.
     pub async fn serve(&mut self) -> Result<(), anyhow::Error> {
         debug!("started serving");
+
         let (client, connection) = tokio_postgres::connect(
             &format!(
                 "host=localhost port=5432 user={} dbname = {} password = {}",
@@ -84,9 +87,15 @@ impl ProtocolHandler {
         )
         .await?;
         tokio::spawn(connection);
-        let table_info = self.get_table_info(&client).await?;
+        let mut table_info = self.get_table_info(&client).await.map_err(|e| {
+            error!("error while getting table meta {:?}", e);
+            return anyhow!("error while getting table meta")
+        })?;
         debug!("got table info: {:?}", table_info);
+
+
         let mut target_buf = [0; 1024];
+        let mut meta_refresh_ticker = tokio_time::interval(Duration::from_secs(2));
         loop {
             tokio::select! {
                 evaluator = self.policy_watcher.changed() => {
@@ -128,6 +137,16 @@ impl ProtocolHandler {
                             if let Err(e) = self.target_conn.write_all(&msg.encode()).await{
                                 return Ok(());
                             }
+                        }
+                    }
+                }
+                _ = meta_refresh_ticker.tick() => {
+                    debug!("refreshing table meta");
+                    table_info = match  self.get_table_info(&client).await {
+                        Ok(info) => info,
+                        Err(e) => {
+                            error!("error while refreshing table meta {:?}", e);
+                            continue;
                         }
                     }
                 }
