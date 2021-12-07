@@ -69,6 +69,29 @@ impl Ctx {
         return false;
     }
 
+    // is_valid_column check whether the given column is in the table info.
+    pub fn is_valid_column(&self, table_name: Option<&String>, column: &String) -> bool{
+        // if the table name given then check the column in valid for the given table name.
+        if let Some(table_name) = table_name{
+            let columns = match self.table_info.get(table_name) {
+                Some(columns) => columns,
+                _ => return false,
+            };
+            return columns.iter().position(|table_column| -> bool {*table_column == *column}).is_some()
+        }
+        // otherwise just iterate over all the table info.
+        for (_, columns) in &self.table_info{
+            match columns
+                .iter()
+                .position(|table_column| *table_column == *column)
+            {
+                Some(_) => return true,
+                None => continue,
+            };
+        }
+        return  false;
+    }
+
     pub fn get_allowed_columns(&self, table_name: &String) -> Option<Vec<String>> {
         if let Some(columns) = self.allowed_selections.get(table_name) {
             return Some(
