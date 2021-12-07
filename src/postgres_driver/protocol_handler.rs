@@ -13,15 +13,15 @@ use md5::{Digest, Md5};
 use openssl::ssl::{Ssl, SslConnector, SslMethod};
 use std::collections::HashMap;
 use std::pin::Pin;
+use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::watch;
+use tokio::time as tokio_time;
 use tokio_openssl::SslStream;
 use tokio_postgres::tls::TlsConnect;
 use tokio_postgres::SimpleQueryMessage;
 use tokio_postgres_openssl::MakeTlsConnector;
-use tokio::time as tokio_time;
-use std::time::Duration;
 
 fn md5_password(username: &String, password: &String, salt: Vec<u8>) -> String {
     let mut md5 = Md5::new();
@@ -61,7 +61,12 @@ impl ProtocolHandler {
 
         let mut table_info: HashMap<String, Vec<String>> = HashMap::default();
         for row in rows {
-            let table_name: String = row.get(1);
+            // table name is format of both schema and table.
+            let table_name: String = format!(
+                "{}.{}",
+                row.get::<usize, String>(0),
+                row.get::<usize, String>(1)
+            );
             let column_name: String = row.get(2);
             if let Some(columns) = table_info.get_mut(&table_name) {
                 columns.push(column_name);
@@ -89,10 +94,9 @@ impl ProtocolHandler {
         tokio::spawn(connection);
         let mut table_info = self.get_table_info(&client).await.map_err(|e| {
             error!("error while getting table meta {:?}", e);
-            return anyhow!("error while getting table meta")
+            return anyhow!("error while getting table meta");
         })?;
         debug!("got table info: {:?}", table_info);
-
 
         let mut target_buf = [0; 1024];
         let mut meta_refresh_ticker = tokio_time::interval(Duration::from_secs(2));
@@ -342,7 +346,7 @@ impl ProtocolHandler {
         SslConnector::builder(SslMethod::tls()).unwrap().build()
     }
 
-     fn handle_frontend_message(
+    fn handle_frontend_message(
         &mut self,
         msg: &mut FrontendMessage,
         ctx: Ctx,

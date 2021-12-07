@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::sql::ctx::Ctx;
 use crate::sql::error::InspektorSqlError;
 use crate::sql::rule_engine::{HardRuleEngine, RuleEngine};
-use crate::sql::ctx::Ctx;
+use protobuf::well_known_types::Option;
+use protobuf::ProtobufEnum;
 use sqlparser::ast::{
     Expr, FunctionArg, Ident, Query, Select, SelectItem, SetExpr, Statement, TableFactor,
 };
@@ -23,13 +25,13 @@ use sqlparser::parser::Parser;
 use std::borrow::Cow;
 use std::marker::PhantomData;
 // QueryRewriter validates the user query and rewrites if neccessary.
-pub struct QueryRewriter< T: RuleEngine> {
+pub struct QueryRewriter<T: RuleEngine> {
     // rule engine is responsible for handling all the rules which are enforced by
     // the end user.
     rule_engine: T,
 }
 
-impl<T: RuleEngine> QueryRewriter< T> {
+impl<T: RuleEngine> QueryRewriter<T> {
     // new will return query rewriter
     pub fn new(rule_engine: T) -> QueryRewriter<T> {
         return QueryRewriter {
@@ -58,11 +60,7 @@ impl<T: RuleEngine> QueryRewriter< T> {
     // handle_query will validate the query with the rule engine. it's not valid
     // it's throw an error or it' try to rewrite to make the query to match
     // the rule.
-    pub fn handle_query(
-        &self,
-        query: &mut Query,
-        state: &Ctx,
-    ) -> Result<Ctx, InspektorSqlError> {
+    pub fn handle_query(&self, query: &mut Query, state: &Ctx) -> Result<Ctx, InspektorSqlError> {
         let mut local_state = state.clone();
         // cte table are user created temp table passed down to the subsequent query.
         // so it's is mandatory to validate cte first and build the state
@@ -83,11 +81,7 @@ impl<T: RuleEngine> QueryRewriter< T> {
 
     // handle_set_expr handles set exprs which are basically query, insert,
     // select.. all the core block of the ANSI SQL.
-    fn handle_set_expr(
-        &self,
-        expr: &mut SetExpr,
-        state: &Ctx,
-    ) -> Result<Ctx, InspektorSqlError> {
+    fn handle_set_expr(&self, expr: &mut SetExpr, state: &Ctx) -> Result<Ctx, InspektorSqlError> {
         match expr {
             SetExpr::Query(query) => return self.handle_query(query, state),
             SetExpr::Select(select) => return self.handle_select(select, state),
@@ -131,11 +125,7 @@ impl<T: RuleEngine> QueryRewriter< T> {
 
     // handle_select handles select statement. select statement data are the one which are
     // returned to the user.
-    fn handle_select(
-        &self,
-        select: &mut Select,
-        state: &Ctx,
-    ) -> Result<Ctx, InspektorSqlError> {
+    fn handle_select(&self, select: &mut Select, state: &Ctx) -> Result<Ctx, InspektorSqlError> {
         let mut local_state = state.clone();
         // select projection are not from a table so we don't need to do anythings here.
         // TODO: I'm not convinced about the fast path.
@@ -176,7 +166,26 @@ impl<T: RuleEngine> QueryRewriter< T> {
                 args: _args,
                 with_hints: _with_hints,
             } => {
-                let mut table_name = name.0[0].value.clone();
+                let mut table_name = join_indents(&name.0);
+
+                // we need to find whether this table is with public schema or not.
+                // if we have columns directly then means we got the table in a derivied
+                // form.
+                let (mut table_name, table_columns) = match state.get_columns(&table_name) {
+                    Some(columns) => (table_name, columns),
+                    _ => {
+                        table_name = format!("public.{}", table_name);
+                        match state.get_columns(&table_name) {
+                            Some(columns) => (table_name, columns),
+                            None => {
+                                unreachable!("unable to get columns name for the table {:?}", name)
+                            }
+                        }
+                    }
+                };
+
+                // TODO: table_name not mutated finding table name protected is
+                // wrong.
                 // if the given table is protected table then we should throw error.
                 if self.rule_engine.is_table_protected(&table_name) {
                     return Err(InspektorSqlError::UnAuthorizedColumn((
@@ -184,15 +193,14 @@ impl<T: RuleEngine> QueryRewriter< T> {
                         "".to_string(),
                     )));
                 }
-                let table_columns = match state.get_columns(&table_name) {
-                    Some(columns) => columns,
-                    _ => unreachable!("unable to get columns name for the table {:?}", name),
-                };
+
                 let mut allowed_columns = self
                     .rule_engine
                     .get_allowed_columns(&table_name, table_columns);
                 if let Some(alias) = alias {
                     table_name = alias.name.value.clone()
+                } else {
+                    table_name = join_indents(&name.0);
                 }
                 let allowed_columns = allowed_columns
                     .iter()
@@ -213,15 +221,13 @@ impl<T: RuleEngine> QueryRewriter< T> {
                 let subquery_alias = alias.as_ref().unwrap();
                 // we have a subquery now.
                 let derived_state = self.handle_query(subquery, &local_state)?;
-                local_state.merge_allowed_selections(
-                    subquery_alias.name.value.clone(),
-                    derived_state,
-                );
+                local_state
+                    .merge_allowed_selections(subquery_alias.name.value.clone(), derived_state);
             }
             TableFactor::NestedJoin(table) => {
                 let factor_state = self.handle_table_factor(state, &mut table.relation)?;
                 local_state.merge_state(factor_state);
-                for join in &mut table.joins{
+                for join in &mut table.joins {
                     let factor_state = self.handle_table_factor(state, &mut join.relation)?;
                     local_state.merge_state(factor_state);
                 }
@@ -235,7 +241,7 @@ impl<T: RuleEngine> QueryRewriter< T> {
 
     // handle_selection handles the selected field. This is bottom down of the evaluation, here
     // we validate that the selected field is in the allowed columns. if not it'll throw an
-    // unauthorized error. But, query rewriter always tries to rewrite it's possible to 
+    // unauthorized error. But, query rewriter always tries to rewrite it's possible to
     // adhere the rule.
     fn handle_selection(
         &self,
@@ -268,11 +274,7 @@ impl<T: RuleEngine> QueryRewriter< T> {
 
     // handle_expr will handle all the selection expr. eg:
     // SUM(balance) or balance...
-    fn handle_expr(
-        &self,
-        state: &Ctx,
-        expr: &mut Expr,
-    ) -> Result<(), InspektorSqlError> {
+    fn handle_expr(&self, state: &Ctx, expr: &mut Expr) -> Result<(), InspektorSqlError> {
         match expr {
             Expr::Identifier(object_name) => {
                 // it's a single expression. if we have one table the we pick that.
@@ -284,11 +286,10 @@ impl<T: RuleEngine> QueryRewriter< T> {
                 }
             }
             Expr::CompoundIdentifier(identifiers) => {
-                let alias_name = &identifiers[0].value;
-                let column_name = &identifiers[1].value;
-                if !state.is_allowed_column(&Cow::Borrowed(alias_name), column_name) {
+                let (table_name, column_name) = get_column_from_idents(&identifiers);
+                if !state.is_allowed_column(&table_name, &column_name) {
                     return Err(InspektorSqlError::UnAuthorizedColumn((
-                        Some(alias_name.to_string()),
+                        Some(table_name),
                         column_name.clone(),
                     )));
                 }
@@ -397,6 +398,28 @@ impl<T: RuleEngine> QueryRewriter< T> {
     }
 }
 
+/// join_indents will join the indent with dotted operation.
+pub fn join_indents(idents: &Vec<Ident>) -> String {
+    return idents
+        .iter()
+        .map(|i| i.value.clone())
+        .collect::<Vec<String>>()
+        .join(".");
+}
+
+// get_column_from_idents returns the column name and table.
+pub fn get_column_from_idents(idents: &Vec<Ident>) -> (String, String) {
+    assert_eq!(idents.len() >= 2, true);
+    (
+        idents[..idents.len() - 1]
+            .iter()
+            .map(|i| i.value.clone())
+            .collect::<Vec<String>>()
+            .join("."),
+        idents[idents.len() - 1].value.clone(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -440,11 +463,14 @@ mod tests {
     #[test]
     fn basic_select() {
         let rule_engine = HardRuleEngine {
-            protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
+            protected_columns: HashMap::from([(
+                String::from("public.kids"),
+                vec![String::from("phone")],
+            )]),
         };
 
         let state = Ctx::new(HashMap::from([(
-            String::from("kids"),
+            String::from("public.kids"),
             vec![
                 String::from("phone"),
                 String::from("id"),
@@ -456,9 +482,16 @@ mod tests {
         let rewriter = QueryRewriter::new(rule_engine);
         assert_rewriter(
             &rewriter,
-            state,
+            state.clone(),
             "select * from kids",
             "SELECT kids.id, kids.name, kids.address FROM kids",
+        );
+
+        assert_rewriter(
+            &rewriter,
+            state,
+            "select * from public.kids",
+            "SELECT public.kids.id, public.kids.name, public.kids.address FROM public.kids",
         );
     }
 
@@ -486,11 +519,11 @@ mod tests {
     #[test]
     fn test_cte() {
         let rule_engine = HardRuleEngine {
-            protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
+            protected_columns: HashMap::from([(String::from("public.kids"), vec![String::from("phone")])]),
         };
 
         let state = Ctx::new(HashMap::from([(
-            String::from("kids"),
+            String::from("public.kids"),
             vec![
                 String::from("phone"),
                 String::from("id"),
@@ -512,11 +545,11 @@ mod tests {
     #[test]
     fn test_subquery() {
         let rule_engine = HardRuleEngine {
-            protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
+            protected_columns: HashMap::from([(String::from("public.kids"), vec![String::from("phone")])]),
         };
 
         let state = Ctx::new(HashMap::from([(
-            String::from("kids"),
+            String::from("public.kids"),
             vec![
                 String::from("phone"),
                 String::from("id"),
@@ -529,8 +562,8 @@ mod tests {
         assert_rewriter(
             &rewriter,
             state.clone(),
-            "select * from (select * from kids) as nested",
-            "SELECT nested.id, nested.name, nested.address FROM (SELECT kids.id, kids.name, kids.address FROM kids) AS nested",
+            "select * from (select * from public.kids) as nested",
+            "SELECT nested.id, nested.name, nested.address FROM (SELECT public.kids.id, public.kids.name, public.kids.address FROM public.kids) AS nested",
         );
         assert_rewriter(
             &rewriter,
@@ -544,14 +577,14 @@ mod tests {
     fn test_union() {
         let rule_engine = HardRuleEngine {
             protected_columns: HashMap::from([
-                (String::from("kids"), vec![String::from("phone")]),
-                (String::from("kids2"), vec![String::from("phone")]),
+                (String::from("public.kids"), vec![String::from("phone")]),
+                (String::from("public.kids2"), vec![String::from("phone")]),
             ]),
         };
 
         let state = Ctx::new(HashMap::from([
             (
-                String::from("kids"),
+                String::from("public.kids"),
                 vec![
                     String::from("phone"),
                     String::from("id"),
@@ -560,7 +593,7 @@ mod tests {
                 ],
             ),
             (
-                String::from("kids2"),
+                String::from("public.kids2"),
                 vec![
                     String::from("phone"),
                     String::from("id"),
@@ -573,8 +606,8 @@ mod tests {
         assert_rewriter(
             &rewriter,
             state.clone(),
-            "select * from kids UNION select * from kids2",
-            "SELECT kids.id, kids.name, kids.address FROM kids UNION SELECT kids2.id, kids2.name, kids2.address FROM kids2",
+            "select * from kids UNION select * from public.kids2",
+            "SELECT kids.id, kids.name, kids.address FROM kids UNION SELECT public.kids2.id, public.kids2.name, public.kids2.address FROM public.kids2",
         );
     }
 
@@ -582,14 +615,14 @@ mod tests {
     fn test_joins() {
         let rule_engine = HardRuleEngine {
             protected_columns: HashMap::from([
-                (String::from("kids"), vec![String::from("phone")]),
-                (String::from("kids2"), vec![String::from("phone")]),
+                (String::from("public.kids"), vec![String::from("phone")]),
+                (String::from("public.kids2"), vec![String::from("phone")]),
             ]),
         };
 
         let state = Ctx::new(HashMap::from([
             (
-                String::from("weather"),
+                String::from("public.weather"),
                 vec![
                     String::from("city"),
                     String::from("temp_lo"),
@@ -598,7 +631,7 @@ mod tests {
                 ],
             ),
             (
-                String::from("cities"),
+                String::from("public.cities"),
                 vec![
                     String::from("name"),
                     String::from("state"),
@@ -612,8 +645,8 @@ mod tests {
             &rewriter,
             state.clone(),
             "SELECT *
-            FROM weather INNER JOIN cities ON (weather.city = cities.name);",
-            "SELECT cities.name, cities.state, cities.country, cities.location, weather.city, weather.temp_lo, weather.temp_hi, weather.prcp FROM weather JOIN cities ON (weather.city = cities.name)",
+            FROM weather INNER JOIN public.cities ON (weather.city = public.cities.name);",
+            "SELECT public.cities.name, public.cities.state, public.cities.country, public.cities.location, weather.city, weather.temp_lo, weather.temp_hi, weather.prcp FROM weather JOIN public.cities ON (weather.city = public.cities.name)",
         );
         assert_rewriter(
             &rewriter,
