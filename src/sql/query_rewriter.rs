@@ -15,10 +15,11 @@
 use crate::sql::ctx::Ctx;
 use crate::sql::error::InspektorSqlError;
 use crate::sql::rule_engine::{HardRuleEngine, RuleEngine};
-use protobuf::well_known_types::Option;
+
 use protobuf::ProtobufEnum;
 use sqlparser::ast::{
     Expr, FunctionArg, Ident, Query, Select, SelectItem, SetExpr, Statement, TableFactor,
+    TrimWhereField, Value,
 };
 use sqlparser::dialect::PostgreSqlDialect;
 use sqlparser::parser::Parser;
@@ -250,18 +251,35 @@ impl<T: RuleEngine> QueryRewriter<T> {
     ) -> Result<Vec<SelectItem>, InspektorSqlError> {
         match selection {
             SelectItem::UnnamedExpr(expr) => {
-                self.handle_expr(state, expr)?;
+                if let Err(e) = self.handle_expr(state, expr) {
+                    match e {
+                        InspektorSqlError::RewriteExpr { alias_name } => {
+                            return Ok(vec![SelectItem::ExprWithAlias {
+                                expr: Expr::Value(Value::Null),
+                                alias: Ident::new(alias_name),
+                            }]);
+                        }
+                        _ => return Err(e),
+                    }
+                }
                 return Ok(vec![SelectItem::UnnamedExpr(expr.clone())]);
             }
             SelectItem::Wildcard => {
                 // for wildcard we just rewrite with all the allowed columns.
                 return Ok(state.build_allowed_column_expr());
             }
-            SelectItem::ExprWithAlias {
-                expr,
-                alias: _alias,
-            } => {
-                self.handle_expr(state, expr)?;
+            SelectItem::ExprWithAlias { expr, alias } => {
+                if let Err(e) = self.handle_expr(state, expr) {
+                    match e {
+                        InspektorSqlError::RewriteExpr { .. } => {
+                            return Ok(vec![SelectItem::ExprWithAlias {
+                                expr: Expr::Value(Value::Null),
+                                alias: alias.clone(),
+                            }]);
+                        }
+                        _ => return Err(e),
+                    }
+                }
                 return Ok(vec![selection.clone()]);
             }
             SelectItem::QualifiedWildcard(object_name) => {
@@ -271,27 +289,31 @@ impl<T: RuleEngine> QueryRewriter<T> {
             }
         }
     }
-
     // handle_expr will handle all the selection expr. eg:
     // SUM(balance) or balance...
     fn handle_expr(&self, state: &Ctx, expr: &mut Expr) -> Result<(), InspektorSqlError> {
         match expr {
             Expr::Identifier(object_name) => {
                 // it's a single expression. if we have one table the we pick that.
-                if !state.is_allowed_column_ident(&object_name.value) {
-                    return Err(InspektorSqlError::UnAuthorizedColumn((
-                        state.get_default_table(),
-                        object_name.value.clone(),
-                    )));
+                if !state.is_allowed_column_ident(&object_name.value)
+                    && state.is_valid_column(None, &object_name.value)
+                {
+                    // column is not allowed but it's a valid column.
+                    // so, rewriting the query to return NULL for the given column.
+                    // the main reason to do this is that, folks who uses postgres
+                    // with other analytical tools won't find any disturbance.
+                    // eg: metabase.
+                    return Err(InspektorSqlError::RewriteExpr {
+                        alias_name: object_name.value.clone(),
+                    });
                 }
             }
             Expr::CompoundIdentifier(identifiers) => {
                 let (table_name, column_name) = get_column_from_idents(&identifiers);
                 if !state.is_allowed_column(&table_name, &column_name) {
-                    return Err(InspektorSqlError::UnAuthorizedColumn((
-                        Some(table_name),
-                        column_name.clone(),
-                    )));
+                    return Err(InspektorSqlError::RewriteExpr {
+                        alias_name: join_indents(&identifiers),
+                    });
                 }
             }
             Expr::Subquery(query) => {
@@ -301,11 +323,18 @@ impl<T: RuleEngine> QueryRewriter<T> {
             }
             Expr::Function(function) => {
                 // validate all the args whether it's allowed or not.
+                // for the function args we'll rewrite with NULL value if it's not allowed.
                 for arg in &mut function.args {
                     match arg {
-                        FunctionArg::Unnamed(expr) => return self.handle_expr(state, expr),
-                        _ => {
-                            unreachable!("unknown fucntion args {} {:?}", arg, arg);
+                        FunctionArg::Unnamed(expr) => {
+                            if let Err(_) = self.handle_expr(state, expr) {
+                                *expr = Expr::Value(Value::Null)
+                            }
+                        }
+                        FunctionArg::Named { name: _name, arg } => {
+                            if let Err(_) = self.handle_expr(state, arg) {
+                                *arg = Expr::Value(Value::Null)
+                            }
                         }
                     };
                 }
@@ -331,39 +360,108 @@ impl<T: RuleEngine> QueryRewriter<T> {
                     self.handle_expr(state, operand)?;
                 }
                 for condition in conditions {
-                    self.handle_expr(state, condition)?
+                    // if the condition fail then we rewrite with case.
+                    if let Err(_) = self.handle_expr(state, condition) {
+                        return Err(InspektorSqlError::RewriteExpr {
+                            alias_name: String::from("case"),
+                        });
+                    }
                 }
                 for result in results {
-                    self.handle_expr(state, result)?
+                    if let Err(_) = self.handle_expr(state, result) {
+                        return Err(InspektorSqlError::RewriteExpr {
+                            alias_name: String::from("case"),
+                        });
+                    }
                 }
                 if let Some(else_result) = else_result {
-                    self.handle_expr(state, else_result)?
+                    if let Err(_) = self.handle_expr(state, else_result) {
+                        return Err(InspektorSqlError::RewriteExpr {
+                            alias_name: String::from("case"),
+                        });
+                    }
                 }
             }
-            Expr::Cast { expr, .. }
-            | Expr::TryCast { expr, .. }
-            | Expr::Extract { expr, .. }
-            | Expr::Collate { expr, .. }
-            | Expr::Nested(expr) => {
+            Expr::Cast { expr, .. } => {
+                if let Err(_) = self.handle_expr(state, expr) {
+                    return Err(InspektorSqlError::RewriteExpr {
+                        alias_name: String::from("cast"),
+                    });
+                }
+            }
+            Expr::TryCast { expr, .. } => {
+                if let Err(_) = self.handle_expr(state, expr) {
+                    return Err(InspektorSqlError::RewriteExpr {
+                        alias_name: String::from("cast"),
+                    });
+                }
+            }
+            Expr::Extract { expr, .. } => {
+                if let Err(_) = self.handle_expr(state, expr) {
+                    return Err(InspektorSqlError::RewriteExpr {
+                        alias_name: String::from("date_part"),
+                    });
+                }
+            } // date_part
+            Expr::Collate { expr, .. } => {
+                if let Err(_) = self.handle_expr(state, expr) {
+                    return Err(InspektorSqlError::RewriteExpr {
+                        alias_name: String::from("collate"),
+                    });
+                }
+            }
+            Expr::Nested(expr) => {
                 self.handle_expr(state, expr)?;
             }
             Expr::Trim { expr, trim_where } => {
-                self.handle_expr(state, expr)?;
-                if let Some((_, expr)) = trim_where {
-                    self.handle_expr(state, expr)?;
+                // default_column will tell the default column name is used for
+                // the select item rewrite.
+                let mut default_column_name = &"btrim";
+                if let Some((trim_where_field, expr)) = trim_where {
+                    match trim_where_field {
+                        TrimWhereField::Leading => {
+                            default_column_name = &"ltrim";
+                        }
+                        TrimWhereField::Trailing => {
+                            default_column_name = &"rtrim";
+                        }
+                        _ => {}
+                    }
+                    if let Err(_) = self.handle_expr(state, expr) {
+                        return Err(InspektorSqlError::RewriteExpr {
+                            alias_name: default_column_name.to_string(),
+                        });
+                    }
                 }
+                if let Err(_) = self.handle_expr(state, expr) {
+                    return Err(InspektorSqlError::RewriteExpr {
+                        alias_name: default_column_name.to_string(),
+                    });
+                };
             }
             Expr::Substring {
                 expr,
                 substring_from,
                 substring_for,
             } => {
-                self.handle_expr(state, expr)?;
+                if let Err(_) = self.handle_expr(state, expr) {
+                    return Err(InspektorSqlError::RewriteExpr {
+                        alias_name: "substring".to_string(),
+                    });
+                }
                 if let Some(from) = substring_from {
-                    self.handle_expr(state, from)?;
+                    if let Err(_) = self.handle_expr(state, from) {
+                        return Err(InspektorSqlError::RewriteExpr {
+                            alias_name: "substring".to_string(),
+                        });
+                    }
                 }
                 if let Some(expr) = substring_for {
-                    self.handle_expr(state, expr)?;
+                    if let Err(_) = self.handle_expr(state, expr) {
+                        return Err(InspektorSqlError::RewriteExpr {
+                            alias_name: "substring".to_string(),
+                        });
+                    }
                 }
             }
             Expr::Wildcard | Expr::QualifiedWildcard(_) => {
@@ -378,10 +476,18 @@ impl<T: RuleEngine> QueryRewriter<T> {
                 op: _op,
                 right,
             } => {
-                self.handle_expr(state, left)?;
-                self.handle_expr(state, right)?;
+                if let Err(_) = self.handle_expr(state, left) {
+                    *left = Box::new(Expr::Value(Value::Null));
+                };
+                if let Err(_) = self.handle_expr(state, right) {
+                    *right = Box::new(Expr::Value(Value::Null));
+                }
             }
-            Expr::UnaryOp { op: _op, expr } => self.handle_expr(state, expr)?,
+            Expr::UnaryOp { op: _op, expr } => {
+                if let Err(_) = self.handle_expr(state, expr) {
+                    *expr = Box::new(Expr::Value(Value::Null));
+                }
+            }
             Expr::IsNull(_)
             | Expr::IsNotNull(_)
             | Expr::IsDistinctFrom(_, _)
@@ -391,6 +497,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
             | Expr::Between { .. } => {
                 // these are list of expression used by where cause so we just
                 // simply don't do anything.
+                log::warn!("where clause expression executer, please report to author if you find this log. ");
             }
             _ => unreachable!("unknown expression {} {:?}", expr, expr),
         }
@@ -460,6 +567,13 @@ mod tests {
         let rewriter_err = rewriter.rewrite(&mut statements, state).unwrap_err();
         assert_eq!(rewriter_err, err)
     }
+
+    #[test]
+    fn test_for_output() {
+        let dialect = PostgreSqlDialect {};
+        let statements = Parser::parse_sql(&dialect, r#"SELECT SUM(NULL)"#).unwrap();
+        println!("{:?}", statements[0])
+    }
     #[test]
     fn basic_select() {
         let rule_engine = HardRuleEngine {
@@ -519,7 +633,10 @@ mod tests {
     #[test]
     fn test_cte() {
         let rule_engine = HardRuleEngine {
-            protected_columns: HashMap::from([(String::from("public.kids"), vec![String::from("phone")])]),
+            protected_columns: HashMap::from([(
+                String::from("public.kids"),
+                vec![String::from("phone")],
+            )]),
         };
 
         let state = Ctx::new(HashMap::from([(
@@ -545,7 +662,10 @@ mod tests {
     #[test]
     fn test_subquery() {
         let rule_engine = HardRuleEngine {
-            protected_columns: HashMap::from([(String::from("public.kids"), vec![String::from("phone")])]),
+            protected_columns: HashMap::from([(
+                String::from("public.kids"),
+                vec![String::from("phone")],
+            )]),
         };
 
         let state = Ctx::new(HashMap::from([(

@@ -22,7 +22,8 @@ pub enum InspektorSqlError {
     UnAuthorizedColumn((Option<String>, String)),
     InvalidReference(String),
     FromNeedAlias,
-    Error(String)
+    Error(String),
+    RewriteExpr{alias_name: String}
 }
 
 impl Display for InspektorSqlError {
@@ -58,6 +59,9 @@ impl Display for InspektorSqlError {
             },
             InspektorSqlError::Error(msg) => {
                 write!(f,"{}", msg)
+            }
+            InspektorSqlError::RewriteExpr{alias_name} => {
+                write!(f,"rewrite expression with null value with alias name {}", alias_name)
             }
         }
     }
