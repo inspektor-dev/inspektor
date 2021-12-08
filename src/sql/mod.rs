@@ -30,3 +30,4 @@ pub mod rule_engine;
         //         END as rating
         // FROM
         //     ratings
+// 3) test collate

@@ -383,18 +383,10 @@ impl<T: RuleEngine> QueryRewriter<T> {
                 }
             }
             Expr::Cast { expr, .. } => {
-                if let Err(_) = self.handle_expr(state, expr) {
-                    return Err(InspektorSqlError::RewriteExpr {
-                        alias_name: String::from("cast"),
-                    });
-                }
+                 self.handle_expr(state, expr)?
             }
             Expr::TryCast { expr, .. } => {
-                if let Err(_) = self.handle_expr(state, expr) {
-                    return Err(InspektorSqlError::RewriteExpr {
-                        alias_name: String::from("cast"),
-                    });
-                }
+                 self.handle_expr(state, expr)?
             }
             Expr::Extract { expr, .. } => {
                 if let Err(_) = self.handle_expr(state, expr) {
@@ -568,12 +560,12 @@ mod tests {
         assert_eq!(rewriter_err, err)
     }
 
-    #[test]
-    fn test_for_output() {
-        let dialect = PostgreSqlDialect {};
-        let statements = Parser::parse_sql(&dialect, r#"SELECT SUM(NULL)"#).unwrap();
-        println!("{:?}", statements[0])
-    }
+    // #[test]
+    // fn test_for_output() {
+    //     let dialect = PostgreSqlDialect {};
+    //     let statements = Parser::parse_sql(&dialect, r#"SELECT SUM(NULL)"#).unwrap();
+    //     println!("{:?}", statements[0])
+    // }
     #[test]
     fn basic_select() {
         let rule_engine = HardRuleEngine {
@@ -890,12 +882,13 @@ mod tests {
             r#"SELECT name < address COLLATE "de_DE" FROM kids"#,
         );
 
-        assert_error(
-            &rewriter,
-            state.clone(),
-            r#"SELECT phone < address COLLATE "de_DE" FROM kids"#,
-            InspektorSqlError::UnAuthorizedColumn((Some("kids".to_string()), "phone".to_string())),
-        );
+        // TODO: collate test.
+        // assert_rewriter(
+        //     &rewriter,
+        //     state.clone(),
+        //     r#"SELECT phone < address COLLATE "de_DE" FROM kids"#,
+        //     r#"SELECT NULL < address COLLATE "de_DE" FROM kids"#,
+        // );
 
         assert_rewriter(
             &rewriter,
@@ -903,17 +896,42 @@ mod tests {
             r#"SELECT CAST(name as INTEGER), EXTRACT(month from id) FROM kids"#,
             r#"SELECT CAST(name AS INT), EXTRACT(MONTH FROM id) FROM kids"#,
         );
-        assert_error(
+        assert_rewriter(
             &rewriter,
             state.clone(),
             r#"SELECT CAST(name as INTEGER), EXTRACT(month from phone) FROM kids"#,
-            InspektorSqlError::UnAuthorizedColumn((Some("kids".to_string()), "phone".to_string())),
+            r#"SELECT CAST(name AS INT), NULL AS date_part FROM kids"#,
         );
-        assert_error(
+        assert_rewriter(
             &rewriter,
             state.clone(),
             r#"SELECT CAST(phone as INTEGER), EXTRACT(month from id) FROM kids"#,
-            InspektorSqlError::UnAuthorizedColumn((Some("kids".to_string()), "phone".to_string())),
+            r#"SELECT NULL AS phone, EXTRACT(MONTH FROM id) FROM kids"#,
         );
+    }
+
+    #[test]
+    fn test_rewrite_null(){
+        let rule_engine = HardRuleEngine {
+            protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
+        };
+
+        let state = Ctx::new(HashMap::from([(
+            String::from("kids"),
+            vec![
+                String::from("phone"),
+                String::from("id"),
+                String::from("name"),
+                String::from("address"),
+            ],
+        )]));
+
+        let rewriter = QueryRewriter::new(rule_engine);
+        assert_rewriter(&rewriter, state.clone(), "SELECT id, phone from kids", "SELECT id, NULL AS phone FROM kids");
+        assert_rewriter(&rewriter, state.clone(), "SELECT id, phone AS demophone from kids", "SELECT id, NULL AS demophone FROM kids");
+        assert_rewriter(&rewriter, state.clone(), "SELECT SUM(phone) from kids", "SELECT SUM(NULL) FROM kids");
+        assert_rewriter(&rewriter, state.clone(), r#"SELECT case phone when 10 then "hello" end from kids"#, "SELECT NULL AS phone FROM kids");
+        assert_rewriter(&rewriter, state.clone(), r#"SELECT SUM(case phone when 10 then 1 end) from kids"#, "SELECT SUM(NULL) FROM kids");
+        assert_rewriter(&rewriter, state.clone(), r#"SELECT substring(phone from 10) from kids"#, "SELECT NULL AS substring FROM kids");  
     }
 }
