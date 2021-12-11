@@ -11,12 +11,13 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+use crate::sql::rule_engine::HardRuleEngine;
 use anyhow::{Error, Result};
 use burrego::opa::host_callbacks::DEFAULT_HOST_CALLBACKS;
 use burrego::opa::wasm::Evaluator;
+use futures::AsyncReadExt;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
-use tokio_postgres::types::Date;
 /// PolicyEvaluator is used to to evaluate policy decision for all the end user
 /// action.
 pub struct PolicyEvaluator {
@@ -27,6 +28,28 @@ pub struct PolicyEvaluator {
 pub struct PolicyResult {
     pub allow: bool,
     pub protected_columns: Vec<String>,
+}
+
+impl PolicyResult {
+    // to_rule_engine will convert the policy result to sql rule engine.
+    pub fn to_rule_engine(self) -> HardRuleEngine {
+        let mut inner_protected_column: HashMap<String, Vec<String>> = HashMap::default();
+        for column in self.protected_columns {
+            // all columns should have 2 dots
+            // schema.table.column
+            let splits = column.split(".").collect::<Vec<&str>>();
+            if splits.len() == 0 {
+                continue;
+            }
+            let table_name = format!("{}.{}", splits[0], splits[1]);
+            if let Some(cols) = inner_protected_column.get_mut(&table_name) {
+                cols.push(splits[3].to_string());
+                continue;
+            }
+            inner_protected_column.insert(table_name, vec![splits[3].to_string()]);
+        }
+        HardRuleEngine::from_protected_columns(inner_protected_column)
+    }
 }
 
 impl PolicyEvaluator {
@@ -57,9 +80,10 @@ impl PolicyEvaluator {
     pub fn evaluate(
         &mut self,
         data_source: &String,
+        db_name: &String,
         groups: &Vec<String>,
     ) -> Result<PolicyResult, anyhow::Error> {
-        let input = self.get_input_value(data_source, groups);
+        let input = self.get_input_value(data_source, db_name, groups);
         let data = Value::Object(Map::default());
 
         let allow = self.evaluator.evaluate(
@@ -116,7 +140,12 @@ impl PolicyEvaluator {
     }
 
     // get_input_value
-    fn get_input_value(&self, data_source: &String, groups: &Vec<String>) -> serde_json::Value {
+    fn get_input_value(
+        &self,
+        data_source: &String,
+        db_name: &String,
+        groups: &Vec<String>,
+    ) -> serde_json::Value {
         let mut object = Map::with_capacity(2);
         object.insert(
             String::from("data_source"),
@@ -131,22 +160,32 @@ impl PolicyEvaluator {
                     .collect::<Vec<Value>>(),
             ),
         );
+        object.insert(String::from("db_name"), Value::String(db_name.clone()));
         Value::Object(object)
     }
 }
 
 #[cfg(test)]
-mod tests{
+mod tests {
     use std::fs;
 
     use super::PolicyEvaluator;
 
     #[test]
-    fn test_evaluator(){
+    fn test_evaluator() {
         let policy = fs::read("/home/poonai/inspektor/src/policy_evaluator/policy.wasm").unwrap();
         let mut evaluator = PolicyEvaluator::new(&policy).unwrap();
-        let result = evaluator.evaluate(&String::from("postgres_production"), &vec![String::from("dev"), String::from("admin")]).unwrap();
+        let result = evaluator
+            .evaluate(
+                &String::from("postgres_production"),
+                &String::from("inspektor"),
+                &vec![String::from("dev"), String::from("admin")],
+            )
+            .unwrap();
         assert_eq!(result.allow, true);
-        assert_eq!(result.protected_columns, vec![String::from("public.data_sources.side_car_token")]);
+        assert_eq!(
+            result.protected_columns,
+            vec![String::from("public.data_sources.side_car_token")]
+        );
     }
 }
