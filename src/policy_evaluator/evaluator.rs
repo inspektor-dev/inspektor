@@ -17,6 +17,7 @@ use burrego::opa::host_callbacks::DEFAULT_HOST_CALLBACKS;
 use burrego::opa::wasm::Evaluator;
 use futures::AsyncReadExt;
 use serde_json::{Map, Value};
+use log::*;
 use std::collections::HashMap;
 /// PolicyEvaluator is used to to evaluate policy decision for all the end user
 /// action.
@@ -46,7 +47,7 @@ impl PolicyResult {
                 cols.push(splits[3].to_string());
                 continue;
             }
-            inner_protected_column.insert(table_name, vec![splits[3].to_string()]);
+            inner_protected_column.insert(table_name, vec![splits[2].to_string()]);
         }
         HardRuleEngine::from_protected_columns(inner_protected_column)
     }
@@ -83,6 +84,7 @@ impl PolicyEvaluator {
         db_name: &String,
         groups: &Vec<String>,
     ) -> Result<PolicyResult, anyhow::Error> {
+        debug!("evaluating policy with data_soruce {:?} db_name {:?} groups {:?}", data_source, db_name, groups);
         let input = self.get_input_value(data_source, db_name, groups);
         let data = Value::Object(Map::default());
 

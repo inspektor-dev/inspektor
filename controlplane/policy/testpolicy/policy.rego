@@ -15,12 +15,12 @@
 package inspektor.resource.acl
 
 role_permission := {
-	"dev": [{"postgres_production": {
+	"dev": [{"postgres-prod": {
 		"read": {"rows": 1},
 		"update": {"rows": 1},
 		"protected_fields": {"inspektor": {"public.data_sources.side_car_token"}},
 	}}],
-	"admin": [{"postgres_production": {
+	"admin": [{"postgres-prod": {
 		"read": {"rows": 1},
 		"update": {"rows": 1},
 		"protected_fields": {"inspektor": {"public.data_sources.side_car_token"}},
