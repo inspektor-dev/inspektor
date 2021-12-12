@@ -1,6 +1,21 @@
 #![feature(async_closure)]
+// Copyright 2021 Balaji (rbalajis25@gmail.com)
+// 
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+// 
+//     http://www.apache.org/licenses/LICENSE-2.0
+// 
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 mod apiproto;
 mod config;
+mod policy_evaluator;
 mod postgres_driver;
 mod sql;
 use apiproto::api::*;
@@ -11,10 +26,10 @@ use futures;
 use futures::prelude::*;
 use grpcio::{ChannelBuilder, EnvBuilder};
 use log::*;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::watch;
-use openssl::ssl::{SslConnector, SslMethod};
-use tokio_postgres_openssl::MakeTlsConnector;
+
 
 fn main() {
     env_logger::init();
@@ -33,7 +48,7 @@ fn main() {
     // let config_path = app.value_of("config_file").unwrap();
     // println!("{:?}", config_path)
     // create grpc connection with control plane.
-     let config = config::Config::default();
+    let config = config::Config::default();
 
     let env = Arc::new(EnvBuilder::new().build());
     let ch = ChannelBuilder::new(env).connect(config.controlplane_addr.as_ref().unwrap());
@@ -61,7 +76,6 @@ fn main() {
         .unwrap();
     let rt = tokio::runtime::Runtime::new().unwrap();
     let (policy_broadcaster, policy_watcher) = watch::channel(Vec::<u8>::new());
-
     // wait for policy in a different thread. we can use the same thread for other common telementry
     // data.
     std::thread::spawn(move || {
@@ -79,7 +93,6 @@ fn main() {
             }
         });
     });
-
     let driver = postgres_driver::driver::PostgresDriver {
         postgres_config: config::PostgresConfig::default(),
         policy_watcher: policy_watcher,

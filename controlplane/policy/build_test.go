@@ -9,4 +9,5 @@ func TestBuild(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	//ioutil.WriteFile("policy.wasm", buf, 0644)
 }

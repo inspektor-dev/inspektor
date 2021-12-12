@@ -44,3 +44,8 @@ impl RuleEngine  for  HardRuleEngine {
 }
 
 
+impl HardRuleEngine {
+    pub fn from_protected_columns(protected_columns: HashMap<String, Vec<String>>) -> HardRuleEngine {
+        HardRuleEngine{protected_columns}
+    }
+}

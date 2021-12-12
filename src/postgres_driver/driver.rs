@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::apiproto::api::{AuthRequest, DataSourceResponse};
 use crate::apiproto::api_grpc::*;
 use crate::config::PostgresConfig;
+use crate::policy_evaluator::evaluator::{PolicyEvaluator};
 use crate::postgres_driver::conn::PostgresConn;
 use crate::postgres_driver::errors::DecoderError;
 use crate::postgres_driver::message::*;
@@ -16,7 +17,7 @@ use openssl::ssl::{Ssl, SslAcceptor, SslFiletype, SslMethod};
 use std::pin::Pin;
 
 use tokio;
-use tokio::io::{ AsyncWriteExt };
+use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
 use tokio::sync::watch;
 use tokio_openssl::SslStream;
@@ -47,13 +48,12 @@ impl PostgresDriver {
                 let mut driver = self.clone();
                 let socket = PostgresConn::Unsecured(socket);
                 tokio::spawn(async move {
-                    driver.handle_client_conn(socket , acceptor).await;
+                    driver.handle_client_conn(socket, acceptor).await;
                     ()
                 });
             }
         });
     }
-
 
     // get_ssl_acceptor will get ssl acceptor if the sidecar is set to run on tls
     // mode.
@@ -101,15 +101,54 @@ impl PostgresDriver {
                             continue;
                         }
                     };
-                    let mut handler = ProtocolHandler::initialize(self.postgres_config.clone(), client_conn, params,  self.policy_watcher.clone(), groups).await.unwrap();
-                     handler.serve().await.unwrap();
-                     return
+                    // check whether user can access the db.
+                    let mut evaluator = match PolicyEvaluator::new(&self.policy_watcher.borrow()) {
+                        Ok(evaluator) => evaluator,
+                        Err(e) => {
+                            error!("error while building the policy evaluator {:?}", e);
+                            return;
+                        }
+                    };
+
+                    let result = match evaluator.evaluate(
+                        &self.datasource.data_source_name,
+                        params.get("database").unwrap(),
+                        &groups,
+                    ){
+                        Ok(res) => res,
+                        Err(e) => {
+                            error!("error while evulating policy {:?}", e);
+                            return;
+                        }
+                    };
+                    if !result.allow{
+                        // since this datasource is not allowed by the group 
+                        // let's drop the connection here.
+                        info!("incomming connection don't have access to the given db ");
+                        return;
+                    }
+                    let mut handler = ProtocolHandler::initialize(
+                        self.postgres_config.clone(),
+                        client_conn,
+                        params,
+                        self.policy_watcher.clone(),
+                        groups,
+                        evaluator,
+                        self.datasource.data_source_name.clone()
+                    )
+                    .await
+                    .unwrap();
+                    handler.serve().await.unwrap();
+                    return;
                 }
-                FrontendMessage::SslRequest =>{
-                    if let PostgresConn::Unsecured(mut inner) = client_conn{
+                FrontendMessage::SslRequest => {
+                    if let PostgresConn::Unsecured(mut inner) = client_conn {
                         // tell the client that you are upgrading for secure connection
-                        if let Err(e) = inner.write_all(&[ACCEPT_SSL_ENCRYPTION]).await{
-                            error!("error while sending ACCEPT_SSL_ENCRYPTION to client {:?}", e);
+                        if let Err(e) = inner.write_all(&[ACCEPT_SSL_ENCRYPTION]).await {
+                            error!(
+                                "error while sending ACCEPT_SSL_ENCRYPTION to client {:?}",
+                                e
+                            );
                             return;
                         }
                         let ssl = Ssl::new(acceptor.context()).unwrap();
@@ -162,9 +201,11 @@ impl PostgresDriver {
         Ok(res.get_groups().into())
     }
 
-    fn get_call_opt(&self) -> CallOption{
+    fn get_call_opt(&self) -> CallOption {
         let mut meta_builder = grpcio::MetadataBuilder::new();
-        meta_builder.add_str("auth-token", self.token.as_ref()).unwrap();
+        meta_builder
+            .add_str("auth-token", self.token.as_ref())
+            .unwrap();
         let meta = meta_builder.build();
         return grpcio::CallOption::default().headers(meta);
     }

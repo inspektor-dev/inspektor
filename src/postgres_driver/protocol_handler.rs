@@ -1,4 +1,19 @@
+// Copyright 2021 Balaji (rbalajis25@gmail.com)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use crate::config::PostgresConfig;
+use crate::policy_evaluator::evaluator::PolicyEvaluator;
 use crate::postgres_driver::conn::PostgresConn;
 use crate::postgres_driver::message::*;
 use crate::sql::ctx::Ctx;
@@ -37,10 +52,11 @@ pub struct ProtocolHandler {
     policy_watcher: watch::Receiver<Vec<u8>>,
     client_conn: PostgresConn,
     target_conn: PostgresConn,
-    policy_evaluator: Evaluator,
+    policy_evaluator: PolicyEvaluator,
     groups: Vec<String>,
     config: PostgresConfig,
     connected_db: String,
+    datasource_name: String,
 }
 
 impl ProtocolHandler {
@@ -99,7 +115,7 @@ impl ProtocolHandler {
         debug!("got table info: {:?}", table_info);
 
         let mut target_buf = [0; 1024];
-        let mut meta_refresh_ticker = tokio_time::interval(Duration::from_secs(2));
+        let mut meta_refresh_ticker = tokio_time::interval(Duration::from_secs(60));
         loop {
             tokio::select! {
                 evaluator = self.policy_watcher.changed() => {
@@ -109,7 +125,19 @@ impl ProtocolHandler {
                     }
                     let wasm_policy = self.policy_watcher.borrow();
                     // update the current evaluator with new policy
-                    let evaluator = Evaluator::new(String::from("inspecktor-policy"), &wasm_policy, &DEFAULT_HOST_CALLBACKS).unwrap();
+                    let mut evaluator = match PolicyEvaluator::new(&wasm_policy){
+                        Ok(evaluator) => evaluator,
+                        Err(e) => {
+                            error!("error while building new policy evaluator so skiping this policy.");
+                            continue;
+                        }
+                    };
+                    // let's check whether new policy allows the current db connection
+                    let result = evaluator.evaluate(&self.datasource_name, &self.connected_db, &self.groups)?;
+                    if !result.allow{
+                        error!("updated policy violating the existing connection so dropping the connection");
+                        continue;
+                    }
                     self.policy_evaluator = evaluator;
                 }
                 n = self.target_conn.read(&mut target_buf) => {
@@ -165,6 +193,8 @@ impl ProtocolHandler {
         client_parms: HashMap<String, String>,
         policy_watcher: watch::Receiver<Vec<u8>>,
         groups: Vec<String>,
+        evaluator: PolicyEvaluator,
+        datasource_name: String,
     ) -> Result<ProtocolHandler, anyhow::Error> {
         debug!("intializing protocol handler");
         let mut target_conn = ProtocolHandler::connect_target(&config).await?;
@@ -244,14 +274,6 @@ impl ProtocolHandler {
                     // send authentication ok to client connection since we established connection with
                     // target.
                     client_conn.write_all(&rsp_msg.encode()).await?;
-                    let cp = policy_watcher.clone();
-                    let wasm_policy = cp.borrow();
-                    let evaluator = Evaluator::new(
-                        String::from("inspecktor-policy"),
-                        &wasm_policy,
-                        &DEFAULT_HOST_CALLBACKS,
-                    )
-                    .unwrap();
                     let handler = ProtocolHandler {
                         target_conn: target_conn,
                         client_conn: client_conn,
@@ -260,6 +282,7 @@ impl ProtocolHandler {
                         groups: groups,
                         config: config.clone(),
                         connected_db: client_parms.get("database").unwrap().clone(),
+                        datasource_name: datasource_name,
                     };
                     return Ok(handler);
                 }
@@ -351,6 +374,16 @@ impl ProtocolHandler {
         msg: &mut FrontendMessage,
         ctx: Ctx,
     ) -> Result<(), anyhow::Error> {
+        let result = self.policy_evaluator.evaluate(
+            &self.datasource_name,
+            &self.connected_db,
+            &self.groups,
+        )?;
+        if !result.allow {
+            error!("updated policy violating the existing connection so dropping the connection");
+            return Err(anyhow!("policy connection rejected"));
+        }
+        let rule = result.to_rule_engine();
         match msg {
             FrontendMessage::Query { query_string } => {
                 let dialect = sqlparser::dialect::PostgreSqlDialect {};
@@ -365,7 +398,6 @@ impl ProtocolHandler {
                             return Ok(());
                         }
                     };
-                let rule = rule_engine::HardRuleEngine::default();
                 let rewriter = QueryRewriter::new(rule);
                 rewriter.rewrite(&mut statements, ctx)?;
                 // convert the statement back to string.
@@ -375,6 +407,31 @@ impl ProtocolHandler {
                 }
                 debug!("rewritten query {}", out);
                 *query_string = out;
+            }
+            FrontendMessage::Parse { query, .. } => {
+                if !query.contains("-- Metabase::") {
+                    return Ok(());
+                }
+                let dialect = sqlparser::dialect::PostgreSqlDialect {};
+                let mut statements = match sqlparser::parser::Parser::parse_sql(&dialect, query) {
+                    Ok(statements) => statements,
+                    Err(e) => {
+                        error!(
+                            "error while parsing user query error: {} query string: {}",
+                            e, query
+                        );
+                        return Ok(());
+                    }
+                };
+                let rewriter = QueryRewriter::new(rule);
+                rewriter.rewrite(&mut statements, ctx)?;
+                //convert the statement back to string.
+                let mut out = String::from("");
+                for statement in statements {
+                    out = format!("{}{};", out, statement);
+                }
+                debug!("rewritten query {}", out);
+                *query = out;
             }
             _ => {}
         }
