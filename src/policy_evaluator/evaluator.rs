@@ -168,12 +168,13 @@ impl PolicyEvaluator {
 #[cfg(test)]
 mod tests {
     use std::fs;
-
+    use std::env;
     use super::PolicyEvaluator;
 
     #[test]
     fn test_evaluator() {
-        let policy = fs::read("/home/poonai/inspektor/src/policy_evaluator/policy.wasm").unwrap();
+        let path = env::current_dir().unwrap();
+        let policy = fs::read(path.join("src/policy_evaluator/policy.wasm")).unwrap();
         let mut evaluator = PolicyEvaluator::new(&policy).unwrap();
         let result = evaluator
             .evaluate(
