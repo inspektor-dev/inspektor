@@ -5,7 +5,7 @@ import (
 )
 
 func TestBuild(t *testing.T) {
-	_, err := Build("sdf")
+	_, err := Build("/home/poonai/inspektor/controlplane/policy/testpolicy")
 	if err != nil {
 		t.Fatal(err)
 	}

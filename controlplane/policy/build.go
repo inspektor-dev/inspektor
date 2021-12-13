@@ -20,7 +20,7 @@ func Build(path string) ([]byte, error) {
 		WithTarget(compile.TargetWasm).
 		WithEntrypoints("inspektor/resource/acl/allow", "inspektor/resource/acl/protected_columns").
 		WithOutput(out).
-		WithPaths("/home/poonai/inspektor/controlplane/policy/testpolicy")
+		WithPaths(path)
 	err := compiler.Build(context.TODO())
 	if err != nil {
 		return nil, err

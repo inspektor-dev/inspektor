@@ -3,15 +3,17 @@ package config
 import "errors"
 
 type Config struct {
-	PostgresHost     string `mapstructure:"postgres_host"`
-	PostgresPort     string `mapstructure:"postgres_port"`
-	PostgresSSL      bool   `mapstructure:"postgres_ssl"`
-	DatabaseName     string `mapstructure:"database_name"`
-	PostgresUserName string `mapstructure:"postgres_username"`
-	PostgresPassword string `mapstructure:"postgres_password"`
-	ListenPort       string `mapstructure:"listen_port"`
-	JwtKey           string `mapstructure:"jwt_key"`
-	GrpcListenPort   string `mapstructure:"grpc_listen_port"`
+	PostgresHost      string `mapstructure:"postgres_host"`
+	PostgresPort      string `mapstructure:"postgres_port"`
+	PostgresSSL       bool   `mapstructure:"postgres_ssl"`
+	DatabaseName      string `mapstructure:"database_name"`
+	PostgresUserName  string `mapstructure:"postgres_username"`
+	PostgresPassword  string `mapstructure:"postgres_password"`
+	ListenPort        string `mapstructure:"listen_port"`
+	JwtKey            string `mapstructure:"jwt_key"`
+	GrpcListenPort    string `mapstructure:"grpc_listen_port"`
+	GithubAccessToken string `mapstructure:"github_access_token"`
+	PolicyRepo        string `mapstructure:"policy_repo"`
 }
 
 func (c *Config) Validate() error {
