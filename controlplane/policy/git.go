@@ -35,7 +35,7 @@ type PolicyManager struct {
 	sync.Mutex
 }
 
-func NewPolicyFS(cfg *config.Config) *PolicyManager {
+func NewPolicyManager(cfg *config.Config) *PolicyManager {
 	return &PolicyManager{
 		config:      cfg,
 		fsPath:      os.TempDir(),

@@ -11,7 +11,6 @@ import (
 	"inspektor/store"
 	"inspektor/utils"
 	"net"
-	"time"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -23,13 +22,15 @@ type CtxKey string
 var DataSource CtxKey = "datasource"
 
 type RpcServer struct {
-	store *store.Store
+	store  *store.Store
+	policy *policy.PolicyManager
 	apiproto.UnimplementedInspektorServer
 }
 
-func NewServer(store *store.Store) *RpcServer {
+func NewServer(store *store.Store, policy *policy.PolicyManager) *RpcServer {
 	return &RpcServer{
-		store: store,
+		store:  store,
+		policy: policy,
 	}
 }
 
@@ -52,19 +53,39 @@ func (r *RpcServer) Auth(ctx context.Context, req *apiproto.AuthRequest) (*apipr
 	return &apiproto.AuthResponse{
 		Groups: roles,
 	}, nil
-  }
+}
 
 func (r *RpcServer) Policy(req *apiproto.Empty, stream apiproto.Inspektor_PolicyServer) error {
-	byteCode, err := policy.Build("")
-	if err != nil {
-		utils.Logger.Error("error while building policy", zap.String("err_msg", err.Error()))
-		return errors.New("unable to build policy")
+	sendPolicy := func() error {
+		byteCode, err := r.policy.GetPolicy()
+		if err != nil {
+			utils.Logger.Error("error while building policy", zap.String("err_msg", err.Error()))
+			return errors.New("unable to build policy")
+		}
+		stream.Send(&apiproto.InspektorPolicy{
+			WasmByteCode: byteCode,
+		})
+		return nil
 	}
-	stream.Send(&apiproto.InspektorPolicy{
-		WasmByteCode: byteCode,
-	})
-	time.Sleep(time.Hour)
-	return nil
+	err := sendPolicy()
+	if err != nil {
+		return err
+	}
+	id, notifyCh := r.policy.Subscribe()
+	defer func() {
+		r.policy.Unsubscribe(id)
+	}()
+	for {
+		select {
+		case <-notifyCh:
+			err := sendPolicy()
+			if err != nil {
+				return err
+			}
+		case <-stream.Context().Done():
+			return nil
+		}
+	}
 }
 
 func (r *RpcServer) GetDataSource(ctx context.Context, req *apiproto.Empty) (*apiproto.DataSourceResponse, error) {

@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"inspektor/config"
+	"inspektor/policy"
 	"inspektor/store"
 	"inspektor/types"
 	"inspektor/utils"
@@ -17,8 +18,9 @@ import (
 )
 
 type Handlers struct {
-	Store *store.Store
-	Cfg   *config.Config
+	Store  *store.Store
+	Cfg    *config.Config
+	Policy *policy.PolicyManager
 }
 
 type LoginRequest struct {
@@ -69,10 +71,20 @@ func (h *Handlers) Login() http.HandlerFunc {
 	}
 }
 
+func (h *Handlers) PolicyNotification() http.HandlerFunc {
+	return func(rw http.ResponseWriter, r *http.Request) {
+		if err := h.Policy.Sync(); err != nil {
+			utils.Logger.Error("error while syncing policy notification", zap.String("err_msg", err.Error()))
+		}
+		utils.WriteSuccesMsg("ok", http.StatusOK, rw)
+	}
+}
+
 func (h *Handlers) Init(router *mux.Router) {
 	router.HandleFunc("/login", h.Login()).Methods("POST")
 	router.HandleFunc("/datasource", h.AuthMiddleWare(h.CreateDataSource())).Methods("POST")
 	router.HandleFunc("/datasource", h.AuthMiddleWare(h.GetDataSources())).Methods("GET")
 	router.HandleFunc("/session", h.AuthMiddleWare(h.CreateSession())).Methods("POST")
 	router.HandleFunc("/session", h.AuthMiddleWare(h.GetSesssion())).Methods("GET")
+	router.HandleFunc("/policy/nofification", h.PolicyNotification()).Methods("POST")
 }
