@@ -14,6 +14,7 @@ type Config struct {
 	GrpcListenPort    string `mapstructure:"grpc_listen_port"`
 	GithubAccessToken string `mapstructure:"github_access_token"`
 	PolicyRepo        string `mapstructure:"policy_repo"`
+	PolicyPath        string `mapstructure:"policy_path"`
 }
 
 func (c *Config) Validate() error {
@@ -40,6 +41,9 @@ func (c *Config) Validate() error {
 	}
 	if c.GrpcListenPort == "" {
 		c.GrpcListenPort = ":5003"
+	}
+	if c.PolicyPath == "" {
+		c.PolicyPath = "./policy_dir"
 	}
 	return nil
 }

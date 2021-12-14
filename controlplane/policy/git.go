@@ -16,7 +16,6 @@ package policy
 import (
 	"inspektor/config"
 	"inspektor/utils"
-	"os"
 	"sync"
 
 	git "github.com/go-git/go-git/v5"
@@ -36,9 +35,10 @@ type PolicyManager struct {
 }
 
 func NewPolicyManager(cfg *config.Config) *PolicyManager {
+	utils.CleanDir(cfg.PolicyPath)
 	return &PolicyManager{
 		config:      cfg,
-		fsPath:      os.TempDir(),
+		fsPath:      cfg.PolicyPath,
 		subscribers: make(map[string]chan struct{}),
 		gitEnabled:  false,
 	}
@@ -69,12 +69,18 @@ func (p *PolicyManager) Sync() error {
 	w, err := p.repo.Worktree()
 	if err != nil {
 		utils.Logger.Error("error while retriving worktree", zap.String("err_msg", err.Error()))
+		return err
 	}
 	err = w.Pull(&git.PullOptions{
 		RemoteName: "origin",
+		Auth: &http.BasicAuth{
+			Username: "inspektor",
+			Password: p.config.GithubAccessToken,
+		},
 	})
 	if err != nil {
 		utils.Logger.Error("error while pulling the policy repository", zap.String("err_msg", err.Error()))
+		return err
 	}
 	p.notify()
 	return nil

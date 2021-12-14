@@ -1,3 +1,4 @@
 /target
 /controlplane/config.yaml
 /controlplane/inspektor
+/controlplane/policy_dir

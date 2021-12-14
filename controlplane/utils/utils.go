@@ -144,3 +144,16 @@ func GenerateSecureToken(length int) string {
 	}
 	return hex.EncodeToString(b)
 }
+
+// CleanDir will clean the dir.
+// will delete and create a new dir for the given
+// path.
+func CleanDir(dir string) {
+	_, err := os.Stat(dir)
+	if os.IsNotExist(err) {
+		Check(os.MkdirAll(dir, 0755))
+		return
+	}
+	Check(os.RemoveAll(dir))
+	Check(os.MkdirAll(dir, 0755))
+}
