@@ -72,7 +72,7 @@ func (s *Store) WriteRoleForUserObjectID(id uint, name string) error {
 
 	// check role exist for the the object id.
 	var count int64
-	if err := s.db.Model(&models.Role{}).Where("object_id = ? and types = ?", id, models.UserType).Count(&count).Error; err != nil {
+	if err := s.db.Model(&models.Role{}).Where("object_id = ? and type = ?", id, models.UserType).Count(&count).Error; err != nil {
 		utils.Logger.Error("error while checking whether role exist for the given object id", zap.Uint("object_id", id))
 		return err
 	}
