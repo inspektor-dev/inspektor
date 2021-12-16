@@ -94,18 +94,18 @@ impl<T: RuleEngine> QueryRewriter<T> {
             } => {
                 // set operation are union or intersect of set_expr
                 // eg (select * from premimum users) UNION (select * from users);
-                let _left_state = self.handle_set_expr(left, state)?;
+                let left_state = self.handle_set_expr(left, state)?;
                 let right_state = self.handle_set_expr(right, state)?;
                 // usually left and right should be selection because it's a union call.
                 // so let's check the projection left and right have same number of projections
                 // so we can hit the client about the kind of error.
                 let left_count = match &**left {
                     SetExpr::Select(select) => Some(select.projection.len()),
-                    _ => None,
+                    _ => return Ok(right_state),
                 };
                 let right_count = match &**right {
                     SetExpr::Select(select) => Some(select.projection.len()),
-                    _ => None,
+                    _ => return Ok(left_state),
                 };
                 if left_count != right_count {
                     return Err(
@@ -382,12 +382,8 @@ impl<T: RuleEngine> QueryRewriter<T> {
                     }
                 }
             }
-            Expr::Cast { expr, .. } => {
-                 self.handle_expr(state, expr)?
-            }
-            Expr::TryCast { expr, .. } => {
-                 self.handle_expr(state, expr)?
-            }
+            Expr::Cast { expr, .. } => self.handle_expr(state, expr)?,
+            Expr::TryCast { expr, .. } => self.handle_expr(state, expr)?,
             Expr::Extract { expr, .. } => {
                 if let Err(_) = self.handle_expr(state, expr) {
                     return Err(InspektorSqlError::RewriteExpr {
@@ -523,7 +519,10 @@ pub fn get_column_from_idents(idents: &Vec<Ident>) -> (String, String) {
 mod tests {
     use super::*;
     use std::collections::HashMap;
-
+    use std::fs;
+    use std::env;
+    use serde::Deserialize;
+    use serde_json;
     macro_rules! cowvec {
         ( $( $x:expr ),* ) => {
             {
@@ -715,11 +714,18 @@ mod tests {
             ),
         ]));
         let rewriter = QueryRewriter::new(rule_engine);
+        // assert_rewriter(
+        //     &rewriter,
+        //     state.clone(),
+        //     "select * from kids UNION select * from public.kids2",
+        //     "SELECT kids.id, kids.name, kids.address FROM kids UNION SELECT public.kids2.id, public.kids2.name, public.kids2.address FROM public.kids2",
+        // );
+        
         assert_rewriter(
             &rewriter,
             state.clone(),
-            "select * from kids UNION select * from public.kids2",
-            "SELECT kids.id, kids.name, kids.address FROM kids UNION SELECT public.kids2.id, public.kids2.name, public.kids2.address FROM public.kids2",
+            "SELECT 49179 AS oid , 1 AS attnum UNION ALL SELECT 49179, 7;",
+            "SELECT 49179 AS oid, 1 AS attnum UNION ALL SELECT 49179, 7",
         );
     }
 
@@ -911,7 +917,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rewrite_null(){
+    fn test_rewrite_null() {
         let rule_engine = HardRuleEngine {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
         };
@@ -927,11 +933,82 @@ mod tests {
         )]));
 
         let rewriter = QueryRewriter::new(rule_engine);
-        assert_rewriter(&rewriter, state.clone(), "SELECT id, phone from kids", "SELECT id, NULL AS phone FROM kids");
-        assert_rewriter(&rewriter, state.clone(), "SELECT id, phone AS demophone from kids", "SELECT id, NULL AS demophone FROM kids");
-        assert_rewriter(&rewriter, state.clone(), "SELECT SUM(phone) from kids", "SELECT SUM(NULL) FROM kids");
-        assert_rewriter(&rewriter, state.clone(), r#"SELECT case phone when 10 then "hello" end from kids"#, "SELECT NULL AS phone FROM kids");
-        assert_rewriter(&rewriter, state.clone(), r#"SELECT SUM(case phone when 10 then 1 end) from kids"#, "SELECT SUM(NULL) FROM kids");
-        assert_rewriter(&rewriter, state.clone(), r#"SELECT substring(phone from 10) from kids"#, "SELECT NULL AS substring FROM kids");  
+        assert_rewriter(
+            &rewriter,
+            state.clone(),
+            "SELECT id, phone from kids",
+            "SELECT id, NULL AS phone FROM kids",
+        );
+        assert_rewriter(
+            &rewriter,
+            state.clone(),
+            "SELECT id, phone AS demophone from kids",
+            "SELECT id, NULL AS demophone FROM kids",
+        );
+        assert_rewriter(
+            &rewriter,
+            state.clone(),
+            "SELECT SUM(phone) from kids",
+            "SELECT SUM(NULL) FROM kids",
+        );
+        assert_rewriter(
+            &rewriter,
+            state.clone(),
+            r#"SELECT case phone when 10 then "hello" end from kids"#,
+            "SELECT NULL AS phone FROM kids",
+        );
+        assert_rewriter(
+            &rewriter,
+            state.clone(),
+            r#"SELECT SUM(case phone when 10 then 1 end) from kids"#,
+            "SELECT SUM(NULL) FROM kids",
+        );
+        assert_rewriter(
+            &rewriter,
+            state.clone(),
+            r#"SELECT substring(phone from 10) from kids"#,
+            "SELECT NULL AS substring FROM kids",
+        );
     }
+    #[derive(Deserialize, Debug)]
+    struct  SchemaInformation {
+        c0: String,
+        c1: String,
+        c2: String,
+        c3: String,
+    }
+
+    
+    fn get_table_info() -> HashMap<String, Vec<String>> {
+        let path = env::current_dir().unwrap();
+        let table_data = fs::read(path.join("src/sql/default_columns.json")).unwrap();
+        let infos: Vec<SchemaInformation> = serde_json::from_slice(&table_data[..]).unwrap();
+        let mut table_info: HashMap<String, Vec<String>> = HashMap::default();
+        for info in infos{
+            let table_name: String = format!(
+                "{}.{}",
+                info.c0,
+                info.c1
+            );
+            let column_name: String = info.c2;
+            if let Some(columns) = table_info.get_mut(&table_name) {
+                columns.push(column_name);
+                continue;
+            }
+            table_info.insert(table_name, vec![column_name]);
+        }
+        table_info
+    }
+
+ //   #[test]
+    // fn test_metabase_expr() {
+    //     let rule_engine = HardRuleEngine {
+    //         protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
+    //     };
+
+    //     let state = Ctx::new(get_table_info());
+
+    //     let rewriter = QueryRewriter::new(rule_engine);
+    //     assert_rewriter(&rewriter, state.clone(), " SELECT c.oid, a.attnum, a.attname, c.relname, n.nspname, a.attnotnull OR (t.typtype = 'd' AND t.typnotnull), a.attidentity != '' OR pg_catalog.pg_get_expr(d.adbin, d.adrelid) LIKE '%nextval(%' FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON (c.relnamespace = n.oid) JOIN pg_catalog.pg_attribute a ON (c.oid = a.attrelid) JOIN pg_catalog.pg_type t ON (a.atttypid = t.oid) LEFT JOIN pg_catalog.pg_attrdef d ON (d.adrelid = a.attrelid AND d.adnum = a.attnum) JOIN (SELECT 49179 AS oid , 1 AS attnum UNION ALL SELECT 49179, 2 UNION ALL SELECT 49179, 3 UNION ALL SELECT 49179, 4 UNION ALL SELECT 49179, 5 UNION ALL SELECT 49179, 6 UNION ALL SELECT 49179, 7) vals ON (c.oid = vals.oid AND a.attnum = vals.attnum)", " SELECT c.oid, a.attnum, a.attname, c.relname, n.nspname, a.attnotnull OR (t.typtype = 'd' AND t.typnotnull), a.attidentity != '' OR pg_catalog.pg_get_expr(d.adbin, d.adrelid) LIKE '%nextval(%' FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON (c.relnamespace = n.oid) JOIN pg_catalog.pg_attribute a ON (c.oid = a.attrelid) JOIN pg_catalog.pg_type t ON (a.atttypid = t.oid) LEFT JOIN pg_catalog.pg_attrdef d ON (d.adrelid = a.attrelid AND d.adnum = a.attnum) JOIN (SELECT 49179 AS oid , 1 AS attnum UNION ALL SELECT 49179, 2 UNION ALL SELECT 49179, 3 UNION ALL SELECT 49179, 4 UNION ALL SELECT 49179, 5 UNION ALL SELECT 49179, 6 UNION ALL SELECT 49179, 7) vals ON (c.oid = vals.oid AND a.attnum = vals.attnum)");
+    // }
 }
