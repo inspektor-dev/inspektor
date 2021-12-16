@@ -11,7 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 use crate::config::PostgresConfig;
 use crate::policy_evaluator::evaluator::PolicyEvaluator;
 use crate::postgres_driver::conn::PostgresConn;
@@ -20,9 +19,7 @@ use crate::sql::ctx::Ctx;
 use crate::sql::query_rewriter::QueryRewriter;
 use crate::sql::rule_engine::{self, HardRuleEngine};
 use anyhow::*;
-use burrego::opa::host_callbacks::DEFAULT_HOST_CALLBACKS;
-use burrego::opa::wasm::Evaluator;
-use futures::FutureExt;
+use bytes::BytesMut;
 use log::*;
 use md5::{Digest, Md5};
 use openssl::ssl::{Ssl, SslConnector, SslMethod};
@@ -34,10 +31,9 @@ use tokio::net::TcpStream;
 use tokio::sync::watch;
 use tokio::time as tokio_time;
 use tokio_openssl::SslStream;
-use tokio_postgres::tls::TlsConnect;
-use tokio_postgres::SimpleQueryMessage;
-use tokio_postgres_openssl::MakeTlsConnector;
 
+use postgres_protocol::authentication::sasl;
+use postgres_protocol::message::frontend;
 fn md5_password(username: &String, password: &String, salt: Vec<u8>) -> String {
     let mut md5 = Md5::new();
     md5.update(password);
@@ -69,8 +65,7 @@ impl ProtocolHandler {
                 "
                 SELECT table_schema, table_name, column_name, data_type
 	FROM information_schema.columns
-	 WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
-	 AND table_name !~ '^pg_';",
+	 ",
                 &[],
             )
             .await?;
@@ -270,6 +265,30 @@ impl ProtocolHandler {
                         })?;
                     continue;
                 }
+                BackendMessage::AuthenticationSASL { mechanisms } => {
+                    debug!(
+                        "sasl authhentication requested with the following mechanism {:?}",
+                        mechanisms
+                    );
+
+                    if mechanisms
+                        .iter()
+                        .position(|mechanism| *mechanism == "SCRAM-SHA-256")
+                        .is_none()
+                    {
+                        return Err(anyhow!(
+                            "supported sasl mechanism is SCRAM-SHA-256. but requested for {:?}",
+                            mechanisms
+                        ));
+                    }
+                    ProtocolHandler::authenticate_sasl(
+                        &mut target_conn,
+                        config.target_password.as_ref().unwrap(),
+                    )
+                    .await?;
+                    debug!("sasl authentication completed successfully");
+                    continue;
+                }
                 BackendMessage::AuthenticationOk { .. } => {
                     // send authentication ok to client connection since we established connection with
                     // target.
@@ -312,6 +331,67 @@ impl ProtocolHandler {
         ))
     }
 
+    async fn authenticate_sasl(
+        mut target_conn: &mut PostgresConn,
+        password: &String,
+    ) -> Result<(), anyhow::Error> {
+        // refer: https://datatracker.ietf.org/doc/html/rfc5802 for more context.
+        let pass_buf = password.as_bytes();
+        println!("pass {:?}", pass_buf);
+        let mut sasl_auth = sasl::ScramSha256::new(pass_buf, sasl::ChannelBinding::unsupported());
+        debug!("sending client first message");
+        // send client first message to the target.
+        target_conn
+            .write_all(
+                &FrontendMessage::SASLInitialResponse {
+                    body: sasl_auth.message().to_vec(),
+                    mechanism: String::from("SCRAM-SHA-256"),
+                }
+                .encode(),
+            )
+            .await?;
+        debug!("receiving server first message");
+        // get server first message form the target.
+        let msg = decode_backend_message(&mut target_conn).await?;
+        let data = match msg {
+            BackendMessage::AuthenticationSASLContinue { data } => data,
+            _ => {
+                error!("expected sasl continue message but got {:?}", msg);
+                return Err(anyhow!("expected sasl continue message"));
+            }
+        };
+        println!(
+            "data from {:?}",
+            String::from_utf8(data.clone()).unwrap()
+        );
+        sasl_auth.update(&data[..]).map_err(|e| {
+            error!("error while updating server first message {:?}", e);
+            e
+        })?;
+        debug!("sending client final message");
+        // send client final message.
+        target_conn
+            .write_all(
+                &FrontendMessage::SASLResponse {
+                    body: sasl_auth.message().to_vec(),
+                }
+                .encode(),
+            )
+            .await?;
+        // retrive server final message and verify.
+        debug!("receiving server final message");
+        let msg = decode_backend_message(&mut target_conn).await?;
+        let data = match msg {
+            BackendMessage::AuthenticationSASLFinal { data } => data,
+            _ => {
+                error!("expected sasl final message but got {:?}", msg);
+                return Err(anyhow!("expected sasl final message"));
+            }
+        };
+        sasl_auth.finish(&data[..])?;
+        Ok(())
+    }
+
     // try_ssl_upgrade will try to upgrade the unsecured postgres connection to ssl connection
     // if the server supports. Otherwise, unsercured connection is retured back.
     async fn try_ssl_upgrade(
@@ -347,6 +427,7 @@ impl ProtocolHandler {
                     );
                     anyhow!("error while upgrading target connection to ssl stream")
                 })?;
+                debug!("taget connection upgraded to tls connection");
                 Ok(PostgresConn::Secured(stream))
             }
             _ => Ok(conn),
@@ -386,6 +467,9 @@ impl ProtocolHandler {
         let rule = result.to_rule_engine();
         match msg {
             FrontendMessage::Query { query_string } => {
+                if query_string == "" {
+                    return Ok(());
+                }
                 let dialect = sqlparser::dialect::PostgreSqlDialect {};
                 let mut statements =
                     match sqlparser::parser::Parser::parse_sql(&dialect, query_string) {
@@ -409,9 +493,10 @@ impl ProtocolHandler {
                 *query_string = out;
             }
             FrontendMessage::Parse { query, .. } => {
-                if !query.contains("-- Metabase::") {
-                    return Ok(());
-                }
+                // if !query.contains("-- Metabase::") {
+                //     warn!("query is {}", query);
+                //     return Ok(());
+                // }
                 let dialect = sqlparser::dialect::PostgreSqlDialect {};
                 let mut statements = match sqlparser::parser::Parser::parse_sql(&dialect, query) {
                     Ok(statements) => statements,
@@ -436,18 +521,5 @@ impl ProtocolHandler {
             _ => {}
         }
         Ok(())
-    }
-
-    async fn get_postgres_client(&self) {
-        // let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
-        // builder.set_ca_file("../test/server.crt").unwrap();
-        // let connector = MakeTlsConnector::new(builder.build());
-
-        // let (client, connection) = tokio_postgres::connect(
-        //     "host=localhost port=5433 user=postgres sslmode=require",
-        //     connector,
-        // )
-        // .await
-        // .unwrap();
     }
 }

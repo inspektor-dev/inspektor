@@ -5,6 +5,7 @@ use crate::postgres_driver::utils::{
 use anyhow::*;
 use byteorder::{ByteOrder, NetworkEndian};
 use bytes::{Buf, BufMut, BytesMut};
+use futures::TryFutureExt;
 use log::*;
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
@@ -25,6 +26,9 @@ pub enum BackendMessage {
     AuthenticationOk { success: bool },
     AuthenticationCleartextPassword,
     AuthenticationMD5Password { salt: Vec<u8> },
+    AuthenticationSASL { mechanisms: Vec<String> },
+    AuthenticationSASLContinue { data: Vec<u8> },
+    AuthenticationSASLFinal { data: Vec<u8> },
 }
 
 impl BackendMessage {
@@ -92,13 +96,35 @@ where
                 1 => {
                     return Ok(BackendMessage::AuthenticationOk { success: false });
                 }
+                10 => {
+                    let mut mechanisms = Vec::new();
+                    while *buf.get(0).unwrap() != 0 {
+                        mechanisms.push(read_cstr(&mut buf)?);
+                    }
+                    return Ok(BackendMessage::AuthenticationSASL {
+                        mechanisms: mechanisms,
+                    });
+                }
+                11 => {
+                    return Ok(BackendMessage::AuthenticationSASLContinue {
+                        data: buf.to_vec(),
+                    })
+                }
+                12 => {
+                    return Ok(BackendMessage::AuthenticationSASLFinal {
+                        data: buf.to_vec(),
+                    })
+                }
                 _ => {
                     unreachable!("unknown message type {:?}", msg_type)
                 }
             }
         }
         b'E' => {
-            let msg_len = decode_frame_length(&mut conn).await?;
+            let msg_len = decode_frame_length(&mut conn).await.map_err(|e| {
+                error!("error while decoding backend error message length");
+                e
+            })?;
             let mut buf = BytesMut::new();
             buf.resize(msg_len, b'0');
             conn.read_exact(&mut buf)
@@ -164,11 +190,18 @@ pub enum FrontendMessage {
         function_arguments: Vec<Value>,
         result_format_code: i16,
     },
-    Parse{
+    Parse {
         name: String,
         query: String,
         object_ids: Vec<i32>,
-    }
+    },
+    SASLInitialResponse {
+        mechanism: String,
+        body: Vec<u8>,
+    },
+    SASLResponse {
+        body: Vec<u8>,
+    },
 }
 
 impl FrontendMessage {
@@ -262,7 +295,7 @@ impl FrontendMessage {
                                     buf.put_i32(-1);
                                 }
                                 Value::NotNull(val) => {
-                                    buf.put_i32( val.len() as i32);
+                                    buf.put_i32(val.len() as i32);
                                     if val.len() != 0 {
                                         buf.extend_from_slice(val);
                                     }
@@ -284,30 +317,46 @@ impl FrontendMessage {
                 })
                 .unwrap();
             }
-            FrontendMessage::FunctionCall { object_id, format_codes, function_arguments, result_format_code } => {
-                write_message(&mut buf, |buf|{
+            FrontendMessage::FunctionCall {
+                object_id,
+                format_codes,
+                function_arguments,
+                result_format_code,
+            } => {
+                write_message(&mut buf, |buf| {
                     buf.put_i32(*object_id);
-                    write_counted_message(format_codes, |item, buf|{
-                        buf.put_i16(*item);
-                        Ok(())
-                    }, buf).unwrap();
-                    write_counted_message(function_arguments, |item, buf|{
-                        match item {
-                            Value::Null => {
-                                buf.put_i32(-1);
-                            }
-                            Value::NotNull(val) => {
-                                buf.put_i32(val.len() as i32);
-                                if val.len() != 0 {
-                                    buf.extend_from_slice(val);
+                    write_counted_message(
+                        format_codes,
+                        |item, buf| {
+                            buf.put_i16(*item);
+                            Ok(())
+                        },
+                        buf,
+                    )
+                    .unwrap();
+                    write_counted_message(
+                        function_arguments,
+                        |item, buf| {
+                            match item {
+                                Value::Null => {
+                                    buf.put_i32(-1);
+                                }
+                                Value::NotNull(val) => {
+                                    buf.put_i32(val.len() as i32);
+                                    if val.len() != 0 {
+                                        buf.extend_from_slice(val);
+                                    }
                                 }
                             }
-                        }
-                        Ok(())
-                    }, buf).unwrap();
-                    buf.put_i16(*result_format_code );
+                            Ok(())
+                        },
+                        buf,
+                    )
+                    .unwrap();
+                    buf.put_i16(*result_format_code);
                     Ok(())
-                }).unwrap();
+                })
+                .unwrap();
             }
             FrontendMessage::CopyData(data) => {
                 buf.put_u8(b'd');
@@ -349,16 +398,42 @@ impl FrontendMessage {
                 })
                 .unwrap();
             }
-            FrontendMessage::Parse { name, query, object_ids } =>{
+            FrontendMessage::Parse {
+                name,
+                query,
+                object_ids,
+            } => {
                 buf.put_u8(b'P');
                 write_message(&mut buf, |buf| {
                     write_cstr(buf, name.as_bytes())?;
                     write_cstr(buf, query.as_bytes())?;
-                    write_counted_message(object_ids, |item, buf|{
-                        buf.put_i32(*item);
-                        buf.advance(4);
-                        Ok(())
-                    }, buf)?;
+                    write_counted_message(
+                        object_ids,
+                        |item, buf| {
+                            buf.put_i32(*item);
+                            buf.advance(4);
+                            Ok(())
+                        },
+                        buf,
+                    )?;
+                    Ok(())
+                })
+                .unwrap();
+            }
+            FrontendMessage::SASLInitialResponse { body, mechanism } => {
+                buf.put_u8(b'p');
+                write_message(&mut buf, |buf| {
+                    write_cstr(buf, mechanism.as_bytes())?;
+                    buf.put_i32(body.len() as i32);
+                    buf.put_slice(body);
+                    Ok(())
+                })
+                .unwrap();
+            }
+            FrontendMessage::SASLResponse { body } => {
+                buf.put_u8(b'p');
+                write_message(&mut buf, |buf| {
+                    buf.extend_from_slice(body);
                     Ok(())
                 })
                 .unwrap();
@@ -499,7 +574,7 @@ impl FrontendMessage {
                     result_format_code,
                 });
             }
-            b'P' =>{
+            b'P' => {
                 let name = read_cstr(&mut buf)?;
                 let query = read_cstr(&mut buf)?;
                 let object_ids = read_counted_message(&mut buf, |buf| {
@@ -507,7 +582,11 @@ impl FrontendMessage {
                     buf.advance(4);
                     Ok(format_code)
                 })?;
-                return Ok(FrontendMessage::Parse{name, query, object_ids});
+                return Ok(FrontendMessage::Parse {
+                    name,
+                    query,
+                    object_ids,
+                });
             }
             _ => {
                 return Err(anyhow!("unrecognized frontend message"));

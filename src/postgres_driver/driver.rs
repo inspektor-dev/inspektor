@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::apiproto::api::{AuthRequest, DataSourceResponse};
 use crate::apiproto::api_grpc::*;
 use crate::config::PostgresConfig;
-use crate::policy_evaluator::evaluator::{PolicyEvaluator};
+use crate::policy_evaluator::evaluator::PolicyEvaluator;
 use crate::postgres_driver::conn::PostgresConn;
 use crate::postgres_driver::errors::DecoderError;
 use crate::postgres_driver::message::*;
@@ -114,30 +114,36 @@ impl PostgresDriver {
                         &self.datasource.data_source_name,
                         params.get("database").unwrap(),
                         &groups,
-                    ){
+                    ) {
                         Ok(res) => res,
                         Err(e) => {
                             error!("error while evulating policy {:?}", e);
                             return;
                         }
                     };
-                    if !result.allow{
-                        // since this datasource is not allowed by the group 
+                    if !result.allow {
+                        // since this datasource is not allowed by the group
                         // let's drop the connection here.
                         info!("incomming connection don't have access to the given db ");
                         return;
                     }
-                    let mut handler = ProtocolHandler::initialize(
+                    let mut handler = match ProtocolHandler::initialize(
                         self.postgres_config.clone(),
                         client_conn,
                         params,
                         self.policy_watcher.clone(),
                         groups,
                         evaluator,
-                        self.datasource.data_source_name.clone()
+                        self.datasource.data_source_name.clone(),
                     )
                     .await
-                    .unwrap();
+                    {
+                        Ok(h) => h,
+                        Err(e) => {
+                            error!("error while initializing protocol handler {:?}", e);
+                            return;
+                        }
+                    };
                     handler.serve().await.unwrap();
                     return;
                 }
