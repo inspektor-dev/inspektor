@@ -2412,7 +2412,6 @@ dependencies = [
 [[package]]
 name = "sqlparser"
 version = "0.13.1-alpha.0"
-source = "git+https://github.com/poonai/sqlparser-rs?branch=poonai/pgsetstatement#97f3e65e82fdac44364378f960cf05f4b8ebdb4e"
 dependencies = [
  "log",
 ]

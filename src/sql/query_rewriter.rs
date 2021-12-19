@@ -18,8 +18,8 @@ use crate::sql::rule_engine::{HardRuleEngine, RuleEngine};
 
 use protobuf::ProtobufEnum;
 use sqlparser::ast::{
-    Expr, FunctionArg, Ident, Query, Select, SelectItem, SetExpr, Statement, TableFactor,
-    TrimWhereField, Value,
+    Expr, FunctionArg, FunctionArgExpr, Ident, Query, Select, SelectItem, SetExpr, Statement,
+    TableFactor, TrimWhereField, Value,
 };
 use sqlparser::dialect::PostgreSqlDialect;
 use sqlparser::parser::Parser;
@@ -29,14 +29,16 @@ use std::marker::PhantomData;
 pub struct QueryRewriter<T: RuleEngine> {
     // rule engine is responsible for handling all the rules which are enforced by
     // the end user.
+    namespaces: Vec<String>,
     rule_engine: T,
 }
 
 impl<T: RuleEngine> QueryRewriter<T> {
     // new will return query rewriter
-    pub fn new(rule_engine: T) -> QueryRewriter<T> {
+    pub fn new(rule_engine: T, ns: Vec<String>) -> QueryRewriter<T> {
         return QueryRewriter {
             rule_engine: rule_engine,
+            namespaces: ns,
         };
     }
 
@@ -168,22 +170,35 @@ impl<T: RuleEngine> QueryRewriter<T> {
                 with_hints: _with_hints,
             } => {
                 let mut table_name = join_indents(&name.0);
+                let t_c = table_name.clone();
 
                 // we need to find whether this table is with public schema or not.
                 // if we have columns directly then means we got the table in a derivied
                 // form.
-                let (mut table_name, table_columns) = match state.get_columns(&table_name) {
-                    Some(columns) => (table_name, columns),
+                let data = match state.get_columns(&table_name) {
+                    Some(columns) => Some((table_name, columns)),
                     _ => {
-                        table_name = format!("public.{}", table_name);
-                        match state.get_columns(&table_name) {
-                            Some(columns) => (table_name, columns),
-                            None => {
-                                unreachable!("unable to get columns name for the table {:?}", name)
+                        let mut data = None;
+                        for ns in &self.namespaces {
+                            let namspaced_table_name = format!("{}.{}", ns, table_name);
+                            match state.get_columns(&namspaced_table_name) {
+                                Some(columns) => {
+                                    data = Some((namspaced_table_name, columns));
+                                    break;
+                                }
+                                None => {
+                                    continue;
+                                }
                             }
                         }
+                        data
                     }
                 };
+                if data.is_none() {
+                    unreachable!("unable to get columns for the table {:?}", t_c);
+                }
+
+                let (mut table_name, table_columns) = data.unwrap();
 
                 // TODO: table_name not mutated finding table name protected is
                 // wrong.
@@ -266,7 +281,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
             }
             SelectItem::Wildcard => {
                 // for wildcard we just rewrite with all the allowed columns.
-                return Ok(state.build_allowed_column_expr());
+                return Ok(vec![SelectItem::Wildcard]);
             }
             SelectItem::ExprWithAlias { expr, alias } => {
                 if let Err(e) = self.handle_expr(state, expr) {
@@ -326,14 +341,24 @@ impl<T: RuleEngine> QueryRewriter<T> {
                 // for the function args we'll rewrite with NULL value if it's not allowed.
                 for arg in &mut function.args {
                     match arg {
-                        FunctionArg::Unnamed(expr) => {
+                        FunctionArg::Unnamed(arg_expr) => {
+                            let expr = match arg_expr {
+                                FunctionArgExpr::Expr(expr) => expr,
+                                FunctionArgExpr::QualifiedWildcard(_) => return Ok(()),
+                                FunctionArgExpr::Wildcard => return Ok(()),
+                            };
                             if let Err(_) = self.handle_expr(state, expr) {
                                 *expr = Expr::Value(Value::Null)
                             }
                         }
                         FunctionArg::Named { name: _name, arg } => {
-                            if let Err(_) = self.handle_expr(state, arg) {
-                                *arg = Expr::Value(Value::Null)
+                            let expr = match arg {
+                                FunctionArgExpr::Expr(expr) => expr,
+                                FunctionArgExpr::QualifiedWildcard(_) => return Ok(()),
+                                FunctionArgExpr::Wildcard => return Ok(()),
+                            };
+                            if let Err(_) = self.handle_expr(state, expr) {
+                                *expr = Expr::Value(Value::Null)
                             }
                         }
                     };
@@ -452,10 +477,6 @@ impl<T: RuleEngine> QueryRewriter<T> {
                     }
                 }
             }
-            Expr::Wildcard | Expr::QualifiedWildcard(_) => {
-                // expr wild card come as parameter to a function.
-                // eg: count(*) so we don't need to change anything.
-            }
             Expr::Value(_) | Expr::TypedString { .. } => {
                 // things that needs no evaluation.
             }
@@ -518,11 +539,11 @@ pub fn get_column_from_idents(idents: &Vec<Ident>) -> (String, String) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
-    use std::fs;
-    use std::env;
     use serde::Deserialize;
     use serde_json;
+    use std::collections::HashMap;
+    use std::env;
+    use std::fs;
     macro_rules! cowvec {
         ( $( $x:expr ),* ) => {
             {
@@ -559,12 +580,12 @@ mod tests {
         assert_eq!(rewriter_err, err)
     }
 
-    // #[test]
-    // fn test_for_output() {
-    //     let dialect = PostgreSqlDialect {};
-    //     let statements = Parser::parse_sql(&dialect, r#"SELECT SUM(NULL)"#).unwrap();
-    //     println!("{:?}", statements[0])
-    // }
+    #[test]
+    fn test_for_output() {
+        let dialect = PostgreSqlDialect {};
+        let statements = Parser::parse_sql(&dialect, r#"select (array['Yes', 'No', 'Maybe']);"#).unwrap();
+        println!("{:?}", statements[0])
+    }
     #[test]
     fn basic_select() {
         let rule_engine = HardRuleEngine {
@@ -584,7 +605,7 @@ mod tests {
             ],
         )]));
 
-        let rewriter = QueryRewriter::new(rule_engine);
+        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         assert_rewriter(
             &rewriter,
             state.clone(),
@@ -614,7 +635,7 @@ mod tests {
             (String::from("cities"), cowvec!("name", "location")),
         ]));
 
-        let rewriter = QueryRewriter::new(rule_engine);
+        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         assert_rewriter(&rewriter, state, "SELECT w.city, w.temp_lo, w.temp_hi,
         w.prcp, w.date, cities.location
         FROM weather as w, cities
@@ -640,7 +661,7 @@ mod tests {
             ],
         )]));
 
-        let rewriter = QueryRewriter::new(rule_engine);
+        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         assert_rewriter(
             &rewriter,
             state,
@@ -669,7 +690,7 @@ mod tests {
             ],
         )]));
 
-        let rewriter = QueryRewriter::new(rule_engine);
+        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         assert_rewriter(
             &rewriter,
             state.clone(),
@@ -713,14 +734,14 @@ mod tests {
                 ],
             ),
         ]));
-        let rewriter = QueryRewriter::new(rule_engine);
+        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         // assert_rewriter(
         //     &rewriter,
         //     state.clone(),
         //     "select * from kids UNION select * from public.kids2",
         //     "SELECT kids.id, kids.name, kids.address FROM kids UNION SELECT public.kids2.id, public.kids2.name, public.kids2.address FROM public.kids2",
         // );
-        
+
         assert_rewriter(
             &rewriter,
             state.clone(),
@@ -758,7 +779,7 @@ mod tests {
                 ],
             ),
         ]));
-        let rewriter = QueryRewriter::new(rule_engine);
+        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         assert_rewriter(
             &rewriter,
             state.clone(),
@@ -806,7 +827,7 @@ mod tests {
                 ],
             ),
         ]));
-        let rewriter = QueryRewriter::new(rule_engine);
+        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         assert_rewriter(
             &rewriter,
             state.clone(),
@@ -832,7 +853,7 @@ mod tests {
             ],
         )]));
 
-        let rewriter = QueryRewriter::new(rule_engine);
+        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         assert_rewriter(
             &rewriter,
             state,
@@ -857,7 +878,7 @@ mod tests {
             ],
         )]));
 
-        let rewriter = QueryRewriter::new(rule_engine);
+        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         assert_rewriter(&rewriter, state.clone(), "SELECT 1", "SELECT 1");
 
         assert_rewriter(
@@ -932,7 +953,7 @@ mod tests {
             ],
         )]));
 
-        let rewriter = QueryRewriter::new(rule_engine);
+        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         assert_rewriter(
             &rewriter,
             state.clone(),
@@ -971,25 +992,20 @@ mod tests {
         );
     }
     #[derive(Deserialize, Debug)]
-    struct  SchemaInformation {
+    struct SchemaInformation {
         c0: String,
         c1: String,
         c2: String,
         c3: String,
     }
 
-    
     fn get_table_info() -> HashMap<String, Vec<String>> {
         let path = env::current_dir().unwrap();
         let table_data = fs::read(path.join("src/sql/default_columns.json")).unwrap();
         let infos: Vec<SchemaInformation> = serde_json::from_slice(&table_data[..]).unwrap();
         let mut table_info: HashMap<String, Vec<String>> = HashMap::default();
-        for info in infos{
-            let table_name: String = format!(
-                "{}.{}",
-                info.c0,
-                info.c1
-            );
+        for info in infos {
+            let table_name: String = format!("{}.{}", info.c0, info.c1);
             let column_name: String = info.c2;
             if let Some(columns) = table_info.get_mut(&table_name) {
                 columns.push(column_name);
@@ -1000,15 +1016,15 @@ mod tests {
         table_info
     }
 
- //   #[test]
-    // fn test_metabase_expr() {
-    //     let rule_engine = HardRuleEngine {
-    //         protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
-    //     };
+    #[test]
+    fn test_metabase_expr() {
+        let rule_engine = HardRuleEngine {
+            protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
+        };
 
-    //     let state = Ctx::new(get_table_info());
+        let state = Ctx::new(get_table_info());
 
-    //     let rewriter = QueryRewriter::new(rule_engine);
-    //     assert_rewriter(&rewriter, state.clone(), " SELECT c.oid, a.attnum, a.attname, c.relname, n.nspname, a.attnotnull OR (t.typtype = 'd' AND t.typnotnull), a.attidentity != '' OR pg_catalog.pg_get_expr(d.adbin, d.adrelid) LIKE '%nextval(%' FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON (c.relnamespace = n.oid) JOIN pg_catalog.pg_attribute a ON (c.oid = a.attrelid) JOIN pg_catalog.pg_type t ON (a.atttypid = t.oid) LEFT JOIN pg_catalog.pg_attrdef d ON (d.adrelid = a.attrelid AND d.adnum = a.attnum) JOIN (SELECT 49179 AS oid , 1 AS attnum UNION ALL SELECT 49179, 2 UNION ALL SELECT 49179, 3 UNION ALL SELECT 49179, 4 UNION ALL SELECT 49179, 5 UNION ALL SELECT 49179, 6 UNION ALL SELECT 49179, 7) vals ON (c.oid = vals.oid AND a.attnum = vals.attnum)", " SELECT c.oid, a.attnum, a.attname, c.relname, n.nspname, a.attnotnull OR (t.typtype = 'd' AND t.typnotnull), a.attidentity != '' OR pg_catalog.pg_get_expr(d.adbin, d.adrelid) LIKE '%nextval(%' FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON (c.relnamespace = n.oid) JOIN pg_catalog.pg_attribute a ON (c.oid = a.attrelid) JOIN pg_catalog.pg_type t ON (a.atttypid = t.oid) LEFT JOIN pg_catalog.pg_attrdef d ON (d.adrelid = a.attrelid AND d.adnum = a.attnum) JOIN (SELECT 49179 AS oid , 1 AS attnum UNION ALL SELECT 49179, 2 UNION ALL SELECT 49179, 3 UNION ALL SELECT 49179, 4 UNION ALL SELECT 49179, 5 UNION ALL SELECT 49179, 6 UNION ALL SELECT 49179, 7) vals ON (c.oid = vals.oid AND a.attnum = vals.attnum)");
-    // }
+        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string(), "pg_catalog".to_string()]);
+        assert_rewriter(&rewriter, state.clone(), "SELECT DISTINCT t.typname FROM pg_enum e LEFT JOIN pg_type t ON t.oid = e.enumtypid", "SELECT DISTINCT t.typname FROM pg_enum AS e LEFT JOIN pg_type AS t ON t.oid = e.enumtypid");
+    }
 }

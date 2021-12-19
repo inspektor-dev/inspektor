@@ -22,7 +22,8 @@ protobuf = { version = "2", features = ["with-bytes"] }
 futures = "0.3"
 burrego = {git = "https://github.com/kubewarden/policy-evaluator"}
 serde_json = "1.0.71"
-sqlparser = {git = "https://github.com/poonai/sqlparser-rs", branch = "poonai/pgsetstatement"}
+sqlparser ={path = "/home/poonai/sqlparser-rs"}
+# {git = "https://github.com/poonai/sqlparser-rs", branch = "poonai/mapnestedexpr"}
 tokio-postgres-openssl = "0.1.0-rc.1"
 tokio-postgres = "0.7.5"
 serde = "1.0.131"

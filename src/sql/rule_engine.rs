@@ -17,6 +17,7 @@ use std::collections::HashMap;
 pub trait RuleEngine {
     fn is_table_protected(&self, table_name: &String) -> bool;
     fn get_allowed_columns(&self, table_name: &String, columns: Vec<String>) -> Vec<String>;
+    fn get_protected_columns(&self, table_name: &String) -> Vec<String>
 }
 
 #[derive(Debug, Default)]
@@ -32,14 +33,18 @@ impl RuleEngine  for  HardRuleEngine {
         }
         return false
     }
-
-     fn get_allowed_columns(&self, table_name: &String, columns: Vec<String>) -> Vec<String> {
+    
+    fn get_allowed_columns(&self, table_name: &String, columns: Vec<String>) -> Vec<String> {
         if let Some(protected_columns) = self.protected_columns.get(table_name){
             return columns.iter().filter(|column| {
                 protected_columns.iter().position(|protected_column| protected_column == *column).is_none()
             }).map(|c| c.clone()).collect();
         }
         return columns;
+    }
+
+     fn get_protected_columns(&self, table_name: &String) -> Vec<String>{
+        self.protected_columns.get_unchecked(table_name).clone()
     }
 }
 

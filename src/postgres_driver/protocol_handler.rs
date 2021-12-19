@@ -23,7 +23,7 @@ use bytes::BytesMut;
 use log::*;
 use md5::{Digest, Md5};
 use openssl::ssl::{Ssl, SslConnector, SslMethod};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::pin::Pin;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -55,11 +55,16 @@ pub struct ProtocolHandler {
     datasource_name: String,
 }
 
+struct TableInfo {
+    column_relation: HashMap<String, Vec<String>>,
+    schemas: Vec<String>,
+}
+
 impl ProtocolHandler {
     async fn get_table_info(
         &self,
         client: &tokio_postgres::Client,
-    ) -> Result<HashMap<String, Vec<String>>, anyhow::Error> {
+    ) -> Result<TableInfo, anyhow::Error> {
         let rows = client
             .query(
                 "
@@ -70,22 +75,24 @@ impl ProtocolHandler {
             )
             .await?;
 
-        let mut table_info: HashMap<String, Vec<String>> = HashMap::default();
+        let mut column_relation: HashMap<String, Vec<String>> = HashMap::default();
+        let mut schemas: HashSet<String> = HashSet::default();
         for row in rows {
+            let schema_name = row.get::<usize, String>(0);
             // table name is format of both schema and table.
-            let table_name: String = format!(
-                "{}.{}",
-                row.get::<usize, String>(0),
-                row.get::<usize, String>(1)
-            );
+            let table_name: String = format!("{}.{}", &schema_name, row.get::<usize, String>(1));
+            if !schemas.contains(&schema_name) {
+                schemas.insert(schema_name);
+            }
             let column_name: String = row.get(2);
-            if let Some(columns) = table_info.get_mut(&table_name) {
+            if let Some(columns) = column_relation.get_mut(&table_name) {
                 columns.push(column_name);
                 continue;
             }
-            table_info.insert(table_name, vec![column_name]);
+            column_relation.insert(table_name, vec![column_name]);
         }
-        Ok(table_info)
+        let schemas = schemas.into_iter().collect::<Vec<_>>(); 
+        Ok(TableInfo{column_relation,schemas})
     }
     // serve will listen to client packets and decide whether to process
     // the packet based on the opa policy.
@@ -107,7 +114,7 @@ impl ProtocolHandler {
             error!("error while getting table meta {:?}", e);
             return anyhow!("error while getting table meta");
         })?;
-        debug!("got table info: {:?}", table_info);
+        debug!("got table info");
 
         let mut target_buf = [0; 1024];
         let mut meta_refresh_ticker = tokio_time::interval(Duration::from_secs(60));
@@ -159,8 +166,8 @@ impl ProtocolHandler {
                         },
                         Ok(mut msg) =>{
                             info!("got frontend message {:?}", msg);
-                            let ctx =  Ctx::new(table_info.clone());
-                            self.handle_frontend_message(&mut msg, ctx).unwrap();
+                            let ctx =  Ctx::new(table_info.column_relation.clone());
+                            self.handle_frontend_message(&mut msg, ctx, table_info.schemas.clone()).unwrap();
                             if let Err(e) = self.target_conn.write_all(&msg.encode()).await{
                                 return Ok(());
                             }
@@ -360,10 +367,7 @@ impl ProtocolHandler {
                 return Err(anyhow!("expected sasl continue message"));
             }
         };
-        println!(
-            "data from {:?}",
-            String::from_utf8(data.clone()).unwrap()
-        );
+        println!("data from {:?}", String::from_utf8(data.clone()).unwrap());
         sasl_auth.update(&data[..]).map_err(|e| {
             error!("error while updating server first message {:?}", e);
             e
@@ -454,6 +458,7 @@ impl ProtocolHandler {
         &mut self,
         msg: &mut FrontendMessage,
         ctx: Ctx,
+        schemas: Vec<String>
     ) -> Result<(), anyhow::Error> {
         let result = self.policy_evaluator.evaluate(
             &self.datasource_name,
@@ -470,6 +475,12 @@ impl ProtocolHandler {
                 if query_string == "" {
                     return Ok(());
                 }
+                if query_string.contains("generate_series"){
+                    return Ok(());
+                }
+                if query_string.contains("information_schema._pg_expandarray"){
+                    return Ok(());
+                }
                 let dialect = sqlparser::dialect::PostgreSqlDialect {};
                 let mut statements =
                     match sqlparser::parser::Parser::parse_sql(&dialect, query_string) {
@@ -482,13 +493,14 @@ impl ProtocolHandler {
                             return Ok(());
                         }
                     };
-                let rewriter = QueryRewriter::new(rule);
-                rewriter.rewrite(&mut statements, ctx)?;
+                let rewriter = QueryRewriter::new(rule, schemas);
+                rewriter.rewrite(&mut statements, ctx).unwrap();
                 // convert the statement back to string.
                 let mut out = String::from("");
                 for statement in statements {
                     out = format!("{}{};", out, statement);
                 }
+                debug!("input string {}", query_string);
                 debug!("rewritten query {}", out);
                 *query_string = out;
             }
@@ -497,6 +509,12 @@ impl ProtocolHandler {
                 //     warn!("query is {}", query);
                 //     return Ok(());
                 // }
+                if query.contains("generate_series"){
+                    return Ok(());
+                }
+                if query.contains("information_schema._pg_expandarray"){
+                    return Ok(());
+                }
                 let dialect = sqlparser::dialect::PostgreSqlDialect {};
                 let mut statements = match sqlparser::parser::Parser::parse_sql(&dialect, query) {
                     Ok(statements) => statements,
@@ -508,13 +526,14 @@ impl ProtocolHandler {
                         return Ok(());
                     }
                 };
-                let rewriter = QueryRewriter::new(rule);
-                rewriter.rewrite(&mut statements, ctx)?;
+                let rewriter = QueryRewriter::new(rule, schemas);
+                rewriter.rewrite(&mut statements, ctx).unwrap();
                 //convert the statement back to string.
                 let mut out = String::from("");
                 for statement in statements {
                     out = format!("{}{};", out, statement);
                 }
+                debug!("input string {}", query);
                 debug!("rewritten query {}", out);
                 *query = out;
             }
