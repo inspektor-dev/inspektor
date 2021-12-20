@@ -94,26 +94,8 @@ impl<T: RuleEngine> QueryRewriter<T> {
             } => {
                 // set operation are union or intersect of set_expr
                 // eg (select * from premimum users) UNION (select * from users);
-                let left_state = self.handle_set_expr(left, state)?;
+                self.handle_set_expr(left, state)?;
                 let right_state = self.handle_set_expr(right, state)?;
-                // usually left and right should be selection because it's a union call.
-                // so let's check the projection left and right have same number of projections
-                // so we can hit the client about the kind of error.
-                let left_count = match &**left {
-                    SetExpr::Select(select) => Some(select.projection.len()),
-                    _ => return Ok(right_state),
-                };
-                let right_count = match &**right {
-                    SetExpr::Select(select) => Some(select.projection.len()),
-                    _ => return Ok(left_state),
-                };
-                if left_count != right_count {
-                    return Err(
-                        InspektorSqlError::Error(
-                            format!("{} requires same number of column left and right. may be avoid using wildcard `*`", op)
-                        )
-                    );
-                }
                 // it's is safe to return one state because both left and right carries same
                 // columns.
                 Ok(right_state)
@@ -698,7 +680,6 @@ mod tests {
         let rule_engine = HardRuleEngine {
             protected_columns: HashMap::from([
                 (String::from("public.kids"), vec![String::from("phone")]),
-                (String::from("public.kids2"), vec![String::from("phone")]),
             ]),
         };
 
@@ -723,12 +704,12 @@ mod tests {
             ),
         ]));
         let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
-        // assert_rewriter(
-        //     &rewriter,
-        //     state.clone(),
-        //     "select * from kids UNION select * from public.kids2",
-        //     "SELECT kids.id, kids.name, kids.address FROM kids UNION SELECT public.kids2.id, public.kids2.name, public.kids2.address FROM public.kids2",
-        // );
+        assert_rewriter(
+            &rewriter,
+            state.clone(),
+            "select * from kids UNION select * from public.kids2",
+            "SELECT NULL AS kids.phone, kids.id, kids.name, kids.address FROM kids UNION SELECT * FROM public.kids2",
+        );
 
         assert_rewriter(
             &rewriter,
