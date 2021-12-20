@@ -70,11 +70,9 @@ impl<T: RuleEngine> QueryRewriter<T> {
         // to push down to the subsequent statement.
         if let Some(with) = &mut query.with {
             for cte in &mut with.cte_tables {
-                let cte_state = self.handle_query(&mut cte.query, state)?;
-                // cte state are pushed to the underlying table so let's merge allowed columns
-                // to table info.
-                let table_name = cte.alias.name.value.clone();
-                local_state.merge_table_info(table_name, cte_state);
+                // there is no need to merge state of cte table. because cte tables are already
+                // filtered in the query state.
+                 self.handle_query(&mut cte.query, state)?;
             }
         }
         // we'll evaulate the body first because that is the data which will be retrived for the
@@ -170,7 +168,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
                 with_hints: _with_hints,
             } => {
                 let mut table_name = join_indents(&name.0);
-
+                local_state.add_from_src(table_name.clone());
                 // before checking the rule engine. we have to check the state becauase this can be cte table
                 // or some aliased table so we have to check the state before advancing to the rule engine.
                 let mut protected_columns = match local_state.get_protected_columns(&table_name) {
@@ -202,7 +200,9 @@ impl<T: RuleEngine> QueryRewriter<T> {
                         cols
                     }
                 };
-
+                if protected_columns.len() == 0 {
+                    return Ok(local_state)
+                }
                 if let Some(alias) = alias {
                     let alias_name = alias.name.value.clone();
                     local_state.overwrite_table_info(&table_name, alias_name.clone());
@@ -213,7 +213,6 @@ impl<T: RuleEngine> QueryRewriter<T> {
                     table_name = from_table_name;
                 }
                 local_state.memorize_protected_columns(table_name.clone(), protected_columns);
-                local_state.add_from_src(table_name);
             }
             TableFactor::Derived {
                 lateral,
@@ -658,7 +657,7 @@ mod tests {
             state,
             "WITH DUMMY AS (SELECT * FROM kids LIMIT 1)
             SELECT * FROM DUMMY",
-            "WITH DUMMY AS (SELECT kids.id, kids.name, kids.address FROM kids LIMIT 1) SELECT DUMMY.id, DUMMY.name, DUMMY.address FROM DUMMY",
+            "WITH DUMMY AS (SELECT NULL AS kids.phone, kids.id, kids.name, kids.address FROM kids LIMIT 1) SELECT * FROM DUMMY",
         );
     }
 

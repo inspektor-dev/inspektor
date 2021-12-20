@@ -154,6 +154,8 @@ impl Ctx {
                         Ident::new(col.to_string()),
                     ])));
                 }
+            } else {
+                selections.push(SelectItem::Wildcard);
             }
             return selections;
         }
