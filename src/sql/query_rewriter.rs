@@ -242,7 +242,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
                         InspektorSqlError::RewriteExpr { alias_name } => {
                             return Ok(vec![SelectItem::ExprWithAlias {
                                 expr: Expr::Value(Value::Null),
-                                alias: Ident::new(alias_name),
+                                alias: Ident{value: alias_name, quote_style: Some('"')},
                             }]);
                         }
                         _ => return Err(e),
@@ -271,7 +271,11 @@ impl<T: RuleEngine> QueryRewriter<T> {
             SelectItem::QualifiedWildcard(object_name) => {
                 // first ident must be table.
                 let table_name = &object_name.0[0].value;
-                return Ok(state.column_expr_for_table(&Cow::Borrowed(table_name)));
+                let selections = state.column_expr_for_table(table_name);
+                if selections.len() != 0 {
+                    return Ok(selections)
+                } 
+                return Ok(vec![SelectItem::QualifiedWildcard(object_name.clone())]);
             }
         }
     }
@@ -549,13 +553,13 @@ mod tests {
         assert_eq!(rewriter_err, err)
     }
 
-    #[test]
-    fn test_for_output() {
-        let dialect = PostgreSqlDialect {};
-        let statements =
-            Parser::parse_sql(&dialect, r#"select (array['Yes', 'No', 'Maybe']);"#).unwrap();
-        println!("{:?}", statements[0])
-    }
+    // #[test]
+    // fn test_for_output() {
+    //     let dialect = PostgreSqlDialect {};
+    //     let statements =
+    //         Parser::parse_sql(&dialect, r#"select (array['Yes', 'No', 'Maybe']);"#).unwrap();
+    //     println!("{:?}", statements[0])
+    // }
     #[test]
     fn basic_select() {
         let rule_engine = HardRuleEngine {
@@ -580,14 +584,14 @@ mod tests {
             &rewriter,
             state.clone(),
             "select * from kids",
-            "SELECT NULL AS kids.phone, kids.id, kids.name, kids.address FROM kids",
+            "SELECT NULL AS \"kids.phone\", kids.id, kids.name, kids.address FROM kids",
         );
 
         assert_rewriter(
             &rewriter,
             state,
             "SELECT * FROM public.kids",
-            "SELECT NULL AS public.kids.phone, public.kids.id, public.kids.name, public.kids.address FROM public.kids",
+            "SELECT NULL AS \"public.kids.phone\", public.kids.id, public.kids.name, public.kids.address FROM public.kids",
         );
     }
 
@@ -637,7 +641,7 @@ mod tests {
             state,
             "WITH DUMMY AS (SELECT * FROM kids LIMIT 1)
             SELECT * FROM DUMMY",
-            "WITH DUMMY AS (SELECT NULL AS kids.phone, kids.id, kids.name, kids.address FROM kids LIMIT 1) SELECT * FROM DUMMY",
+            "WITH DUMMY AS (SELECT NULL AS \"kids.phone\", kids.id, kids.name, kids.address FROM kids LIMIT 1) SELECT * FROM DUMMY",
         );
     }
 
@@ -665,13 +669,13 @@ mod tests {
             &rewriter,
             state.clone(),
             "select * from (select * from public.kids) as nested",
-            "SELECT * FROM (SELECT NULL AS public.kids.phone, public.kids.id, public.kids.name, public.kids.address FROM public.kids) AS nested",
+            "SELECT * FROM (SELECT NULL AS \"public.kids.phone\", public.kids.id, public.kids.name, public.kids.address FROM public.kids) AS nested",
         );
         assert_rewriter(
             &rewriter,
             state,
             "select * from (with dummy as (select * from kids) select * from dummy)as nested limit 1;",
-            "SELECT * FROM (WITH dummy AS (SELECT NULL AS kids.phone, kids.id, kids.name, kids.address FROM kids) SELECT * FROM dummy) AS nested LIMIT 1",
+            "SELECT * FROM (WITH dummy AS (SELECT NULL AS \"kids.phone\", kids.id, kids.name, kids.address FROM kids) SELECT * FROM dummy) AS nested LIMIT 1",
         );
     }
 
@@ -708,7 +712,7 @@ mod tests {
             &rewriter,
             state.clone(),
             "select * from kids UNION select * from public.kids2",
-            "SELECT NULL AS kids.phone, kids.id, kids.name, kids.address FROM kids UNION SELECT * FROM public.kids2",
+            "SELECT NULL AS \"kids.phone\", kids.id, kids.name, kids.address FROM kids UNION SELECT * FROM public.kids2",
         );
 
         assert_rewriter(
@@ -747,6 +751,15 @@ mod tests {
                     String::from("location"),
                 ],
             ),
+            (
+                String::from("public.kids"),
+                vec![
+                    String::from("phone"),
+                    String::from("id"),
+                    String::from("name"),
+                    String::from("address"),
+                ],
+            )
         ]));
         let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         assert_rewriter(
@@ -754,7 +767,7 @@ mod tests {
             state.clone(),
             "SELECT *
             FROM weather INNER JOIN public.cities ON (weather.city = public.cities.name);",
-            "SELECT public.cities.name, public.cities.state, public.cities.country, public.cities.location, weather.city, weather.temp_lo, weather.temp_hi, weather.prcp FROM weather JOIN public.cities ON (weather.city = public.cities.name)",
+            "SELECT * FROM weather JOIN public.cities ON (weather.city = public.cities.name)",
         );
         assert_rewriter(
             &rewriter,
@@ -764,6 +777,13 @@ mod tests {
                       FROM weather as w, cities
                       WHERE cities.name = w.city;",
             "SELECT w.city, w.temp_lo, w.temp_hi, w.prcp, cities.location FROM weather AS w, cities WHERE cities.name = w.city",
+        );
+
+        assert_rewriter(
+            &rewriter,
+            state.clone(),
+            "select * from transactions join kids on transactions.kid_id = kids.id limit 10;",
+            r#"SELECT NULL AS "kids.phone", kids.id, kids.name, kids.address, transactions.* FROM transactions JOIN kids ON transactions.kid_id = kids.id LIMIT 10"#,
         );
     }
 
@@ -802,7 +822,7 @@ mod tests {
             state.clone(),
             "SELECT *, (select sum(temp_hi) from weather) as temp_hi
             FROM cities",
-            "SELECT cities.name, cities.state, cities.country, cities.location, (SELECT sum(temp_hi) FROM weather) AS temp_hi FROM cities",
+            "SELECT *, (SELECT sum(temp_hi) FROM weather) AS temp_hi FROM cities",
         );
     }
 
@@ -827,7 +847,7 @@ mod tests {
             &rewriter,
             state,
             "select kids.* from kids",
-            "SELECT kids.id, kids.name, kids.address FROM kids",
+            "SELECT NULL AS \"kids.phone\", kids.id, kids.name, kids.address FROM kids",
         );
     }
 
@@ -896,13 +916,13 @@ mod tests {
             &rewriter,
             state.clone(),
             r#"SELECT CAST(name as INTEGER), EXTRACT(month from phone) FROM kids"#,
-            r#"SELECT CAST(name AS INT), NULL AS date_part FROM kids"#,
+            r#"SELECT CAST(name AS INT), NULL AS "date_part" FROM kids"#,
         );
         assert_rewriter(
             &rewriter,
             state.clone(),
             r#"SELECT CAST(phone as INTEGER), EXTRACT(month from id) FROM kids"#,
-            r#"SELECT NULL AS phone, EXTRACT(MONTH FROM id) FROM kids"#,
+            r#"SELECT NULL AS "phone", EXTRACT(MONTH FROM id) FROM kids"#,
         );
     }
 
@@ -930,7 +950,7 @@ mod tests {
             &rewriter,
             state.clone(),
             "SELECT id, phone from kids",
-            "SELECT id, NULL AS phone FROM kids",
+            "SELECT id, NULL AS \"phone\" FROM kids",
         );
         assert_rewriter(
             &rewriter,
@@ -948,7 +968,7 @@ mod tests {
             &rewriter,
             state.clone(),
             r#"SELECT case phone when 10 then "hello" end from kids"#,
-            "SELECT NULL AS phone FROM kids",
+            "SELECT NULL AS \"phone\" FROM kids",
         );
         assert_rewriter(
             &rewriter,
@@ -960,7 +980,7 @@ mod tests {
             &rewriter,
             state.clone(),
             r#"SELECT substring(phone from 10) from kids"#,
-            "SELECT NULL AS substring FROM kids",
+            "SELECT NULL AS \"substring\" FROM kids",
         );
     }
     #[derive(Deserialize, Debug)]

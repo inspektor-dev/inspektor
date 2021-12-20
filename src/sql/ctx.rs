@@ -1,6 +1,6 @@
 use futures::StreamExt;
 use md5::digest::generic_array::typenum::Len;
-use sqlparser::ast::{Expr, SelectItem};
+use sqlparser::ast::{Expr, SelectItem, ObjectName};
 use sqlparser::ast::{Ident, Value};
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -135,58 +135,44 @@ impl Ctx {
 
     pub fn build_allowed_column_expr(&self) -> Vec<SelectItem> {
         let mut selections = vec![];
-        let from = self.from.clone().into_iter().collect::<Vec<String>>();
-        if from.len() == 1 {
-            let table_name = unsafe { from.get_unchecked(0) };
-            if let Some(protected_columns) = self.protected_columns.get(table_name) {
-                let protected_columns_set = protected_columns.iter().collect::<HashSet<&String>>();
-                let table_columns = self.table_info.get(table_name).unwrap();
-                for col in table_columns {
-                    if protected_columns_set.contains(col) {
-                        selections.push(SelectItem::ExprWithAlias {
-                            expr: Expr::Value(Value::Null),
-                            alias: Ident::new(format!("{}.{}", table_name, col)),
-                        });
-                        continue;
-                    }
-                    selections.push(SelectItem::UnnamedExpr(Expr::CompoundIdentifier(vec![
-                        Ident::new(table_name.to_string()),
-                        Ident::new(col.to_string()),
-                    ])));
-                }
-            } else {
-                selections.push(SelectItem::Wildcard);
-            }
-            return selections;
-        }
-        let mut selections = Vec::new();
-        for (table_name, columns) in &self.allowed_selections {
-            if columns.len() == 0 {
+        let mut wildcard = true;
+        let mut froms = self.from.clone().into_iter().collect::<Vec<String>>();
+        froms.sort();
+        for from in froms{
+            let exprs = self.column_expr_for_table(&from);
+            if exprs.len() == 0 {
+                selections.push(SelectItem::QualifiedWildcard(ObjectName(vec![Ident::new(from)])));
                 continue;
             }
-            for column in columns {
-                selections.push(SelectItem::UnnamedExpr(Expr::CompoundIdentifier(vec![
-                    Ident::new(table_name.to_string()),
-                    Ident::new(column.to_string()),
-                ])));
-            }
+            wildcard = false;
+            selections.extend_from_slice(&exprs[..]);    
+        }
+        if wildcard {
+            return vec![SelectItem::Wildcard]
         }
         return selections;
     }
 
     pub fn column_expr_for_table(&self, table_name: &String) -> Vec<SelectItem> {
-        let columns = match self.allowed_selections.get(table_name) {
-            Some(columns) => columns,
-            None => return Vec::new(),
-        };
-        let mut result = Vec::with_capacity(columns.len());
-        for column in columns {
-            result.push(SelectItem::UnnamedExpr(Expr::CompoundIdentifier(vec![
-                Ident::new(table_name.to_string()),
-                Ident::new(column.to_string()),
-            ])))
+        let mut selections = vec![];
+        if let Some(protected_columns) = self.protected_columns.get(table_name) {
+            let protected_columns_set = protected_columns.iter().collect::<HashSet<&String>>();
+            let table_columns = self.table_info.get(table_name).unwrap();
+            for col in table_columns {
+                if protected_columns_set.contains(col) {
+                    selections.push(SelectItem::ExprWithAlias {
+                        expr: Expr::Value(Value::Null),
+                        alias:Ident { value: format!("{}.{}", table_name, col), quote_style: Some('"')},
+                    });
+                    continue;
+                }
+                selections.push(SelectItem::UnnamedExpr(Expr::CompoundIdentifier(vec![
+                    Ident::new(table_name.to_string()),
+                    Ident::new(col.to_string()),
+                ])));
+            }
         }
-        result
+        return selections;
     }
 
     pub fn memorize_protected_columns(
