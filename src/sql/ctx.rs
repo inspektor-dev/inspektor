@@ -59,14 +59,14 @@ impl Ctx {
     }
 
     pub fn is_allowed_column_ident(&self, column: &String) -> bool {
-        for (_, columns) in &self.allowed_selections {
-            match columns
-                .iter()
-                .position(|allowed_column| *allowed_column == *column)
-            {
-                Some(_) => return false,
-                None => continue,
-            };
+        let froms = self.from.clone().into_iter().collect::<Vec<String>>();
+        for from in &froms{
+            if let Some(protected_columns) = self.protected_columns.get(from) {
+                match protected_columns.iter().position(|col| *col==*column) {
+                    Some(_) => return false,
+                    None => continue
+                }
+            }
         }
         return true;
     }
