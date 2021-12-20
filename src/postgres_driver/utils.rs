@@ -118,7 +118,7 @@ where
 }
 
 #[inline]
-pub fn read_counted_message<F, T>(buf: &mut BytesMut,mut f: F) -> Result<Vec<T>, anyhow::Error>
+pub fn read_counted_message<F, T>(buf: &mut BytesMut, mut f: F) -> Result<Vec<T>, anyhow::Error>
 where
     F: FnMut(&mut BytesMut) -> Result<T, anyhow::Error>,
 {
@@ -132,7 +132,11 @@ where
 }
 
 #[inline]
-pub fn write_counted_message<I, T, F>(items: I, mut f: F, buf: &mut BytesMut) -> Result<(), anyhow::Error>
+pub fn write_counted_message<I, T, F>(
+    items: I,
+    mut f: F,
+    buf: &mut BytesMut,
+) -> Result<(), anyhow::Error>
 where
     I: IntoIterator<Item = T>,
     F: FnMut(T, &mut BytesMut) -> Result<(), anyhow::Error>,

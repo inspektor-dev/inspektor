@@ -11,7 +11,9 @@ impl Default for Config {
             driver_type: Some(String::from("postgres")),
             controlplane_addr: Some(String::from("localhost:5003")),
             postgres_config: Some(PostgresConfig::default()),
-            secret_token: Some(String::from("10c740e1d45eac77b6ff00c2211489bdf93f6a5eb7bc159a6b69b3e4f660")),
+            secret_token: Some(String::from(
+                "10c740e1d45eac77b6ff00c2211489bdf93f6a5eb7bc159a6b69b3e4f660",
+            )),
         }
     }
 }

@@ -1,8 +1,8 @@
 use std::pin::Pin;
 
+use std::task::Poll;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
-use std::task::{Poll};
 use tokio_openssl::SslStream;
 
 #[derive(Debug)]

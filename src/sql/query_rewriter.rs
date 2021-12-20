@@ -170,59 +170,50 @@ impl<T: RuleEngine> QueryRewriter<T> {
                 with_hints: _with_hints,
             } => {
                 let mut table_name = join_indents(&name.0);
-                let t_c = table_name.clone();
 
-                // we need to find whether this table is with public schema or not.
-                // if we have columns directly then means we got the table in a derivied
-                // form.
-                let data = match state.get_columns(&table_name) {
-                    Some(columns) => Some((table_name, columns)),
-                    _ => {
-                        let mut data = None;
-                        for ns in &self.namespaces {
-                            let namspaced_table_name = format!("{}.{}", ns, table_name);
-                            match state.get_columns(&namspaced_table_name) {
-                                Some(columns) => {
-                                    data = Some((namspaced_table_name, columns));
+                // before checking the rule engine. we have to check the state becauase this can be cte table
+                // or some aliased table so we have to check the state before advancing to the rule engine.
+                let mut protected_columns = match local_state.get_protected_columns(&table_name) {
+                    Some(cols) => cols,
+                    None => {
+                        let mut cols = vec![];
+                        if let Some(protected_cols) =
+                            self.rule_engine.get_protected_columns(&table_name)
+                        {
+                            cols = protected_cols;
+                        } else {
+                            for ns in &self.namespaces {
+                                let ns_table_name = format!("{}.{}", ns, &table_name);
+                                if let Some(columns) =
+                                    self.rule_engine.get_protected_columns(&ns_table_name)
+                                {
+                                    if columns.len() == 0 {
+                                        return Err(InspektorSqlError::UnAuthorizedColumn((
+                                            Some(table_name),
+                                            "".to_string(),
+                                        )));
+                                    }
+                                    cols = columns;
+                                    table_name = ns_table_name;
                                     break;
-                                }
-                                None => {
-                                    continue;
                                 }
                             }
                         }
-                        data
+                        cols
                     }
                 };
-                if data.is_none() {
-                    unreachable!("unable to get columns for the table {:?}", t_c);
-                }
 
-                let (mut table_name, table_columns) = data.unwrap();
-
-                // TODO: table_name not mutated finding table name protected is
-                // wrong.
-                // if the given table is protected table then we should throw error.
-                if self.rule_engine.is_table_protected(&table_name) {
-                    return Err(InspektorSqlError::UnAuthorizedColumn((
-                        Some(name.0[0].value.clone()),
-                        "".to_string(),
-                    )));
-                }
-
-                let mut allowed_columns = self
-                    .rule_engine
-                    .get_allowed_columns(&table_name, table_columns);
                 if let Some(alias) = alias {
-                    table_name = alias.name.value.clone()
+                    let alias_name = alias.name.value.clone();
+                    local_state.overwrite_table_info(&table_name, alias_name.clone());
+                    table_name = alias_name;
                 } else {
-                    table_name = join_indents(&name.0);
+                    let from_table_name = join_indents(&name.0);
+                    local_state.overwrite_table_info(&table_name, from_table_name.clone());
+                    table_name = from_table_name;
                 }
-                let allowed_columns = allowed_columns
-                    .iter()
-                    .map(|c| c.to_string())
-                    .collect::<Vec<String>>();
-                local_state.insert_allowed_columns(table_name, allowed_columns);
+                local_state.memorize_protected_columns(table_name.clone(), protected_columns);
+                local_state.add_from_src(table_name);
             }
             TableFactor::Derived {
                 lateral,
@@ -238,7 +229,8 @@ impl<T: RuleEngine> QueryRewriter<T> {
                 // we have a subquery now.
                 let derived_state = self.handle_query(subquery, &local_state)?;
                 local_state
-                    .merge_allowed_selections(subquery_alias.name.value.clone(), derived_state);
+                    .merge_protected_columns(subquery_alias.name.value.clone(), derived_state);
+                local_state.add_from_src(subquery_alias.name.value.clone());
             }
             TableFactor::NestedJoin(table) => {
                 let factor_state = self.handle_table_factor(state, &mut table.relation)?;
@@ -281,7 +273,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
             }
             SelectItem::Wildcard => {
                 // for wildcard we just rewrite with all the allowed columns.
-                return Ok(vec![SelectItem::Wildcard]);
+                return Ok(state.build_allowed_column_expr());
             }
             SelectItem::ExprWithAlias { expr, alias } => {
                 if let Err(e) = self.handle_expr(state, expr) {
@@ -310,9 +302,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
         match expr {
             Expr::Identifier(object_name) => {
                 // it's a single expression. if we have one table the we pick that.
-                if !state.is_allowed_column_ident(&object_name.value)
-                    && state.is_valid_column(None, &object_name.value)
-                {
+                if !state.is_allowed_column_ident(&object_name.value) {
                     // column is not allowed but it's a valid column.
                     // so, rewriting the query to return NULL for the given column.
                     // the main reason to do this is that, folks who uses postgres
@@ -583,7 +573,8 @@ mod tests {
     #[test]
     fn test_for_output() {
         let dialect = PostgreSqlDialect {};
-        let statements = Parser::parse_sql(&dialect, r#"select (array['Yes', 'No', 'Maybe']);"#).unwrap();
+        let statements =
+            Parser::parse_sql(&dialect, r#"select (array['Yes', 'No', 'Maybe']);"#).unwrap();
         println!("{:?}", statements[0])
     }
     #[test]
@@ -610,14 +601,14 @@ mod tests {
             &rewriter,
             state.clone(),
             "select * from kids",
-            "SELECT kids.id, kids.name, kids.address FROM kids",
+            "SELECT NULL AS kids.phone, kids.id, kids.name, kids.address FROM kids",
         );
 
         assert_rewriter(
             &rewriter,
             state,
-            "select * from public.kids",
-            "SELECT public.kids.id, public.kids.name, public.kids.address FROM public.kids",
+            "SELECT * FROM public.kids",
+            "SELECT NULL AS public.kids.phone, public.kids.id, public.kids.name, public.kids.address FROM public.kids",
         );
     }
 
@@ -940,11 +931,14 @@ mod tests {
     #[test]
     fn test_rewrite_null() {
         let rule_engine = HardRuleEngine {
-            protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
+            protected_columns: HashMap::from([(
+                String::from("public.kids"),
+                vec![String::from("phone")],
+            )]),
         };
 
         let state = Ctx::new(HashMap::from([(
-            String::from("kids"),
+            String::from("public.kids"),
             vec![
                 String::from("phone"),
                 String::from("id"),
@@ -1024,7 +1018,10 @@ mod tests {
 
         let state = Ctx::new(get_table_info());
 
-        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string(), "pg_catalog".to_string()]);
+        let rewriter = QueryRewriter::new(
+            rule_engine,
+            vec!["public".to_string(), "pg_catalog".to_string()],
+        );
         assert_rewriter(&rewriter, state.clone(), "SELECT DISTINCT t.typname FROM pg_enum e LEFT JOIN pg_type t ON t.oid = e.enumtypid", "SELECT DISTINCT t.typname FROM pg_enum AS e LEFT JOIN pg_type AS t ON t.oid = e.enumtypid");
     }
 }

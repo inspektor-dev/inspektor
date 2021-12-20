@@ -1,11 +1,11 @@
 // Copyright 2021 Balaji (rbalajis25@gmail.com)
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -23,7 +23,7 @@ pub enum InspektorSqlError {
     InvalidReference(String),
     FromNeedAlias,
     Error(String),
-    RewriteExpr{alias_name: String}
+    RewriteExpr { alias_name: String },
 }
 
 impl Display for InspektorSqlError {
@@ -31,37 +31,37 @@ impl Display for InspektorSqlError {
         match self {
             InspektorSqlError::PaserError(e) => write!(f, "{:?}", e),
             InspektorSqlError::UnAuthorizedColumn((table, column)) => {
-                if let Some(table) = table{
-                    if column == ""{
-                        return write!(
-                            f,
-                            "unauthorized  table {:?}",
-                            table
-                        )    
+                if let Some(table) = table {
+                    if column == "" {
+                        return write!(f, "unauthorized  table {:?}", table);
                     }
                     return write!(
                         f,
                         "unauthorized column {:?} for the table {:?}",
                         column, table
-                    )
+                    );
                 }
+                write!(f, "unauthorized column {:?}", column)
+            }
+            InspektorSqlError::InvalidReference(table) => {
                 write!(
                     f,
-                    "unauthorized column {:?}",
-                    column
+                    "invalid reference to FROM clause entry for table {:?}",
+                    table
                 )
-            },
-            InspektorSqlError::InvalidReference(table) => {
-                write!(f, "invalid reference to FROM clause entry for table {:?}", table)
             }
             InspektorSqlError::FromNeedAlias => {
                 write!(f, "from need alias")
-            },
-            InspektorSqlError::Error(msg) => {
-                write!(f,"{}", msg)
             }
-            InspektorSqlError::RewriteExpr{alias_name} => {
-                write!(f,"rewrite expression with null value with alias name {}", alias_name)
+            InspektorSqlError::Error(msg) => {
+                write!(f, "{}", msg)
+            }
+            InspektorSqlError::RewriteExpr { alias_name } => {
+                write!(
+                    f,
+                    "rewrite expression with null value with alias name {}",
+                    alias_name
+                )
             }
         }
     }

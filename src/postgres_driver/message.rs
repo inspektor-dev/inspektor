@@ -105,16 +105,8 @@ where
                         mechanisms: mechanisms,
                     });
                 }
-                11 => {
-                    return Ok(BackendMessage::AuthenticationSASLContinue {
-                        data: buf.to_vec(),
-                    })
-                }
-                12 => {
-                    return Ok(BackendMessage::AuthenticationSASLFinal {
-                        data: buf.to_vec(),
-                    })
-                }
+                11 => return Ok(BackendMessage::AuthenticationSASLContinue { data: buf.to_vec() }),
+                12 => return Ok(BackendMessage::AuthenticationSASLFinal { data: buf.to_vec() }),
                 _ => {
                     unreachable!("unknown message type {:?}", msg_type)
                 }

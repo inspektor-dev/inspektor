@@ -91,8 +91,11 @@ impl ProtocolHandler {
             }
             column_relation.insert(table_name, vec![column_name]);
         }
-        let schemas = schemas.into_iter().collect::<Vec<_>>(); 
-        Ok(TableInfo{column_relation,schemas})
+        let schemas = schemas.into_iter().collect::<Vec<_>>();
+        Ok(TableInfo {
+            column_relation,
+            schemas,
+        })
     }
     // serve will listen to client packets and decide whether to process
     // the packet based on the opa policy.
@@ -458,7 +461,7 @@ impl ProtocolHandler {
         &mut self,
         msg: &mut FrontendMessage,
         ctx: Ctx,
-        schemas: Vec<String>
+        schemas: Vec<String>,
     ) -> Result<(), anyhow::Error> {
         let result = self.policy_evaluator.evaluate(
             &self.datasource_name,
@@ -475,10 +478,10 @@ impl ProtocolHandler {
                 if query_string == "" {
                     return Ok(());
                 }
-                if query_string.contains("generate_series"){
+                if query_string.contains("generate_series") {
                     return Ok(());
                 }
-                if query_string.contains("information_schema._pg_expandarray"){
+                if query_string.contains("information_schema._pg_expandarray") {
                     return Ok(());
                 }
                 let dialect = sqlparser::dialect::PostgreSqlDialect {};
@@ -509,10 +512,10 @@ impl ProtocolHandler {
                 //     warn!("query is {}", query);
                 //     return Ok(());
                 // }
-                if query.contains("generate_series"){
+                if query.contains("generate_series") {
                     return Ok(());
                 }
-                if query.contains("information_schema._pg_expandarray"){
+                if query.contains("information_schema._pg_expandarray") {
                     return Ok(());
                 }
                 let dialect = sqlparser::dialect::PostgreSqlDialect {};

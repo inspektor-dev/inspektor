@@ -16,8 +16,8 @@ use anyhow::{Error, Result};
 use burrego::opa::host_callbacks::DEFAULT_HOST_CALLBACKS;
 use burrego::opa::wasm::Evaluator;
 use futures::AsyncReadExt;
-use serde_json::{Map, Value};
 use log::*;
+use serde_json::{Map, Value};
 use std::collections::HashMap;
 /// PolicyEvaluator is used to to evaluate policy decision for all the end user
 /// action.
@@ -84,7 +84,10 @@ impl PolicyEvaluator {
         db_name: &String,
         groups: &Vec<String>,
     ) -> Result<PolicyResult, anyhow::Error> {
-        debug!("evaluating policy with data_soruce {:?} db_name {:?} groups {:?}", data_source, db_name, groups);
+        debug!(
+            "evaluating policy with data_soruce {:?} db_name {:?} groups {:?}",
+            data_source, db_name, groups
+        );
         let input = self.get_input_value(data_source, db_name, groups);
         let data = Value::Object(Map::default());
 
@@ -169,9 +172,9 @@ impl PolicyEvaluator {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-    use std::env;
     use super::PolicyEvaluator;
+    use std::env;
+    use std::fs;
 
     #[test]
     fn test_evaluator() {
