@@ -226,9 +226,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
                 }
                 let subquery_alias = alias.as_ref().unwrap();
                 // we have a subquery now.
-                let derived_state = self.handle_query(subquery, &local_state)?;
-                local_state
-                    .merge_protected_columns(subquery_alias.name.value.clone(), derived_state);
+                self.handle_query(subquery, &local_state)?;
                 local_state.add_from_src(subquery_alias.name.value.clone());
             }
             TableFactor::NestedJoin(table) => {
@@ -685,13 +683,13 @@ mod tests {
             &rewriter,
             state.clone(),
             "select * from (select * from public.kids) as nested",
-            "SELECT nested.id, nested.name, nested.address FROM (SELECT public.kids.id, public.kids.name, public.kids.address FROM public.kids) AS nested",
+            "SELECT * FROM (SELECT NULL AS public.kids.phone, public.kids.id, public.kids.name, public.kids.address FROM public.kids) AS nested",
         );
         assert_rewriter(
             &rewriter,
             state,
             "select * from (with dummy as (select * from kids) select * from dummy)as nested limit 1;",
-            "SELECT nested.id, nested.name, nested.address FROM (WITH dummy AS (SELECT kids.id, kids.name, kids.address FROM kids) SELECT dummy.id, dummy.name, dummy.address FROM dummy) AS nested LIMIT 1",
+            "SELECT * FROM (WITH dummy AS (SELECT NULL AS kids.phone, kids.id, kids.name, kids.address FROM kids) SELECT * FROM dummy) AS nested LIMIT 1",
         );
     }
 
