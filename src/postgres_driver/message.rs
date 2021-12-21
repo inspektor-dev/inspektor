@@ -403,7 +403,6 @@ impl FrontendMessage {
                         object_ids,
                         |item, buf| {
                             buf.put_i32(*item);
-                            buf.advance(4);
                             Ok(())
                         },
                         buf,
