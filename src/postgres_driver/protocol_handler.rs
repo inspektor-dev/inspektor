@@ -478,11 +478,8 @@ impl ProtocolHandler {
                 if query_string == "" {
                     return Ok(());
                 }
-                if query_string.contains("generate_series") {
-                    return Ok(());
-                }
-                if query_string.contains("information_schema._pg_expandarray") {
-                    return Ok(());
+                if query_string.contains("BEGIN READ ONLY") {
+                    return Ok(())
                 }
                 let dialect = sqlparser::dialect::PostgreSqlDialect {};
                 let mut statements =
@@ -503,20 +500,13 @@ impl ProtocolHandler {
                 for statement in statements {
                     out = format!("{}{};", out, statement);
                 }
-                debug!("input string {}", query_string);
-                debug!("rewritten query {}", out);
+                debug!("input {}", query_string);
+                debug!("outpu {}", out);
                 *query_string = out;
             }
             FrontendMessage::Parse { query, .. } => {
-                // if !query.contains("-- Metabase::") {
-                //     warn!("query is {}", query);
-                //     return Ok(());
-                // }
-                if query.contains("generate_series") {
-                    return Ok(());
-                }
-                if query.contains("information_schema._pg_expandarray") {
-                    return Ok(());
+                if query.contains("BEGIN READ ONLY") {
+                    return Ok(())
                 }
                 let dialect = sqlparser::dialect::PostgreSqlDialect {};
                 let mut statements = match sqlparser::parser::Parser::parse_sql(&dialect, query) {
@@ -536,8 +526,8 @@ impl ProtocolHandler {
                 for statement in statements {
                     out = format!("{}{};", out, statement);
                 }
-                debug!("input string {}", query);
-                debug!("rewritten query {}", out);
+                debug!("input {}", query);
+                debug!("outpu {}", out);
                 *query = out;
             }
             _ => {}

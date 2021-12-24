@@ -16,7 +16,6 @@ use crate::sql::ctx::Ctx;
 use crate::sql::error::InspektorSqlError;
 use crate::sql::rule_engine::{HardRuleEngine, RuleEngine};
 
-use protobuf::ProtobufEnum;
 use sqlparser::ast::{
     Expr, FunctionArg, FunctionArgExpr, Ident, Query, Select, SelectItem, SetExpr, Statement,
     TableFactor, TrimWhereField, Value,
@@ -155,7 +154,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
                 // or some aliased table so we have to check the state before advancing to the rule engine.
                 let mut protected_columns = match local_state.get_protected_columns(&table_name) {
                     Some(cols) => cols,
-                    None => {
+                    None => { 
                         let mut cols = vec![];
                         if let Some(protected_cols) =
                             self.rule_engine.get_protected_columns(&table_name)
@@ -481,6 +480,12 @@ impl<T: RuleEngine> QueryRewriter<T> {
                 // simply don't do anything.
                 log::warn!("where clause expression executer, please report to author if you find this log. ");
             }
+            Expr::MapAccess{.. } =>{
+                // map access needs to be handled.
+            },
+            Expr::TableColumnAccess{..} => {
+                // table coulumn needs to be handled.
+            }
             _ => unreachable!("unknown expression {} {:?}", expr, expr),
         }
         Ok(())
@@ -553,13 +558,13 @@ mod tests {
         assert_eq!(rewriter_err, err)
     }
 
-    // #[test]
-    // fn test_for_output() {
-    //     let dialect = PostgreSqlDialect {};
-    //     let statements =
-    //         Parser::parse_sql(&dialect, r#"select (array['Yes', 'No', 'Maybe']);"#).unwrap();
-    //     println!("{:?}", statements[0])
-    // }
+    #[test]
+    fn test_for_output() {
+        let dialect = PostgreSqlDialect {};
+        let statements =
+            Parser::parse_sql(&dialect, r#"SELECT n.nspname = ANY(current_schemas(true)), n.nspname, t.typname FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON t.typnamespace = n.oid WHERE t.oid = $1"#).unwrap();
+        println!("{:?}", statements[0])
+    }
     #[test]
     fn basic_select() {
         let rule_engine = HardRuleEngine {
