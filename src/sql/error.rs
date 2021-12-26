@@ -17,7 +17,7 @@ use std;
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
 #[derive(Error, Debug, PartialEq)]
-pub enum InspektorSqlError {
+pub enum QueryRewriterError {
     PaserError(#[from] ParserError),
     UnAuthorizedColumn((Option<String>, String)),
     InvalidReference(String),
@@ -26,11 +26,11 @@ pub enum InspektorSqlError {
     RewriteExpr { alias_name: String },
 }
 
-impl Display for InspektorSqlError {
+impl Display for QueryRewriterError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            InspektorSqlError::PaserError(e) => write!(f, "{:?}", e),
-            InspektorSqlError::UnAuthorizedColumn((table, column)) => {
+            QueryRewriterError::PaserError(e) => write!(f, "{:?}", e),
+            QueryRewriterError::UnAuthorizedColumn((table, column)) => {
                 if let Some(table) = table {
                     if column == "" {
                         return write!(f, "unauthorized  table {:?}", table);
@@ -43,20 +43,20 @@ impl Display for InspektorSqlError {
                 }
                 write!(f, "unauthorized column {:?}", column)
             }
-            InspektorSqlError::InvalidReference(table) => {
+            QueryRewriterError::InvalidReference(table) => {
                 write!(
                     f,
                     "invalid reference to FROM clause entry for table {:?}",
                     table
                 )
             }
-            InspektorSqlError::FromNeedAlias => {
+            QueryRewriterError::FromNeedAlias => {
                 write!(f, "from need alias")
             }
-            InspektorSqlError::Error(msg) => {
+            QueryRewriterError::Error(msg) => {
                 write!(f, "{}", msg)
             }
-            InspektorSqlError::RewriteExpr { alias_name } => {
+            QueryRewriterError::RewriteExpr { alias_name } => {
                 write!(
                     f,
                     "rewrite expression with null value with alias name {}",

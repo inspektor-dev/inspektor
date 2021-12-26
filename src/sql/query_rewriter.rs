@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::sql::ctx::Ctx;
-use crate::sql::error::InspektorSqlError;
+use crate::sql::error::QueryRewriterError;
 use crate::sql::rule_engine::{HardRuleEngine, RuleEngine};
 
 use sqlparser::ast::{
@@ -45,7 +45,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
         &self,
         statements: &mut Vec<Statement>,
         state: Ctx,
-    ) -> Result<(), InspektorSqlError> {
+    ) -> Result<(), QueryRewriterError> {
         for statement in statements {
             match statement {
                 Statement::Query(query) => {
@@ -62,7 +62,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
     // handle_query will validate the query with the rule engine. it's not valid
     // it's throw an error or it' try to rewrite to make the query to match
     // the rule.
-    pub fn handle_query(&self, query: &mut Query, state: &Ctx) -> Result<Ctx, InspektorSqlError> {
+    pub fn handle_query(&self, query: &mut Query, state: &Ctx) -> Result<Ctx, QueryRewriterError> {
         let mut local_state = state.clone();
         // cte table are user created temp table passed down to the subsequent query.
         // so it's is mandatory to validate cte first and build the state
@@ -81,7 +81,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
 
     // handle_set_expr handles set exprs which are basically query, insert,
     // select.. all the core block of the ANSI SQL.
-    fn handle_set_expr(&self, expr: &mut SetExpr, state: &Ctx) -> Result<Ctx, InspektorSqlError> {
+    fn handle_set_expr(&self, expr: &mut SetExpr, state: &Ctx) -> Result<Ctx, QueryRewriterError> {
         match expr {
             SetExpr::Query(query) => return self.handle_query(query, state),
             SetExpr::Select(select) => return self.handle_select(select, state),
@@ -107,7 +107,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
 
     // handle_select handles select statement. select statement data are the one which are
     // returned to the user.
-    fn handle_select(&self, select: &mut Select, state: &Ctx) -> Result<Ctx, InspektorSqlError> {
+    fn handle_select(&self, select: &mut Select, state: &Ctx) -> Result<Ctx, QueryRewriterError> {
         let mut local_state = state.clone();
         // select projection are not from a table so we don't need to do anythings here.
         // TODO: I'm not convinced about the fast path.
@@ -139,7 +139,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
         &self,
         state: &Ctx,
         table_factor: &mut TableFactor,
-    ) -> Result<Ctx, InspektorSqlError> {
+    ) -> Result<Ctx, QueryRewriterError> {
         let mut local_state = state.clone();
         match table_factor {
             TableFactor::Table {
@@ -167,7 +167,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
                                     self.rule_engine.get_protected_columns(&ns_table_name)
                                 {
                                     if columns.len() == 0 {
-                                        return Err(InspektorSqlError::UnAuthorizedColumn((
+                                        return Err(QueryRewriterError::UnAuthorizedColumn((
                                             Some(table_name),
                                             "".to_string(),
                                         )));
@@ -203,7 +203,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
                 // derived table are the subquery in the FROM clause.
                 // eg: SELECT * from (select * from premimum users limit by 10) as users;
                 if alias.is_none() {
-                    return Err(InspektorSqlError::FromNeedAlias);
+                    return Err(QueryRewriterError::FromNeedAlias);
                 }
                 let subquery_alias = alias.as_ref().unwrap();
                 // we have a subquery now.
@@ -233,12 +233,12 @@ impl<T: RuleEngine> QueryRewriter<T> {
         &self,
         state: &Ctx,
         selection: &mut SelectItem,
-    ) -> Result<Vec<SelectItem>, InspektorSqlError> {
+    ) -> Result<Vec<SelectItem>, QueryRewriterError> {
         match selection {
             SelectItem::UnnamedExpr(expr) => {
                 if let Err(e) = self.handle_expr(state, expr) {
                     match e {
-                        InspektorSqlError::RewriteExpr { alias_name } => {
+                        QueryRewriterError::RewriteExpr { alias_name } => {
                             return Ok(vec![SelectItem::ExprWithAlias {
                                 expr: Expr::Value(Value::Null),
                                 alias: Ident{value: alias_name, quote_style: Some('"')},
@@ -256,7 +256,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
             SelectItem::ExprWithAlias { expr, alias } => {
                 if let Err(e) = self.handle_expr(state, expr) {
                     match e {
-                        InspektorSqlError::RewriteExpr { .. } => {
+                        QueryRewriterError::RewriteExpr { .. } => {
                             return Ok(vec![SelectItem::ExprWithAlias {
                                 expr: Expr::Value(Value::Null),
                                 alias: alias.clone(),
@@ -280,7 +280,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
     }
     // handle_expr will handle all the selection expr. eg:
     // SUM(balance) or balance...
-    fn handle_expr(&self, state: &Ctx, expr: &mut Expr) -> Result<(), InspektorSqlError> {
+    fn handle_expr(&self, state: &Ctx, expr: &mut Expr) -> Result<(), QueryRewriterError> {
         match expr {
             Expr::Identifier(object_name) => {
                 // it's a single expression. if we have one table the we pick that.
@@ -290,7 +290,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
                     // the main reason to do this is that, folks who uses postgres
                     // with other analytical tools won't find any disturbance.
                     // eg: metabase.
-                    return Err(InspektorSqlError::RewriteExpr {
+                    return Err(QueryRewriterError::RewriteExpr {
                         alias_name: object_name.value.clone(),
                     });
                 }
@@ -298,7 +298,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
             Expr::CompoundIdentifier(identifiers) => {
                 let (table_name, column_name) = get_column_from_idents(&identifiers);
                 if !state.is_allowed_column(&table_name, &column_name) {
-                    return Err(InspektorSqlError::RewriteExpr {
+                    return Err(QueryRewriterError::RewriteExpr {
                         alias_name: join_indents(&identifiers),
                     });
                 }
@@ -359,21 +359,21 @@ impl<T: RuleEngine> QueryRewriter<T> {
                 for condition in conditions {
                     // if the condition fail then we rewrite with case.
                     if let Err(_) = self.handle_expr(state, condition) {
-                        return Err(InspektorSqlError::RewriteExpr {
+                        return Err(QueryRewriterError::RewriteExpr {
                             alias_name: String::from("case"),
                         });
                     }
                 }
                 for result in results {
                     if let Err(_) = self.handle_expr(state, result) {
-                        return Err(InspektorSqlError::RewriteExpr {
+                        return Err(QueryRewriterError::RewriteExpr {
                             alias_name: String::from("case"),
                         });
                     }
                 }
                 if let Some(else_result) = else_result {
                     if let Err(_) = self.handle_expr(state, else_result) {
-                        return Err(InspektorSqlError::RewriteExpr {
+                        return Err(QueryRewriterError::RewriteExpr {
                             alias_name: String::from("case"),
                         });
                     }
@@ -383,14 +383,14 @@ impl<T: RuleEngine> QueryRewriter<T> {
             Expr::TryCast { expr, .. } => self.handle_expr(state, expr)?,
             Expr::Extract { expr, .. } => {
                 if let Err(_) = self.handle_expr(state, expr) {
-                    return Err(InspektorSqlError::RewriteExpr {
+                    return Err(QueryRewriterError::RewriteExpr {
                         alias_name: String::from("date_part"),
                     });
                 }
             } // date_part
             Expr::Collate { expr, .. } => {
                 if let Err(_) = self.handle_expr(state, expr) {
-                    return Err(InspektorSqlError::RewriteExpr {
+                    return Err(QueryRewriterError::RewriteExpr {
                         alias_name: String::from("collate"),
                     });
                 }
@@ -413,13 +413,13 @@ impl<T: RuleEngine> QueryRewriter<T> {
                         _ => {}
                     }
                     if let Err(_) = self.handle_expr(state, expr) {
-                        return Err(InspektorSqlError::RewriteExpr {
+                        return Err(QueryRewriterError::RewriteExpr {
                             alias_name: default_column_name.to_string(),
                         });
                     }
                 }
                 if let Err(_) = self.handle_expr(state, expr) {
-                    return Err(InspektorSqlError::RewriteExpr {
+                    return Err(QueryRewriterError::RewriteExpr {
                         alias_name: default_column_name.to_string(),
                     });
                 };
@@ -430,20 +430,20 @@ impl<T: RuleEngine> QueryRewriter<T> {
                 substring_for,
             } => {
                 if let Err(_) = self.handle_expr(state, expr) {
-                    return Err(InspektorSqlError::RewriteExpr {
+                    return Err(QueryRewriterError::RewriteExpr {
                         alias_name: "substring".to_string(),
                     });
                 }
                 if let Some(from) = substring_from {
                     if let Err(_) = self.handle_expr(state, from) {
-                        return Err(InspektorSqlError::RewriteExpr {
+                        return Err(QueryRewriterError::RewriteExpr {
                             alias_name: "substring".to_string(),
                         });
                     }
                 }
                 if let Some(expr) = substring_for {
                     if let Err(_) = self.handle_expr(state, expr) {
-                        return Err(InspektorSqlError::RewriteExpr {
+                        return Err(QueryRewriterError::RewriteExpr {
                             alias_name: "substring".to_string(),
                         });
                     }
@@ -550,7 +550,7 @@ mod tests {
         rewriter: &QueryRewriter<T>,
         state: Ctx,
         input: &'static str,
-        err: InspektorSqlError,
+        err: QueryRewriterError,
     ) {
         let dialect = PostgreSqlDialect {};
         let mut statements = Parser::parse_sql(&dialect, input).unwrap();

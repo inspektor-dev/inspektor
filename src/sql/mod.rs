@@ -13,7 +13,7 @@
 // limitations under the License.
 
 pub mod ctx;
-mod error;
+pub mod error;
 pub mod query_rewriter;
 pub mod rule_engine;
 

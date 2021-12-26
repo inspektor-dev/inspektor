@@ -14,6 +14,7 @@
 use crate::config::PostgresConfig;
 use crate::policy_evaluator::evaluator::PolicyEvaluator;
 use crate::postgres_driver::conn::PostgresConn;
+use crate::postgres_driver::errors::ProtocolHandlerError;
 use crate::postgres_driver::message::*;
 use crate::sql::ctx::Ctx;
 use crate::sql::query_rewriter::QueryRewriter;
@@ -33,7 +34,7 @@ use tokio::time as tokio_time;
 use tokio_openssl::SslStream;
 
 use postgres_protocol::authentication::sasl;
-use postgres_protocol::message::frontend;
+use postgres_protocol::message::frontend::{self, query};
 fn md5_password(username: &String, password: &String, salt: Vec<u8>) -> String {
     let mut md5 = Md5::new();
     md5.update(password);
@@ -462,7 +463,29 @@ impl ProtocolHandler {
         msg: &mut FrontendMessage,
         ctx: Ctx,
         schemas: Vec<String>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<(), ProtocolHandlerError> {
+        match msg {
+            FrontendMessage::Query { query_string } => {
+                self.handle_query(query_string, ctx, schemas)?;
+            }
+            FrontendMessage::Parse { query, .. } => {
+                self.handle_query(query, ctx, schemas)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn handle_query(
+        &mut self,
+        query: &mut String,
+        ctx: Ctx,
+        schemas: Vec<String>,
+    ) -> Result<(), ProtocolHandlerError> {
+        // TODO: this needs to worked out.
+        if query.contains("BEGIN READ ONLY") {
+            return Ok(());
+        }
         let result = self.policy_evaluator.evaluate(
             &self.datasource_name,
             &self.connected_db,
@@ -470,68 +493,27 @@ impl ProtocolHandler {
         )?;
         if !result.allow {
             error!("updated policy violating the existing connection so dropping the connection");
-            return Err(anyhow!("policy connection rejected"));
+            return Err(ProtocolHandlerError::PolicyRejected);
         }
+        let dialect = sqlparser::dialect::PostgreSqlDialect {};
+        let mut statements = match sqlparser::parser::Parser::parse_sql(&dialect, query) {
+            Ok(statements) => statements,
+            Err(e) => {
+                error!(
+                    "error while parsing user query error: {} query string: {}",
+                    e, query
+                );
+                return Err(ProtocolHandlerError::ErrParsingQuery);
+            }
+        };
         let rule = result.to_rule_engine();
-        match msg {
-            FrontendMessage::Query { query_string } => {
-                if query_string == "" {
-                    return Ok(());
-                }
-                if query_string.contains("BEGIN READ ONLY") {
-                    return Ok(())
-                }
-                let dialect = sqlparser::dialect::PostgreSqlDialect {};
-                let mut statements =
-                    match sqlparser::parser::Parser::parse_sql(&dialect, query_string) {
-                        Ok(statements) => statements,
-                        Err(e) => {
-                            error!(
-                                "error while parsing user query error: {} query string: {}",
-                                e, query_string
-                            );
-                            return Ok(());
-                        }
-                    };
-                let rewriter = QueryRewriter::new(rule, schemas);
-                rewriter.rewrite(&mut statements, ctx).unwrap();
-                // convert the statement back to string.
-                let mut out = String::from("");
-                for statement in statements {
-                    out = format!("{}{};", out, statement);
-                }
-                debug!("input {}", query_string);
-                debug!("outpu {}", out);
-                *query_string = out;
-            }
-            FrontendMessage::Parse { query, .. } => {
-                if query.contains("BEGIN READ ONLY") {
-                    return Ok(())
-                }
-                let dialect = sqlparser::dialect::PostgreSqlDialect {};
-                let mut statements = match sqlparser::parser::Parser::parse_sql(&dialect, query) {
-                    Ok(statements) => statements,
-                    Err(e) => {
-                        error!(
-                            "error while parsing user query error: {} query string: {}",
-                            e, query
-                        );
-                        return Ok(());
-                    }
-                };
-                let rewriter = QueryRewriter::new(rule, schemas);
-                rewriter.rewrite(&mut statements, ctx).unwrap();
-                //convert the statement back to string.
-                let mut out = String::from("");
-                for statement in statements {
-                    out = format!("{}{};", out, statement);
-                }
-                debug!("input {}", query);
-                debug!("outpu {}", out);
-                *query = out;
-            }
-            _ => {}
+        let rewriter = QueryRewriter::new(rule, schemas);
+        rewriter.rewrite(&mut statements, ctx)?;
+        let mut out = String::from("");
+        for statement in statements {
+            out = format!("{}{};", out, statement);
         }
+        *query = out;
         Ok(())
     }
 }
