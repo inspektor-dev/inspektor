@@ -56,25 +56,64 @@ pub struct ProtocolHandler {
     datasource_name: String,
 }
 
+#[derive(Default)]
 struct TableInfo {
     column_relation: HashMap<String, Vec<String>>,
     schemas: Vec<String>,
 }
 
 impl ProtocolHandler {
+    // get_table_info get table info of the protected tables.
     async fn get_table_info(
-        &self,
+        &mut self,
         client: &tokio_postgres::Client,
     ) -> Result<TableInfo, anyhow::Error> {
-        let rows = client
-            .query(
-                "
-                SELECT table_schema, table_name, column_name, data_type
-	FROM information_schema.columns
-	 ",
-                &[],
-            )
-            .await?;
+        let result = self.policy_evaluator.evaluate(
+            &self.datasource_name,
+            &self.connected_db,
+            &self.groups,
+        )?;
+        let protected_tables = result.get_protected_tables();
+
+        if protected_tables.len() == 0 {
+            return Ok(TableInfo::default());
+        }
+
+        // query rewriter needs only the table info of the protected table, so
+        // query only neccessary info.
+        let mut schema_selection = String::from("(");
+        let mut table_selection = String::from("(");
+        let mut delim = "";
+        for protected_table in protected_tables {
+            schema_selection.push_str(delim);
+            table_selection.push_str(delim);
+            delim = ",";
+            schema_selection.push('\'');
+            schema_selection.push_str(protected_table.0);
+            schema_selection.push('\'');
+            table_selection.push('\'');
+            table_selection.push_str(protected_table.1);
+            table_selection.push('\'');
+        }
+        schema_selection.push(')');
+        table_selection.push(')');
+        let query = format!(
+            r#"
+        SELECT 
+          table_schema, 
+          table_name, 
+          column_name, 
+          data_type 
+        FROM 
+          information_schema.columns 
+        where 
+          table_schema in {}
+          and table_name in {}
+        "#,
+            schema_selection, table_selection
+        ); 
+
+        let rows = client.query(&query, &[]).await?;
 
         let mut column_relation: HashMap<String, Vec<String>> = HashMap::default();
         let mut schemas: HashSet<String> = HashSet::default();
@@ -98,6 +137,7 @@ impl ProtocolHandler {
             schemas,
         })
     }
+
     // serve will listen to client packets and decide whether to process
     // the packet based on the opa policy.
     pub async fn serve(&mut self) -> Result<(), anyhow::Error> {
@@ -118,10 +158,9 @@ impl ProtocolHandler {
             error!("error while getting table meta {:?}", e);
             return anyhow!("error while getting table meta");
         })?;
-        debug!("got table info");
-
         let mut target_buf = [0; 1024];
-        let mut meta_refresh_ticker = tokio_time::interval(Duration::from_secs(60));
+        // refresh table for every 2 minutes.
+        let mut table_info_refresh_ticker = tokio_time::interval(Duration::from_secs(60 * 2));
         loop {
             tokio::select! {
                 evaluator = self.policy_watcher.changed() => {
@@ -157,6 +196,7 @@ impl ProtocolHandler {
                                return Ok(());
                             }
                             if let Err(e) = self.client_conn.write_all(&target_buf[0..n]).await{
+                                error!("error while writing the rsp message to the client {:?}", e);
                                 return Ok(());
                             }
                         }
@@ -169,16 +209,25 @@ impl ProtocolHandler {
                                 return Ok(());
                         },
                         Ok(mut msg) =>{
-                            info!("got frontend message {:?}", msg);
+                            debug!("got frontend message {:?}", msg);
                             let ctx =  Ctx::new(table_info.column_relation.clone());
-                            self.handle_frontend_message(&mut msg, ctx, table_info.schemas.clone()).unwrap();
+                            if let Err(e) = self.handle_frontend_message(&mut msg, ctx, table_info.schemas.clone()){
+                                error!("error while handling frontend message {:?}", e);
+                                let rsp = BackendMessage::ErrorMsg(Some(format!("{:?}", e)));
+                                if let Err(e) = self.client_conn.write_all(&rsp.encode()).await{
+                                    error!("error while writing the rsp message to the client {:?}", e);
+                                    return Ok(());
+                                }
+                                continue;
+                            }
                             if let Err(e) = self.target_conn.write_all(&msg.encode()).await{
+                                error!("error while writing the frontend message to the target {:?}", e);
                                 return Ok(());
                             }
                         }
                     }
                 }
-                _ = meta_refresh_ticker.tick() => {
+                _ = table_info_refresh_ticker.tick() => {
                     debug!("refreshing table meta");
                     table_info = match  self.get_table_info(&client).await {
                         Ok(info) => info,
@@ -348,7 +397,6 @@ impl ProtocolHandler {
     ) -> Result<(), anyhow::Error> {
         // refer: https://datatracker.ietf.org/doc/html/rfc5802 for more context.
         let pass_buf = password.as_bytes();
-        println!("pass {:?}", pass_buf);
         let mut sasl_auth = sasl::ScramSha256::new(pass_buf, sasl::ChannelBinding::unsupported());
         debug!("sending client first message");
         // send client first message to the target.

@@ -51,6 +51,20 @@ impl BackendMessage {
                 buf.put_u32(1);
                 buf
             }
+            BackendMessage::ErrorMsg(msg) =>{
+                buf.put_u8(b'E');
+                write_message(&mut buf, |buf| {
+                    if let Some(msg) = msg {
+                        buf.put_u8(1);
+                        write_cstr(buf, msg.as_bytes())?;
+                        return Ok(())
+                    }
+                    buf.put_u8(0);
+                    Ok(())
+                })
+                .unwrap();
+                buf
+            }
             _ => {
                 unreachable!("encoding invalid startup message")
             }

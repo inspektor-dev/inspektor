@@ -18,7 +18,7 @@ use burrego::opa::wasm::Evaluator;
 use futures::AsyncReadExt;
 use log::*;
 use serde_json::{Map, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 /// PolicyEvaluator is used to to evaluate policy decision for all the end user
 /// action.
 pub struct PolicyEvaluator {
@@ -39,17 +39,29 @@ impl PolicyResult {
             // all columns should have 2 dots
             // schema.table.column
             let splits = column.split(".").collect::<Vec<&str>>();
-            if splits.len() == 0 {
+            if splits.len() != 3 {
                 continue;
             }
             let table_name = format!("{}.{}", splits[0], splits[1]);
             if let Some(cols) = inner_protected_column.get_mut(&table_name) {
-                cols.push(splits[3].to_string());
+                cols.push(splits[2].to_string());
                 continue;
             }
             inner_protected_column.insert(table_name, vec![splits[2].to_string()]);
         }
         HardRuleEngine::from_protected_columns(inner_protected_column)
+    }
+
+    pub fn get_protected_tables(&self) -> Vec<(&str, &str)> {
+        let mut set: HashSet<(&str, &str)> = HashSet::default();
+        for column in &self.protected_columns{
+            let splits = column.split(".").collect::<Vec<&str>>();
+            if splits.len() != 3 {
+                continue;
+            }
+            set.insert((splits[0], splits[1]));
+        }
+        set.into_iter().collect::<Vec<(&str, &str)>>()
     }
 }
 
