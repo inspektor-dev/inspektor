@@ -574,6 +574,7 @@ mod tests {
                 String::from("public.kids"),
                 vec![String::from("phone")],
             )]),
+            insert_allowed: false,
         };
 
         let state = Ctx::new(HashMap::from([(
@@ -606,6 +607,7 @@ mod tests {
     fn test_simple_join() {
         let rule_engine = HardRuleEngine {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
+            insert_allowed: false,
         };
 
         let state = Ctx::new(HashMap::from([
@@ -630,6 +632,7 @@ mod tests {
                 String::from("public.kids"),
                 vec![String::from("phone")],
             )]),
+            insert_allowed: false,
         };
 
         let state = Ctx::new(HashMap::from([(
@@ -659,6 +662,7 @@ mod tests {
                 String::from("public.kids"),
                 vec![String::from("phone")],
             )]),
+            insert_allowed: false,
         };
 
         let state = Ctx::new(HashMap::from([(
@@ -693,6 +697,7 @@ mod tests {
                 String::from("public.kids"),
                 vec![String::from("phone")],
             )]),
+            insert_allowed: false,
         };
 
         let state = Ctx::new(HashMap::from([
@@ -738,6 +743,7 @@ mod tests {
                 (String::from("public.kids"), vec![String::from("phone")]),
                 (String::from("public.kids2"), vec![String::from("phone")]),
             ]),
+            insert_allowed: false,
         };
 
         let state = Ctx::new(HashMap::from([
@@ -802,6 +808,7 @@ mod tests {
                 (String::from("kids"), vec![String::from("phone")]),
                 (String::from("kids2"), vec![String::from("phone")]),
             ]),
+            insert_allowed: false,
         };
 
         let state = Ctx::new(HashMap::from([
@@ -838,6 +845,7 @@ mod tests {
     fn test_wildcard_qualified_wildcard() {
         let rule_engine = HardRuleEngine {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
+            insert_allowed: false,
         };
 
         let state = Ctx::new(HashMap::from([(
@@ -863,6 +871,7 @@ mod tests {
     fn test_expr() {
         let rule_engine = HardRuleEngine {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
+            insert_allowed: false,
         };
 
         let state = Ctx::new(HashMap::from([(
@@ -941,6 +950,7 @@ mod tests {
                 String::from("public.kids"),
                 vec![String::from("phone")],
             )]),
+            insert_allowed: false,
         };
 
         let state = Ctx::new(HashMap::from([(
@@ -1020,6 +1030,7 @@ mod tests {
     fn test_metabase_expr() {
         let rule_engine = HardRuleEngine {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
+            insert_allowed: false,
         };
 
         let state = Ctx::new(get_table_info());
@@ -1030,4 +1041,6 @@ mod tests {
         );
         assert_rewriter(&rewriter, state.clone(), "SELECT DISTINCT t.typname FROM pg_enum e LEFT JOIN pg_type t ON t.oid = e.enumtypid", "SELECT DISTINCT t.typname FROM pg_enum AS e LEFT JOIN pg_type AS t ON t.oid = e.enumtypid");
     }
+
+    
 }

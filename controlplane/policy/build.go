@@ -18,7 +18,10 @@ func Build(path string) ([]byte, error) {
 	compiler := compile.New().
 		WithCapabilities(ast.CapabilitiesForThisVersion()).
 		WithTarget(compile.TargetWasm).
-		WithEntrypoints("inspektor/resource/acl/allow", "inspektor/resource/acl/protected_columns").
+		WithEntrypoints("inspektor/resource/acl/allow",
+			"inspektor/resource/acl/protected_columns",
+			"inspektor/resource/acl/insert",
+			"inspektor/resource/acl/update").
 		WithOutput(out).
 		WithPaths(path)
 	err := compiler.Build(context.TODO())

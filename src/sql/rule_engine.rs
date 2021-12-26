@@ -24,6 +24,7 @@ pub trait RuleEngine {
 
 pub struct HardRuleEngine {
     pub(crate) protected_columns: HashMap<String, Vec<String>>,
+    pub(crate) insert_allowed: bool,
 }
 
 impl RuleEngine for HardRuleEngine {
@@ -67,6 +68,6 @@ impl HardRuleEngine {
     pub fn from_protected_columns(
         protected_columns: HashMap<String, Vec<String>>,
     ) -> HardRuleEngine {
-        HardRuleEngine { protected_columns }
+        HardRuleEngine { protected_columns, insert_allowed: false }
     }
 }

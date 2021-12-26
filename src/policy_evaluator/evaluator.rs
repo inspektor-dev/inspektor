@@ -28,6 +28,8 @@ pub struct PolicyEvaluator {
 pub struct PolicyResult {
     pub allow: bool,
     pub protected_columns: Vec<String>,
+    pub insert: bool,
+    pub update: bool,
 }
 
 impl PolicyResult {
@@ -82,6 +84,14 @@ impl PolicyEvaluator {
             String::from("protected_columns"),
             evaluator.entrypoint_id(&"inspektor/resource/acl/protected_columns")?,
         );
+        entrypoints.insert(
+            String::from("insert"),
+            evaluator.entrypoint_id(&"inspektor/resource/acl/insert")?,
+        );
+        entrypoints.insert(
+            String::from("update"),
+            evaluator.entrypoint_id(&"inspektor/resource/acl/update")?,
+        );
         Ok(PolicyEvaluator {
             evaluator,
             entrypoints,
@@ -115,6 +125,8 @@ impl PolicyEvaluator {
         if !allow {
             return Ok(PolicyResult {
                 allow: false,
+                insert: false,
+                update: false,
                 protected_columns: Vec::default(),
             });
         }
@@ -137,8 +149,38 @@ impl PolicyEvaluator {
                 .collect::<Vec<String>>(),
             _ => Vec::new(),
         };
+        
+        let update = self.evaluator.evaluate(
+            *self
+                .entrypoints
+                .get(&String::from("update"))
+                .unwrap(),
+            &input,
+            &data,
+        )?;
+
+        let update = match self.get_result(update){
+            Value::Bool(val) => val,
+            _ => false
+        };
+
+        let insert = self.evaluator.evaluate(
+            *self
+                .entrypoints
+                .get(&String::from("insert"))
+                .unwrap(),
+            &input,
+            &data,
+        )?;
+
+        let insert = match self.get_result(insert){
+            Value::Bool(val) => val,
+            _ => false
+        };
         Ok(PolicyResult {
             allow: allow,
+            update: update,
+            insert: insert,
             protected_columns: protected_columns,
         })
     }
@@ -194,12 +236,15 @@ mod tests {
         let mut evaluator = PolicyEvaluator::new(&policy).unwrap();
         let result = evaluator
             .evaluate(
-                &String::from("postgres_production"),
+                &String::from("postgres-prod"),
                 &String::from("inspektor"),
                 &vec![String::from("dev"), String::from("admin")],
             )
             .unwrap();
         assert_eq!(result.allow, true);
+        assert_eq!(result.update, true);
+        assert_eq!(result.insert, false);
+
         assert_eq!(
             result.protected_columns,
             vec![String::from("public.data_sources.side_car_token")]
