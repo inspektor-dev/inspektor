@@ -1,9 +1,6 @@
-use futures::StreamExt;
-use md5::digest::generic_array::typenum::Len;
 use sqlparser::ast::{Expr, ObjectName, SelectItem};
 use sqlparser::ast::{Ident, Value};
-use std::borrow::Cow;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 
 // validation state contains all the required metadata that will be used for
 // validating the selections.
@@ -18,7 +15,6 @@ pub struct Ctx {
 }
 
 impl Ctx {
-
     pub fn new(table_info: HashMap<String, Vec<String>>) -> Ctx {
         let mut state = Ctx::default();
         state.table_info = table_info;

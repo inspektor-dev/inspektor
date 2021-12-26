@@ -3,7 +3,6 @@ use crate::postgres_driver::message::*;
 use anyhow::*;
 use byteorder::{ByteOrder, NetworkEndian};
 use bytes::{Buf, BufMut, BytesMut};
-use std::char;
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 // Postgres protocol version.

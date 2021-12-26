@@ -5,7 +5,6 @@ use crate::postgres_driver::utils::{
 use anyhow::*;
 use byteorder::{ByteOrder, NetworkEndian};
 use bytes::{Buf, BufMut, BytesMut};
-use futures::TryFutureExt;
 use log::*;
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
@@ -51,13 +50,13 @@ impl BackendMessage {
                 buf.put_u32(1);
                 buf
             }
-            BackendMessage::ErrorMsg(msg) =>{
+            BackendMessage::ErrorMsg(msg) => {
                 buf.put_u8(b'E');
                 write_message(&mut buf, |buf| {
                     if let Some(msg) = msg {
                         buf.put_u8(1);
                         write_cstr(buf, msg.as_bytes())?;
-                        return Ok(())
+                        return Ok(());
                     }
                     buf.put_u8(0);
                     Ok(())

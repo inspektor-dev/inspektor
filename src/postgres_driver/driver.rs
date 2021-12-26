@@ -45,7 +45,7 @@ impl PostgresDriver {
             loop {
                 let (socket, _) = listener.accept().await.unwrap();
                 let acceptor = acceptor.clone();
-                let mut driver = self.clone();
+                let driver = self.clone();
                 let socket = PostgresConn::Unsecured(socket);
                 tokio::spawn(async move {
                     driver.handle_client_conn(socket, acceptor).await;

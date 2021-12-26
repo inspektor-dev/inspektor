@@ -1,6 +1,6 @@
+use crate::sql::error::QueryRewriterError;
 use std::io;
 use thiserror::Error;
-use crate::sql::error::QueryRewriterError;
 
 #[derive(Error, Debug)]
 pub enum DecoderError {

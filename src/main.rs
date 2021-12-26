@@ -26,7 +26,6 @@ use futures;
 use futures::prelude::*;
 use grpcio::{ChannelBuilder, EnvBuilder};
 use log::*;
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::watch;
 

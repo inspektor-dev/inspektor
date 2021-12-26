@@ -14,8 +14,6 @@
 
 use std::collections::HashMap;
 
-use futures::StreamExt;
-
 pub trait RuleEngine {
     fn is_table_protected(&self, table_name: &String) -> bool;
     fn get_allowed_columns(&self, table_name: &String, columns: Vec<String>) -> Vec<String>;

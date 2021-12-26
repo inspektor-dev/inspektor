@@ -18,12 +18,11 @@ use crate::postgres_driver::errors::ProtocolHandlerError;
 use crate::postgres_driver::message::*;
 use crate::sql::ctx::Ctx;
 use crate::sql::query_rewriter::QueryRewriter;
-use crate::sql::rule_engine::{self, HardRuleEngine};
 use anyhow::*;
-use bytes::BytesMut;
 use log::*;
 use md5::{Digest, Md5};
 use openssl::ssl::{Ssl, SslConnector, SslMethod};
+use postgres_protocol::authentication::sasl;
 use std::collections::{HashMap, HashSet};
 use std::pin::Pin;
 use std::time::Duration;
@@ -33,8 +32,6 @@ use tokio::sync::watch;
 use tokio::time as tokio_time;
 use tokio_openssl::SslStream;
 
-use postgres_protocol::authentication::sasl;
-use postgres_protocol::message::frontend::{self, query};
 fn md5_password(username: &String, password: &String, salt: Vec<u8>) -> String {
     let mut md5 = Md5::new();
     md5.update(password);
@@ -111,7 +108,7 @@ impl ProtocolHandler {
           and table_name in {}
         "#,
             schema_selection, table_selection
-        ); 
+        );
 
         let rows = client.query(&query, &[]).await?;
 
@@ -172,7 +169,7 @@ impl ProtocolHandler {
                     // update the current evaluator with new policy
                     let mut evaluator = match PolicyEvaluator::new(&wasm_policy){
                         Ok(evaluator) => evaluator,
-                        Err(e) => {
+                        Err(_) => {
                             error!("error while building new policy evaluator so skiping this policy.");
                             continue;
                         }
@@ -500,10 +497,6 @@ impl ProtocolHandler {
             .use_server_name_indication(false)
             .into_ssl("")
             .unwrap()
-    }
-
-    fn get_ssl_builder() -> SslConnector {
-        SslConnector::builder(SslMethod::tls()).unwrap().build()
     }
 
     fn handle_frontend_message(

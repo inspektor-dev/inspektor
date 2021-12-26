@@ -14,16 +14,12 @@
 
 use crate::sql::ctx::Ctx;
 use crate::sql::error::QueryRewriterError;
-use crate::sql::rule_engine::{HardRuleEngine, RuleEngine};
+use crate::sql::rule_engine::RuleEngine;
 
 use sqlparser::ast::{
     Expr, FunctionArg, FunctionArgExpr, Ident, Query, Select, SelectItem, SetExpr, Statement,
     TableFactor, TrimWhereField, Value,
 };
-use sqlparser::dialect::PostgreSqlDialect;
-use sqlparser::parser::Parser;
-use std::borrow::Cow;
-use std::marker::PhantomData;
 // QueryRewriter validates the user query and rewrites if neccessary.
 pub struct QueryRewriter<T: RuleEngine> {
     // rule engine is responsible for handling all the rules which are enforced by
@@ -63,7 +59,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
     // it's throw an error or it' try to rewrite to make the query to match
     // the rule.
     pub fn handle_query(&self, query: &mut Query, state: &Ctx) -> Result<Ctx, QueryRewriterError> {
-        let mut local_state = state.clone();
+        let local_state = state.clone();
         // cte table are user created temp table passed down to the subsequent query.
         // so it's is mandatory to validate cte first and build the state
         // to push down to the subsequent statement.
@@ -71,7 +67,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
             for cte in &mut with.cte_tables {
                 // there is no need to merge state of cte table. because cte tables are already
                 // filtered in the query state.
-                 self.handle_query(&mut cte.query, state)?;
+                self.handle_query(&mut cte.query, state)?;
             }
         }
         // we'll evaulate the body first because that is the data which will be retrived for the
@@ -152,9 +148,9 @@ impl<T: RuleEngine> QueryRewriter<T> {
                 local_state.add_from_src(table_name.clone());
                 // before checking the rule engine. we have to check the state becauase this can be cte table
                 // or some aliased table so we have to check the state before advancing to the rule engine.
-                let mut protected_columns = match local_state.get_protected_columns(&table_name) {
+                let protected_columns = match local_state.get_protected_columns(&table_name) {
                     Some(cols) => cols,
-                    None => { 
+                    None => {
                         let mut cols = vec![];
                         if let Some(protected_cols) =
                             self.rule_engine.get_protected_columns(&table_name)
@@ -182,7 +178,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
                     }
                 };
                 if protected_columns.len() == 0 {
-                    return Ok(local_state)
+                    return Ok(local_state);
                 }
                 if let Some(alias) = alias {
                     let alias_name = alias.name.value.clone();
@@ -196,9 +192,9 @@ impl<T: RuleEngine> QueryRewriter<T> {
                 local_state.memorize_protected_columns(table_name.clone(), protected_columns);
             }
             TableFactor::Derived {
-                lateral,
                 subquery,
                 alias,
+                ..
             } => {
                 // derived table are the subquery in the FROM clause.
                 // eg: SELECT * from (select * from premimum users limit by 10) as users;
@@ -241,7 +237,10 @@ impl<T: RuleEngine> QueryRewriter<T> {
                         QueryRewriterError::RewriteExpr { alias_name } => {
                             return Ok(vec![SelectItem::ExprWithAlias {
                                 expr: Expr::Value(Value::Null),
-                                alias: Ident{value: alias_name, quote_style: Some('"')},
+                                alias: Ident {
+                                    value: alias_name,
+                                    quote_style: Some('"'),
+                                },
                             }]);
                         }
                         _ => return Err(e),
@@ -272,8 +271,8 @@ impl<T: RuleEngine> QueryRewriter<T> {
                 let table_name = &object_name.0[0].value;
                 let selections = state.column_expr_for_table(table_name);
                 if selections.len() != 0 {
-                    return Ok(selections)
-                } 
+                    return Ok(selections);
+                }
                 return Ok(vec![SelectItem::QualifiedWildcard(object_name.clone())]);
             }
         }
@@ -454,8 +453,8 @@ impl<T: RuleEngine> QueryRewriter<T> {
             }
             Expr::BinaryOp {
                 left,
-                op: _op,
                 right,
+                ..
             } => {
                 if let Err(_) = self.handle_expr(state, left) {
                     *left = Box::new(Expr::Value(Value::Null));
@@ -464,7 +463,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
                     *right = Box::new(Expr::Value(Value::Null));
                 }
             }
-            Expr::UnaryOp { op: _op, expr } => {
+            Expr::UnaryOp { expr , ..} => {
                 if let Err(_) = self.handle_expr(state, expr) {
                     *expr = Box::new(Expr::Value(Value::Null));
                 }
@@ -480,10 +479,10 @@ impl<T: RuleEngine> QueryRewriter<T> {
                 // simply don't do anything.
                 log::warn!("where clause expression executer, please report to author if you find this log. ");
             }
-            Expr::MapAccess{.. } =>{
+            Expr::MapAccess { .. } => {
                 // map access needs to be handled.
-            },
-            Expr::TableColumnAccess{..} => {
+            }
+            Expr::TableColumnAccess { .. } => {
                 // table coulumn needs to be handled.
             }
             _ => unreachable!("unknown expression {} {:?}", expr, expr),
@@ -517,8 +516,11 @@ pub fn get_column_from_idents(idents: &Vec<Ident>) -> (String, String) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sql::rule_engine::HardRuleEngine;
     use serde::Deserialize;
     use serde_json;
+    use sqlparser::dialect::PostgreSqlDialect;
+    use sqlparser::parser::Parser;
     use std::collections::HashMap;
     use std::env;
     use std::fs;
@@ -687,9 +689,10 @@ mod tests {
     #[test]
     fn test_union() {
         let rule_engine = HardRuleEngine {
-            protected_columns: HashMap::from([
-                (String::from("public.kids"), vec![String::from("phone")]),
-            ]),
+            protected_columns: HashMap::from([(
+                String::from("public.kids"),
+                vec![String::from("phone")],
+            )]),
         };
 
         let state = Ctx::new(HashMap::from([
@@ -764,7 +767,7 @@ mod tests {
                     String::from("name"),
                     String::from("address"),
                 ],
-            )
+            ),
         ]));
         let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         assert_rewriter(

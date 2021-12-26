@@ -20,9 +20,7 @@ use thiserror::Error;
 pub enum QueryRewriterError {
     PaserError(#[from] ParserError),
     UnAuthorizedColumn((Option<String>, String)),
-    InvalidReference(String),
     FromNeedAlias,
-    Error(String),
     RewriteExpr { alias_name: String },
 }
 
@@ -43,18 +41,8 @@ impl Display for QueryRewriterError {
                 }
                 write!(f, "unauthorized column {:?}", column)
             }
-            QueryRewriterError::InvalidReference(table) => {
-                write!(
-                    f,
-                    "invalid reference to FROM clause entry for table {:?}",
-                    table
-                )
-            }
             QueryRewriterError::FromNeedAlias => {
                 write!(f, "from need alias")
-            }
-            QueryRewriterError::Error(msg) => {
-                write!(f, "{}", msg)
             }
             QueryRewriterError::RewriteExpr { alias_name } => {
                 write!(

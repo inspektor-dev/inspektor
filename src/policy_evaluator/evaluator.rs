@@ -15,7 +15,6 @@ use crate::sql::rule_engine::HardRuleEngine;
 use anyhow::{Error, Result};
 use burrego::opa::host_callbacks::DEFAULT_HOST_CALLBACKS;
 use burrego::opa::wasm::Evaluator;
-use futures::AsyncReadExt;
 use log::*;
 use serde_json::{Map, Value};
 use std::collections::{HashMap, HashSet};
@@ -54,7 +53,7 @@ impl PolicyResult {
 
     pub fn get_protected_tables(&self) -> Vec<(&str, &str)> {
         let mut set: HashSet<(&str, &str)> = HashSet::default();
-        for column in &self.protected_columns{
+        for column in &self.protected_columns {
             let splits = column.split(".").collect::<Vec<&str>>();
             if splits.len() != 3 {
                 continue;
