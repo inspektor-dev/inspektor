@@ -1171,4 +1171,49 @@ mod tests {
             "INSERT INTO KIDS (phone) VALUES ('9843421696')",
         )
     }
+
+    #[test]
+    fn test_update() {
+        let rule_engine = HardRuleEngine {
+            protected_columns: HashMap::from([(String::from("kids"), vec![String::from("id")])]),
+            insert_allowed: false,
+            update_allowed: false,
+        };
+        let rewriter = QueryRewriter::new(rule_engine, vec![]);
+        let state = Ctx::new(get_table_info());
+        assert_error(
+            &rewriter,
+            state,
+            "UPDATE kids SET id = 'Dramatic' WHERE phone = '9843421696';",
+            QueryRewriterError::UnAuthorizedUpdate,
+        );
+
+        let rule_engine = HardRuleEngine {
+            protected_columns: HashMap::from([(String::from("kids"), vec![String::from("id")])]),
+            insert_allowed: false,
+            update_allowed: true,
+        };
+        let rewriter = QueryRewriter::new(rule_engine, vec![]);
+        let state = Ctx::new(get_table_info());
+        assert_error(
+            &rewriter,
+            state,
+            "UPDATE kids SET id = 'Dramatic' WHERE phone = '9843421696';",
+            QueryRewriterError::UnAuthorizedUpdate,
+        );
+
+        let rule_engine = HardRuleEngine {
+            protected_columns: HashMap::from([(String::from("kids"), vec![String::from("id")])]),
+            insert_allowed: false,
+            update_allowed: true,
+        };
+        let rewriter = QueryRewriter::new(rule_engine, vec![]);
+        let state = Ctx::new(get_table_info());
+        assert_rewriter(
+            &rewriter,
+            state,
+            "UPDATE kids SET phone = 'Dramatic' WHERE phone = '9843421696';",
+            "UPDATE kids SET phone = 'Dramatic' WHERE phone = '9843421696'",
+        );
+    }
 }
