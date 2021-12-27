@@ -18,13 +18,17 @@ pub trait RuleEngine {
     fn is_table_protected(&self, table_name: &String) -> bool;
     fn get_allowed_columns(&self, table_name: &String, columns: Vec<String>) -> Vec<String>;
     fn get_protected_columns(&self, table_name: &String) -> Option<Vec<String>>;
+    fn is_insert_allowed(&self) -> bool;
+    fn is_update_allowed(&self) -> bool;
+    fn is_protected_column(&self, table_name: &String, column: &String) -> bool;
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 
 pub struct HardRuleEngine {
-    pub(crate) protected_columns: HashMap<String, Vec<String>>,
-    pub(crate) insert_allowed: bool,
+    pub protected_columns: HashMap<String, Vec<String>>,
+    pub insert_allowed: bool,
+    pub update_allowed: bool,
 }
 
 impl RuleEngine for HardRuleEngine {
@@ -62,12 +66,30 @@ impl RuleEngine for HardRuleEngine {
         }
         return None;
     }
+
+    fn is_protected_column(&self, table_name: &String, column: &String) -> bool {
+        if let Some(protected_columns) = self.protected_columns.get(table_name) {
+            return protected_columns.iter().position(|protected_column| *protected_column == *column).is_some()
+        }
+        return false;
+    }
+
+    fn is_insert_allowed(&self) -> bool {
+        self.insert_allowed
+    }
+    fn is_update_allowed(&self) -> bool {
+        self.update_allowed
+    }
 }
 
 impl HardRuleEngine {
     pub fn from_protected_columns(
         protected_columns: HashMap<String, Vec<String>>,
     ) -> HardRuleEngine {
-        HardRuleEngine { protected_columns, insert_allowed: false }
+        HardRuleEngine {
+            protected_columns,
+            insert_allowed: false,
+            update_allowed: false,
+        }
     }
 }

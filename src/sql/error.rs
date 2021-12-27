@@ -22,6 +22,8 @@ pub enum QueryRewriterError {
     UnAuthorizedColumn((Option<String>, String)),
     FromNeedAlias,
     RewriteExpr { alias_name: String },
+    UnAuthorizedInsert,
+    UnAuthorizedUpdate,
 }
 
 impl Display for QueryRewriterError {
@@ -49,6 +51,18 @@ impl Display for QueryRewriterError {
                     f,
                     "rewrite expression with null value with alias name {}",
                     alias_name
+                )
+            }
+            QueryRewriterError::UnAuthorizedInsert => {
+                write!(
+                    f,
+                    "unauthorized insert"
+                )
+            }
+            QueryRewriterError::UnAuthorizedUpdate => {
+                write!(
+                    f,
+                    "unauthorized update"
                 )
             }
         }

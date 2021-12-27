@@ -21,14 +21,14 @@ use sqlparser::ast::{
     TableFactor, TrimWhereField, Value,
 };
 // QueryRewriter validates the user query and rewrites if neccessary.
-pub struct QueryRewriter<T: RuleEngine> {
+pub struct QueryRewriter<T: RuleEngine + Clone> {
     // rule engine is responsible for handling all the rules which are enforced by
     // the end user.
     namespaces: Vec<String>,
     rule_engine: T,
 }
 
-impl<T: RuleEngine> QueryRewriter<T> {
+impl<T: RuleEngine + Clone> QueryRewriter<T> {
     // new will return query rewriter
     pub fn new(rule_engine: T, ns: Vec<String>) -> QueryRewriter<T> {
         return QueryRewriter {
@@ -46,6 +46,42 @@ impl<T: RuleEngine> QueryRewriter<T> {
             match statement {
                 Statement::Query(query) => {
                     self.handle_query(query, &state)?;
+                }
+                Statement::Update { .. } => {
+                    if !self.rule_engine.is_update_allowed() {
+                        return Err(QueryRewriterError::UnAuthorizedUpdate);
+                    }
+                }
+                Statement::Insert {
+                    columns,
+                    table_name,
+                    ..
+                } => {
+                    if !self.rule_engine.is_insert_allowed() {
+                        return Err(QueryRewriterError::UnAuthorizedInsert);
+                    }
+                    if columns.len() == 0 {
+                        return Err(QueryRewriterError::UnAuthorizedInsert);
+                    }
+                    // check whether any of the column is protected column.
+                    for column in columns {
+                        let table_name = join_indents(&table_name.0);
+                        if self
+                            .rule_engine
+                            .is_protected_column(&table_name, &column.value)
+                        {
+                            return Err(QueryRewriterError::UnAuthorizedInsert);
+                        }
+                        for ns in &self.namespaces {
+                            let table_name = format!("{}.{}", ns, table_name);
+                            if self
+                                .rule_engine
+                                .is_protected_column(&table_name, &column.value)
+                            {
+                                return Err(QueryRewriterError::UnAuthorizedInsert);
+                            }
+                        }
+                    }
                 }
                 _ => {
                     continue;
@@ -192,9 +228,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
                 local_state.memorize_protected_columns(table_name.clone(), protected_columns);
             }
             TableFactor::Derived {
-                subquery,
-                alias,
-                ..
+                subquery, alias, ..
             } => {
                 // derived table are the subquery in the FROM clause.
                 // eg: SELECT * from (select * from premimum users limit by 10) as users;
@@ -451,11 +485,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
             Expr::Value(_) | Expr::TypedString { .. } => {
                 // things that needs no evaluation.
             }
-            Expr::BinaryOp {
-                left,
-                right,
-                ..
-            } => {
+            Expr::BinaryOp { left, right, .. } => {
                 if let Err(_) = self.handle_expr(state, left) {
                     *left = Box::new(Expr::Value(Value::Null));
                 };
@@ -463,7 +493,7 @@ impl<T: RuleEngine> QueryRewriter<T> {
                     *right = Box::new(Expr::Value(Value::Null));
                 }
             }
-            Expr::UnaryOp { expr , ..} => {
+            Expr::UnaryOp { expr, .. } => {
                 if let Err(_) = self.handle_expr(state, expr) {
                     *expr = Box::new(Expr::Value(Value::Null));
                 }
@@ -536,7 +566,7 @@ mod tests {
         };
     }
 
-    fn assert_rewriter<T: RuleEngine>(
+    fn assert_rewriter<T: RuleEngine + Clone>(
         rewriter: &QueryRewriter<T>,
         state: Ctx,
         input: &'static str,
@@ -548,7 +578,7 @@ mod tests {
         assert_eq!(output, format!("{}", statements[0]))
     }
 
-    fn assert_error<T: RuleEngine>(
+    fn assert_error<T: RuleEngine + Clone>(
         rewriter: &QueryRewriter<T>,
         state: Ctx,
         input: &'static str,
@@ -575,6 +605,7 @@ mod tests {
                 vec![String::from("phone")],
             )]),
             insert_allowed: false,
+            update_allowed: false,
         };
 
         let state = Ctx::new(HashMap::from([(
@@ -608,6 +639,7 @@ mod tests {
         let rule_engine = HardRuleEngine {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
             insert_allowed: false,
+            update_allowed: false,
         };
 
         let state = Ctx::new(HashMap::from([
@@ -633,6 +665,7 @@ mod tests {
                 vec![String::from("phone")],
             )]),
             insert_allowed: false,
+            update_allowed: false,
         };
 
         let state = Ctx::new(HashMap::from([(
@@ -663,6 +696,7 @@ mod tests {
                 vec![String::from("phone")],
             )]),
             insert_allowed: false,
+            update_allowed: false,
         };
 
         let state = Ctx::new(HashMap::from([(
@@ -698,6 +732,7 @@ mod tests {
                 vec![String::from("phone")],
             )]),
             insert_allowed: false,
+            update_allowed: false,
         };
 
         let state = Ctx::new(HashMap::from([
@@ -744,6 +779,7 @@ mod tests {
                 (String::from("public.kids2"), vec![String::from("phone")]),
             ]),
             insert_allowed: false,
+            update_allowed: false,
         };
 
         let state = Ctx::new(HashMap::from([
@@ -809,6 +845,7 @@ mod tests {
                 (String::from("kids2"), vec![String::from("phone")]),
             ]),
             insert_allowed: false,
+            update_allowed: false,
         };
 
         let state = Ctx::new(HashMap::from([
@@ -846,6 +883,7 @@ mod tests {
         let rule_engine = HardRuleEngine {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
             insert_allowed: false,
+            update_allowed: false,
         };
 
         let state = Ctx::new(HashMap::from([(
@@ -872,6 +910,7 @@ mod tests {
         let rule_engine = HardRuleEngine {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
             insert_allowed: false,
+            update_allowed: false,
         };
 
         let state = Ctx::new(HashMap::from([(
@@ -951,6 +990,7 @@ mod tests {
                 vec![String::from("phone")],
             )]),
             insert_allowed: false,
+            update_allowed: false,
         };
 
         let state = Ctx::new(HashMap::from([(
@@ -1031,6 +1071,7 @@ mod tests {
         let rule_engine = HardRuleEngine {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
             insert_allowed: false,
+            update_allowed: false,
         };
 
         let state = Ctx::new(get_table_info());
@@ -1042,5 +1083,24 @@ mod tests {
         assert_rewriter(&rewriter, state.clone(), "SELECT DISTINCT t.typname FROM pg_enum e LEFT JOIN pg_type t ON t.oid = e.enumtypid", "SELECT DISTINCT t.typname FROM pg_enum AS e LEFT JOIN pg_type AS t ON t.oid = e.enumtypid");
     }
 
-    
+    #[test]
+    fn test_insert() {
+        let rule_engine = HardRuleEngine {
+            protected_columns: HashMap::from([(String::from("kids"), vec![String::from("id")])]),
+            insert_allowed: false,
+            update_allowed: false,
+        };
+        let rewriter = QueryRewriter::new(rule_engine, vec![]);
+        let state = Ctx::new(get_table_info());
+        assert_error(&rewriter, state, "INSERT INTO KIDS(phone) values('9843421696')", QueryRewriterError::UnAuthorizedInsert);
+        let rule_engine = HardRuleEngine {
+            protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
+            insert_allowed: true,
+            update_allowed: false,
+        };
+        let rewriter = QueryRewriter::new(rule_engine, vec![]);
+        let state = Ctx::new(get_table_info());
+        assert_rewriter(&rewriter, state, "INSERT INTO KIDS(phone) values('9843421696')", 
+        "INSERT INTO KIDS (phone) VALUES ('9843421696')")
+    }
 }
