@@ -16,9 +16,11 @@ use crate::sql::ctx::Ctx;
 use crate::sql::error::QueryRewriterError;
 use crate::sql::rule_engine::RuleEngine;
 
+use anyhow::Result;
+use log::*;
 use sqlparser::ast::{
-    Expr, FunctionArg, FunctionArgExpr, Ident, Query, Select, SelectItem, SetExpr, Statement,
-    TableFactor, TrimWhereField, Value,
+    Assignment, Expr, FunctionArg, FunctionArgExpr, Ident, Query, Select, SelectItem, SetExpr,
+    Statement, TableFactor, TableWithJoins, TrimWhereField, Value,
 };
 // QueryRewriter validates the user query and rewrites if neccessary.
 pub struct QueryRewriter<T: RuleEngine + Clone> {
@@ -47,10 +49,13 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
                 Statement::Query(query) => {
                     self.handle_query(query, &state)?;
                 }
-                Statement::Update { .. } => {
+                Statement::Update {
+                    table, assignments, ..
+                } => {
                     if !self.rule_engine.is_update_allowed() {
                         return Err(QueryRewriterError::UnAuthorizedUpdate);
                     }
+                    self.handle_update(&table, &assignments)?;
                 }
                 Statement::Insert {
                     columns,
@@ -86,6 +91,55 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
                 _ => {
                     continue;
                 }
+            }
+        }
+        Ok(())
+    }
+
+    /// handle_update validate the given table and assignment are allowed by the user, if not this
+    /// throw error.
+    pub fn handle_update(
+        &self,
+        table: &TableWithJoins,
+        assignments: &Vec<Assignment>,
+    ) -> Result<(), QueryRewriterError> {
+        // get the table name.
+        let table_name = match &table.relation {
+            TableFactor::Table { name, .. } => join_indents(&name.0),
+            _ => {
+                warn!(
+                    "unexpected releationship for the update statement table {:?}",
+                    table
+                );
+                return Err(QueryRewriterError::UnAuthorizedUpdate);
+            }
+        };
+        // is_protected check whether the columns in given table name is protected or not.
+        let is_protected = |table_name: &String| -> Result<(), QueryRewriterError> {
+            if let Some(protected_columns) = self.rule_engine.get_protected_columns(table_name) {
+                for assignment in assignments {
+                    let column = &assignment.id.last().unwrap().value;
+                    // check column is in protected columns.
+                    if protected_columns
+                        .iter()
+                        .position(|protected_column| *protected_column == *column)
+                        .is_some()
+                    {
+                        return Err(QueryRewriterError::UnAuthorizedUpdate);
+                    }
+                }
+            }
+            return Ok(());
+        };
+
+        // validate whether this update is allowed or not.
+        if let Err(e) = is_protected(&table_name) {
+            return Err(e);
+        }
+        for ns in &self.namespaces {
+            let ns_table_name = format!("{}.{}", ns, table_name);
+            if let Err(e) = is_protected(&ns_table_name) {
+                return Err(e);
             }
         }
         Ok(())
@@ -593,8 +647,13 @@ mod tests {
     #[test]
     fn test_for_output() {
         let dialect = PostgreSqlDialect {};
-        let statements =
-            Parser::parse_sql(&dialect, r#"SELECT n.nspname = ANY(current_schemas(true)), n.nspname, t.typname FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON t.typnamespace = n.oid WHERE t.oid = $1"#).unwrap();
+        let statements = Parser::parse_sql(
+            &dialect,
+            r#"UPDATE accounts SET (contact_last_name, contact_first_name) =
+            (SELECT last_name, first_name FROM salesmen
+             WHERE salesmen.id = accounts.sales_id);"#,
+        )
+        .unwrap();
         println!("{:?}", statements[0])
     }
     #[test]
@@ -1092,7 +1151,12 @@ mod tests {
         };
         let rewriter = QueryRewriter::new(rule_engine, vec![]);
         let state = Ctx::new(get_table_info());
-        assert_error(&rewriter, state, "INSERT INTO KIDS(phone) values('9843421696')", QueryRewriterError::UnAuthorizedInsert);
+        assert_error(
+            &rewriter,
+            state,
+            "INSERT INTO KIDS(phone) values('9843421696')",
+            QueryRewriterError::UnAuthorizedInsert,
+        );
         let rule_engine = HardRuleEngine {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
             insert_allowed: true,
@@ -1100,7 +1164,11 @@ mod tests {
         };
         let rewriter = QueryRewriter::new(rule_engine, vec![]);
         let state = Ctx::new(get_table_info());
-        assert_rewriter(&rewriter, state, "INSERT INTO KIDS(phone) values('9843421696')", 
-        "INSERT INTO KIDS (phone) VALUES ('9843421696')")
+        assert_rewriter(
+            &rewriter,
+            state,
+            "INSERT INTO KIDS(phone) values('9843421696')",
+            "INSERT INTO KIDS (phone) VALUES ('9843421696')",
+        )
     }
 }
