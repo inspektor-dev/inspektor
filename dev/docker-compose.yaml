@@ -1,0 +1,17 @@
+
+version: '3.5'
+
+services:
+  postgres:
+    container_name: postgres_container
+    image: postgres
+    environment:
+        POSTGRES_USER: "debuggeruser"
+        POSTGRES_PASSWORD: "debuggerpassword"
+    volumes:
+       - postgres:/data/postgres
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+volumes: 
+    postgres:
