@@ -6,10 +6,17 @@
         <h1>Login</h1>
         <n-form :model="formValue" :rules="rules" ref="formRef">
           <n-form-item path="username" label="Username">
-            <n-input v-model:value="formValue.username" placeholder="Enter username"/>
+            <n-input
+              v-model:value="formValue.username"
+              placeholder="Enter username"
+            />
           </n-form-item>
           <n-form-item path="password" label="Password">
-            <n-input v-model:value="formValue.password" type="password" placeholder="Enter Password"/>
+            <n-input
+              v-model:value="formValue.password"
+              type="password"
+              placeholder="Enter Password"
+            />
           </n-form-item>
           <div style="display: flex; justify-content: center">
             <n-button type="success" @click="handleValidate">Login</n-button>
@@ -23,17 +30,20 @@
 <script>
 import { ref } from "vue";
 import { useMessage } from "naive-ui";
+import api from "@/api/api";
+
 export default {
   setup() {
+    //console.log("login obj", login)
     let formRef = ref(null);
     const message = useMessage();
-
+    let formValue = ref({
+      username: "",
+      password: "",
+    });
     return {
       formRef,
-      formValue: ref({
-        username: "",
-        password: "",
-      }),
+      formValue: formValue,
       rules: {
         username: {
           required: true,
@@ -48,13 +58,23 @@ export default {
       },
       handleValidate(e) {
         e.preventDefault();
-        formRef.value.validate((errors) => {
+        formRef.value.validate(async (errors) => {
           if (!errors) {
-             message.warning("Nivetha is a nandu kutty");
-            console.log("to");
+            //console.log(formValue.value.username, formValue.value.password);
+            try {
+              let token = await api.login(
+                formValue.value.username,
+                formValue.value.password
+              );
+              localStorage.setItem('access-token', token);
+              
+            } catch (e) {
+              console.log(e.response)
+              message.error(e.response.data.msg)
+            }
           } else {
             console.log(errors);
-            // message.error("Invalid");
+            message.error("Invalid data");
           }
         });
       },

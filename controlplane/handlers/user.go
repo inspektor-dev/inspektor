@@ -12,6 +12,7 @@ import (
 
 	"github.com/golang-jwt/jwt"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/handlers"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -81,10 +82,17 @@ func (h *Handlers) PolicyNotification() http.HandlerFunc {
 }
 
 func (h *Handlers) Init(router *mux.Router) {
-	router.HandleFunc("/login", h.Login()).Methods("POST")
-	router.HandleFunc("/datasource", h.AuthMiddleWare(h.CreateDataSource())).Methods("POST")
-	router.HandleFunc("/datasource", h.AuthMiddleWare(h.GetDataSources())).Methods("GET")
-	router.HandleFunc("/session", h.AuthMiddleWare(h.CreateSession())).Methods("POST")
-	router.HandleFunc("/session", h.AuthMiddleWare(h.GetSesssion())).Methods("GET")
-	router.HandleFunc("/policy/nofification", h.PolicyNotification()).Methods("POST")
+	router.HandleFunc("/login", h.Login()).Methods("POST","OPTIONS")
+	router.HandleFunc("/datasource", h.AuthMiddleWare(h.CreateDataSource())).Methods("POST", "OPTIONS")
+	router.HandleFunc("/datasource", h.AuthMiddleWare(h.GetDataSources())).Methods("GET", "OPTIONS")
+	router.HandleFunc("/session", h.AuthMiddleWare(h.CreateSession())).Methods("POST", "OPTIONS")
+	router.HandleFunc("/session", h.AuthMiddleWare(h.GetSesssion())).Methods("GET", "OPTIONS")
+	router.HandleFunc("/policy/nofification", h.PolicyNotification()).Methods("POST", "OPTIONS")
+	cors := handlers.CORS(
+		handlers.AllowedHeaders([]string{"Content-Type", "Auth-Token"}),
+		handlers.AllowedOrigins([]string{"*"}),
+		handlers.AllowCredentials(),
+		handlers.AllowedMethods([]string{"GET", "HEAD", "POST", "DELETE"}),
+	)
+	router.Use(cors)
 }
