@@ -11,7 +11,6 @@
       <n-tabs type="line">
         <n-tab-pane name="oasis" tab="Datasource"><datasources></datasources></n-tab-pane>
         <n-tab-pane name="the beatles" tab="Admin"><admin/></n-tab-pane>
-        <n-tab-pane name="jay chou" tab="Connections">Qilixiang</n-tab-pane>
       </n-tabs></n-card
     >
   </div>

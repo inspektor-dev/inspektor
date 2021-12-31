@@ -22,4 +22,13 @@ const router = createRouter({
   routes
 })
 
+router.beforeEach((_,from, next) => {
+  let token = localStorage.getItem('access-token')
+  if (token == null && from.path != '/') {
+    next({ path: '/' })
+    return
+  }
+  next()
+})
+
 export default router

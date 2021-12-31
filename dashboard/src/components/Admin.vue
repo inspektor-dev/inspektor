@@ -71,13 +71,13 @@ export default {
       handleMenuSelect: (key) => {
           console.log("key val ", key);
         if (key == "user") {
-          showUser = true;
-          showGithub = false;
+          showUser.value = true;
+          showGithub.value = false;
           return;
         }
         if (key == "github") {
-          showUser = false;
-          showGithub = true;
+          showUser.value = false;
+          showGithub.value = true;
           return;
         }
       },
