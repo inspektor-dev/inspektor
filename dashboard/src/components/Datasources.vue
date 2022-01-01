@@ -1,4 +1,4 @@
-<template>
+<template >
   <n-button type="success" @click="showModal = true">Add Datasources</n-button>
   <n-modal v-model:show="showModal">
     <n-card
@@ -18,15 +18,16 @@
 import { ref, h } from "vue";
 import { NTag } from "naive-ui";
 import AddDatasource from "./AddDatasource.vue";
+import api from "@/api/api";
 
 const createData = () => {
   return [
-    {
-      key: 0,
-      datasourceName: "prod-databse",
-      type: "postgres",
-      roles: ["admin", "dev"],
-    },
+    // {
+    //   key: 0,
+    //   datasourceName: "prod-databse",
+    //   type: "postgres",
+    //   roles: ["admin", "dev"],
+    // },
   ];
 };
 
@@ -65,7 +66,9 @@ const createColumn = () => {
 };
 export default {
   components: { AddDatasource },
-  setup() {
+  async setup() {
+    let datasources = await api.getDatasources();
+    //console.log(datasources)
     return {
       showModal: ref(false),
       data: createData(),

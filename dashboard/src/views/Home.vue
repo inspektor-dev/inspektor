@@ -31,6 +31,7 @@
 import { ref } from "vue";
 import { useMessage } from "naive-ui";
 import api from "@/api/api";
+import { useRouter } from "vue-router";
 
 export default {
   setup() {
@@ -41,6 +42,7 @@ export default {
       username: "",
       password: "",
     });
+    let router = useRouter();
     return {
       formRef,
       formValue: formValue,
@@ -66,11 +68,11 @@ export default {
                 formValue.value.username,
                 formValue.value.password
               );
-              localStorage.setItem('access-token', token);
-              
+              localStorage.setItem("access-token", token);
+              router.push("/dashboard");
             } catch (e) {
-              console.log(e.response)
-              message.error(e.response.data.msg)
+              console.log(e.response);
+              message.error(e.response.data.msg);
             }
           } else {
             console.log(errors);

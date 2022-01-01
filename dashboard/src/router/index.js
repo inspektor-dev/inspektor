@@ -23,9 +23,7 @@ const router = createRouter({
 })
 
 router.beforeEach((to,_, next) => {
-  console.log("i;M CAKKEDS")
   let token = localStorage.getItem('access-token')
-  console.log("from pat", to)
   if (token == null && to.path != '/') {
     next({ path: '/' })
     return

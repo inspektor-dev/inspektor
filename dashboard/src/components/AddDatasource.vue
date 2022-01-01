@@ -1,10 +1,6 @@
 <template>
-  <!-- <n-form :model="model">
-    <n-form-item-gi label="Datasource Type">
-      <n-select placeholder="Select" :options="types" />
-    </n-form-item-gi>
-  </n-form> -->
   <div>
+
     <n-form-item path="bane" label="Datasource name">
       <n-input />
     </n-form-item>
