@@ -2,7 +2,7 @@
   <n-grid x-gap="12" :cols="3" class="container">
     <n-gi> </n-gi>
     <n-gi>
-      <div class="green">
+      <div>
         <h1>Login</h1>
         <n-form :model="formValue" :rules="rules" ref="formRef">
           <n-form-item path="username" label="Username">
@@ -69,7 +69,9 @@ export default {
                 formValue.value.password
               );
               localStorage.setItem("access-token", token);
-              router.push("/dashboard");
+              setTimeout(() => {
+                router.push("/dashboard");
+              }, 1000);
             } catch (e) {
               console.log(e.response);
               message.error(e.response.data.msg);

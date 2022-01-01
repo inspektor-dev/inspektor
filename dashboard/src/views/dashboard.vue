@@ -5,7 +5,7 @@
         <n-gi>
           <h1>Inspektor dashboard</h1>
         </n-gi>
-        <n-gi> <div class="button-pos"><n-button type="error">Logout</n-button></div> </n-gi>
+        <n-gi> <div class="button-pos"><n-button type="error" @click="logout">Logout</n-button></div> </n-gi>
       </n-grid>
 
       <n-tabs type="line">
@@ -19,14 +19,24 @@
 <style scoped>
 .button-pos{
   position: absolute;
-  top: 25%;
-  right: 2%;
+   top: 12%;
+  right: 2%; 
 }
 </style>
 <script>
 import Datasources from  '@/components/Datasources.vue'
 import Admin from '@/components/Admin.vue'
+import {useRouter} from 'vue-router';
 export default {
+  setup() {
+    let router = useRouter();
+    return {
+      logout: () =>{
+        localStorage.clear();
+        router.push("/")
+      }
+    }
+  },
   components: {
     Datasources,
     Admin
