@@ -20,5 +20,9 @@ export default {
     getDatasources: async() =>{
         let res = await axios.get("/datasource")
         return res.data
+    },
+    addDatasource: async (data) => {
+        console.log("post data", data)
+        await axios.post("/datasource", data)
     }
 }

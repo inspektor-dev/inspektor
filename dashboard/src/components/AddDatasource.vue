@@ -19,6 +19,9 @@
       >
         <n-dynamic-tags v-model:value="formValue.roles" />
       </n-form-item>
+      <n-form-item path="sidecarHostname" label="sidecar hostname">
+        <n-input v-model:value="formValue.sidecarHostname" placeholder="prod.inspektor.com" />
+      </n-form-item>
       <div style="display: flex; justify-content: flex-end">
         <n-button type="success" @click="createDatasource"
           >Create Datasource</n-button
@@ -31,9 +34,10 @@
 <script>
 import { ref, computed } from "vue";
 import { useMessage } from "naive-ui";
+import api from "@/api/api";
 
 export default {
-  setup() {
+  setup(_, {emit}) {
     //let roles = ref(['admin']);
     let formRef = ref(null);
     const message = useMessage();
@@ -41,6 +45,7 @@ export default {
       name: "",
       type: "",
       roles: ["admin"],
+      sidecarHostname: "",
     });
     return {
       formRef,
@@ -57,7 +62,7 @@ export default {
           trigger: "blur",
         },
       },
-      generalOptions: ["Postgres"].map((v) => ({
+      generalOptions: ["postgres"].map((v) => ({
         label: v,
         value: v,
       })),
@@ -75,7 +80,7 @@ export default {
       }),
       createDatasource(e) {
         e.preventDefault();
-        formRef.value.validate((errors) => {
+        formRef.value.validate(async (errors) => {
           if (errors) {
             message.error("Invalid data");
             return;
@@ -83,6 +88,8 @@ export default {
           if (formValue.value.roles.length == 0) {
             message.error("Enter roles for datasource");
           }
+          await api.addDatasource(formValue.value)
+          emit('onAdd')
         });
       },
     };

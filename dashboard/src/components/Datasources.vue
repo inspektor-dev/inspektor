@@ -7,7 +7,7 @@
       :bordered="false"
       size="huge"
     >
-      <add-datasource> </add-datasource>
+      <add-datasource @onAdd="datasourceAdded"> </add-datasource>
     </n-card>
   </n-modal>
   <div style="padding-top: 2%">
@@ -31,48 +31,40 @@ const createData = () => {
   ];
 };
 
+const getDatasources = async () => {
+  return await api.getDatasources()
+}
+
 const createColumn = () => {
   return [
     {
       title: "Datasource Name",
-      key: "datasourceName",
+      key: "name",
     },
     {
-      title: "Type ",
+      title: "Type",
       key: "type",
     },
     {
-      title: "Roles",
-      key: "roles",
-      render(row) {
-        const roles = row.roles.map((key) => {
-          return h(
-            NTag,
-            {
-              type: "info",
-              style: {
-                marginRight: "6px",
-              },
-            },
-            {
-              default: () => key,
-            }
-          );
-        });
-        return roles;
-      },
+      title: "sidecar hostname",
+      key: "sidecarHostname",
     },
   ];
 };
 export default {
   components: { AddDatasource },
   async setup() {
-    let datasources = await api.getDatasources();
-    //console.log(datasources)
+    console.log("source", await getDatasources())
+    let datasources = ref(await getDatasources());
+    let showModal = ref(false);
     return {
-      showModal: ref(false),
-      data: createData(),
+      showModal: showModal,
+      data: datasources,
       columns: createColumn(),
+      datasourceAdded: async () => {
+        showModal.value = false;
+        datasources.value = await getDatasources();
+      },
     };
   },
   name: "Datasources",

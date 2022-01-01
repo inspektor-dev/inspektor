@@ -11,8 +11,8 @@ type DataSource struct {
 	CreatedAt       time.Time      `json:"-"`
 	UpdatedAt       time.Time      `json:"-"`
 	DeletedAt       gorm.DeletedAt `gorm:"index"`
-	Name            string         `gorm:"unique"`
-	Type            string         `json:"-"`
-	SideCarHostName string         `json:"sidecarHostName"`
+	Name            string         `gorm:"unique" json:"name"`
+	Type            string         `json:"type"`
+	SideCarHostName string         `json:"sidecarHostname"`
 	SideCarToken    string         `json:"sidecarToken,omitempty"`
 }
