@@ -15,25 +15,16 @@
   </div>
 </template>
 <script>
-import { ref, h } from "vue";
+import { ref, h, computed } from "vue";
 import { NTag } from "naive-ui";
 import AddDatasource from "./AddDatasource.vue";
+import { useStore } from "vuex";
+
 import api from "@/api/api";
 
-const createData = () => {
-  return [
-    // {
-    //   key: 0,
-    //   datasourceName: "prod-databse",
-    //   type: "postgres",
-    //   roles: ["admin", "dev"],
-    // },
-  ];
-};
-
 const getDatasources = async () => {
-  return await api.getDatasources()
-}
+  return await api.getDatasources();
+};
 
 const createColumn = () => {
   return [
@@ -54,17 +45,22 @@ const createColumn = () => {
 export default {
   components: { AddDatasource },
   async setup() {
-    console.log("source", await getDatasources())
-    let datasources = ref(await getDatasources());
+    let store = useStore();
+    await store.dispatch("updateDatasource");
     let showModal = ref(false);
     return {
       showModal: showModal,
-      data: datasources,
+      data: computed(() => {
+        return store.state.datasources;
+      }),
       columns: createColumn(),
       datasourceAdded: async () => {
         showModal.value = false;
-        datasources.value = await getDatasources();
+        await store.dispatch("updateDatasource");
       },
+      count: computed(() => {
+        return store.state.count;
+      }),
     };
   },
   name: "Datasources",
