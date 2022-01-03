@@ -21,18 +21,11 @@
 </template>
 
 <script>
-import { h, ref } from "vue";
+import { h, ref,computed } from "vue";
 import { NTag, NButton } from "naive-ui";
+import { useStore } from "vuex";
 import AddUser from "./AddUser.vue";
-const createData = () => {
-  return [
-    {
-      key: 0,
-      username: "balaji@secret.com",
-      roles: ["admin", "dev"],
-    },
-  ];
-};
+
 
 const createColumn = () => {
   return [
@@ -83,12 +76,18 @@ const createColumn = () => {
 export default {
   components: { AddUser },
   name: "Users",
-  setup: () => {
+  setup: async () => {
+    let store = useStore();
+    await store.dispatch("updateUsers");
     let showModal = ref(false);
     return {
-      data: createData(),
+      data: computed(() => store.state.users),
       columns: createColumn(),
       showModal: showModal,
+      userAdded: async () => {
+        showModal.value = false;
+        await store.dispatch("updateUsers");
+      },
     };
   },
 };

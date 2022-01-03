@@ -17,14 +17,18 @@ export default {
         let res = await axios.post("/login", { username, password })
         return res.data.token
     },
-    getDatasources: async() =>{
+    getDatasources: async () => {
         let res = await axios.get("/datasource")
         return res.data
     },
     addDatasource: async (data) => {
         await axios.post("/datasource", data)
     },
-    addUser: async(data) => {
+    addUser: async (data) => {
         await axios.post("/user", data)
+    },
+    getUsers: async () => {
+        let res = await axios.get("/users")
+        return res.data
     }
 }
