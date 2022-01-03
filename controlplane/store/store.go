@@ -238,3 +238,9 @@ func (s *Store) CreateUser(username, password string) (*models.User, error) {
 	}
 	return user, nil
 }
+
+func (s *Store) GetUsers() ([]*models.User, error) {
+	users := []*models.User{}
+	err := s.db.Model(&models.User{}).Find(users).Error
+	return users, err
+}

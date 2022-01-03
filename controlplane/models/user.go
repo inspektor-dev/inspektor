@@ -10,10 +10,10 @@ import (
 
 type User struct {
 	gorm.Model
-	Name     string
-	Password string
-	Meta     datatypes.JSON
-	UserMeta *UserMeta `gorm:"-"`
+	Name     string         `json:"name"`
+	Password string         `json:"-"`
+	Meta     datatypes.JSON `json:"-"`
+	UserMeta *UserMeta      `gorm:"-"`
 }
 
 func (u *User) UnmarshalMeta() {
@@ -22,6 +22,11 @@ func (u *User) UnmarshalMeta() {
 		json.Unmarshal(u.Meta, &meta)
 	}
 	u.UserMeta = meta
+}
+
+func (u *User) MarshalJSON() ([]byte, error) {
+	u.UnmarshalMeta()
+	return json.Marshal(u)
 }
 
 func (u *User) MarshalMeta() {

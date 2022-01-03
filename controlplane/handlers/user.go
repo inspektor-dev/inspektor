@@ -99,8 +99,25 @@ func (h *Handlers) AddUser() InspectorHandler {
 		if err := h.Store.WriteRoleForUserObjectID(user.ID, req.Roles); err != nil {
 			utils.Logger.Error("error while adding roles to the user", zap.String("err_msg", err.Error()))
 			handleErr(err, ctx)
+			return
 		}
 		utils.WriteSuccesMsg("ok", http.StatusOK, ctx.Rw)
+	}
+}
+
+func (h *Handlers) GetUsers() InspectorHandler {
+	return func(ctx *types.Ctx) {
+		if utils.IndexOf(ctx.Claim.Roles, "admin") == -1 {
+			utils.WriteErrorMsgWithErrCode("only admin can add user", types.ErrInvalidAccess, http.StatusUnauthorized, ctx.Rw)
+			return
+		}
+		users, err := h.Store.GetUsers()
+		if err != nil {
+			utils.Logger.Error("error while retriving users", zap.String("err_msg", err.Error()))
+			handleErr(err, ctx)
+			return
+		}
+		utils.WriteSuccesMsgWithData("ok", http.StatusOK, users, ctx.Rw)
 	}
 }
 
@@ -121,6 +138,7 @@ func (h *Handlers) Init(router *mux.Router) {
 	router.HandleFunc("/session", h.AuthMiddleWare(h.GetSesssion())).Methods("GET", "OPTIONS")
 	router.HandleFunc("/policy/nofification", h.PolicyNotification()).Methods("POST", "OPTIONS")
 	router.HandleFunc("/user", h.AuthMiddleWare(h.AddUser())).Methods("POST", "OPTIONS")
+	router.HandleFunc("/user", h.AuthMiddleWare(h.GetUsers())).Methods("GET", "OPTIONS")
 	cors := handlers.CORS(
 		handlers.AllowedHeaders([]string{"Content-Type", "Auth-Token"}),
 		handlers.AllowedOrigins([]string{"*"}),
