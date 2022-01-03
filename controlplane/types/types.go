@@ -37,6 +37,25 @@ type CreateDataSourceRequest struct {
 	SideCarHostName string   `json:"sidecarHostname"`
 }
 
+type CreateUserRequest struct {
+	UserName string   `json:"username"`
+	Password string   `json:"password"`
+	Roles    []string `json:"roles"`
+}
+
+func (c *CreateUserRequest) Validate() error {
+	if c.UserName == "" {
+		return errors.New("username is a required field")
+	}
+	if c.Password == "" {
+		return errors.New("password is a required field")
+	}
+	if len(c.Roles) == 0 {
+		return errors.New("user need atlease one role")
+	}
+	return nil
+}
+
 var ValidDataSources = []string{"postgres"}
 
 func (c *CreateDataSourceRequest) Validate() error {

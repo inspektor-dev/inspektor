@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt"
-	"github.com/gorilla/mux"
 	"github.com/gorilla/handlers"
+	"github.com/gorilla/mux"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -72,6 +72,38 @@ func (h *Handlers) Login() http.HandlerFunc {
 	}
 }
 
+func (h *Handlers) AddUser() InspectorHandler {
+	return func(ctx *types.Ctx) {
+		if utils.IndexOf(ctx.Claim.Roles, "admin") == -1 {
+			utils.WriteErrorMsgWithErrCode("only admin can add user", types.ErrInvalidAccess, http.StatusUnauthorized, ctx.Rw)
+			return
+		}
+
+		req := &types.CreateUserRequest{}
+		if err := json.NewDecoder(ctx.R.Body).Decode(req); err != nil {
+			utils.WriteErrorMsg("invalid json", http.StatusBadRequest, ctx.Rw)
+			return
+		}
+
+		if err := req.Validate(); err != nil {
+			utils.WriteErrorMsg(err.Error(), http.StatusBadRequest, ctx.Rw)
+			return
+		}
+
+		user, err := h.Store.CreateUser(req.UserName, req.Password)
+		if err != nil {
+			utils.Logger.Error("error while creating user", zap.String("err_msg", err.Error()))
+			handleErr(err, ctx)
+			return
+		}
+		if err := h.Store.WriteRoleForUserObjectID(user.ID, req.Roles); err != nil {
+			utils.Logger.Error("error while adding roles to the user", zap.String("err_msg", err.Error()))
+			handleErr(err, ctx)
+		}
+		utils.WriteSuccesMsg("ok", http.StatusOK, ctx.Rw)
+	}
+}
+
 func (h *Handlers) PolicyNotification() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		if err := h.Policy.Sync(); err != nil {
@@ -82,12 +114,13 @@ func (h *Handlers) PolicyNotification() http.HandlerFunc {
 }
 
 func (h *Handlers) Init(router *mux.Router) {
-	router.HandleFunc("/login", h.Login()).Methods("POST","OPTIONS")
+	router.HandleFunc("/login", h.Login()).Methods("POST", "OPTIONS")
 	router.HandleFunc("/datasource", h.AuthMiddleWare(h.CreateDataSource())).Methods("POST", "OPTIONS")
 	router.HandleFunc("/datasource", h.AuthMiddleWare(h.GetDataSources())).Methods("GET", "OPTIONS")
 	router.HandleFunc("/session", h.AuthMiddleWare(h.CreateSession())).Methods("POST", "OPTIONS")
 	router.HandleFunc("/session", h.AuthMiddleWare(h.GetSesssion())).Methods("GET", "OPTIONS")
 	router.HandleFunc("/policy/nofification", h.PolicyNotification()).Methods("POST", "OPTIONS")
+	router.HandleFunc("/user", h.AuthMiddleWare(h.AddUser())).Methods("POST", "OPTIONS")
 	cors := handlers.CORS(
 		handlers.AllowedHeaders([]string{"Content-Type", "Auth-Token"}),
 		handlers.AllowedOrigins([]string{"*"}),

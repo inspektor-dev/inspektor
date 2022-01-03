@@ -54,7 +54,7 @@ func (s *Store) init() error {
 		utils.Logger.Error("error while creating admin account", zap.String("err_msg", err.Error()))
 		return err
 	}
-	if err := s.WriteRoleForUserObjectID(user.ID, "admin"); err != nil && err != types.ErrRoleAlreadyExist {
+	if err := s.WriteRoleForUserObjectID(user.ID, []string{"admin"}); err != nil && err != types.ErrRoleAlreadyExist {
 		utils.Logger.Error("error while creating role for the default admin user", zap.String("err_msg", err.Error()))
 	}
 	return nil
@@ -66,7 +66,7 @@ func (s *Store) GetUserByName(name string) (*models.User, error) {
 	return user, err
 }
 
-func (s *Store) WriteRoleForUserObjectID(id uint, name string) error {
+func (s *Store) WriteRoleForUserObjectID(id uint, roles []string) error {
 	// if the role already exist for the object then we should throw error.
 	// TODO: simple way is that we can put primary key constraint on two columns.
 
@@ -79,12 +79,20 @@ func (s *Store) WriteRoleForUserObjectID(id uint, name string) error {
 	if count > 0 {
 		return types.ErrRoleAlreadyExist
 	}
-	role := &models.Role{
-		ObjectID: id,
-		Name:     name,
-		Type:     models.UserType,
+	rolesObj := []*models.Role{}
+	dupmap := map[string]interface{}{}
+	for _, role := range roles {
+		_, ok := dupmap[role]
+		if !ok {
+			continue
+		}
+		rolesObj = append(rolesObj, &models.Role{
+			ObjectID: id,
+			Type:     models.UserType,
+			Name:     role,
+		})
 	}
-	return s.db.Create(role).Error
+	return s.db.Model(&models.Role{}).Create(&rolesObj).Error
 }
 
 func (s *Store) GetRolesForObjectID(id uint, objectType string) ([]string, error) {
@@ -168,7 +176,6 @@ func (s *Store) CreateDataSource(datasource *models.DataSource, roles []string) 
 		return tx.Model(&models.Role{}).Create(&internalRole).Error
 	})
 }
-
 func (s *Store) GetSessionForUser(userID uint) ([]*models.Session, error) {
 	sessions := []*models.Session{}
 	if err := s.db.Model(&models.Session{}).Where("user_id = ?", userID).Find(&sessions).Error; err != nil {
@@ -214,4 +221,20 @@ func (s *Store) CreateSessionForUser(userID uint, datasourceID uint) error {
 		session.MarshalMeta()
 		return tx.Model(&models.Session{}).Create(session).Error
 	})
+}
+
+func (s *Store) CreateUser(username, password string) (*models.User, error) {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		utils.Logger.Error("error while hashing password", zap.String("err_msg", err.Error()))
+		return nil, err
+	}
+	user := &models.User{
+		Name:     username,
+		Password: string(hashedPassword),
+	}
+	if err := s.db.Create(user).Error; err != nil {
+		return nil, err
+	}
+	return user, nil
 }
