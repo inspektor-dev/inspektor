@@ -70,20 +70,20 @@ func (s *Store) WriteRoleForUserObjectID(id uint, roles []string) error {
 	// if the role already exist for the object then we should throw error.
 	// TODO: simple way is that we can put primary key constraint on two columns.
 
-	// check role exist for the the object id.
-	var count int64
-	if err := s.db.Model(&models.Role{}).Where("object_id = ? and type = ?", id, models.UserType).Count(&count).Error; err != nil {
-		utils.Logger.Error("error while checking whether role exist for the given object id", zap.Uint("object_id", id))
-		return err
-	}
-	if count > 0 {
-		return types.ErrRoleAlreadyExist
-	}
+	// // check role exist for the the object id.
+	// var count int64
+	// if err := s.db.Model(&models.Role{}).Where("object_id = ? and type = ?", id, models.UserType).Count(&count).Error; err != nil {
+	// 	utils.Logger.Error("error while checking whether role exist for the given object id", zap.Uint("object_id", id))
+	// 	return err
+	// }
+	// if count > 0 {
+	// 	return types.ErrRoleAlreadyExist
+	// }
 	rolesObj := []*models.Role{}
 	dupmap := map[string]interface{}{}
 	for _, role := range roles {
 		_, ok := dupmap[role]
-		if !ok {
+		if ok {
 			continue
 		}
 		rolesObj = append(rolesObj, &models.Role{
@@ -91,17 +91,18 @@ func (s *Store) WriteRoleForUserObjectID(id uint, roles []string) error {
 			Type:     models.UserType,
 			Name:     role,
 		})
+		dupmap[role] = struct{}{}
 	}
 	return s.db.Model(&models.Role{}).Create(&rolesObj).Error
 }
 
 func (s *Store) GetRolesForObjectID(id uint, objectType string) ([]string, error) {
 	roles := []*models.Role{}
-	if err := s.db.Model(&models.Role{}).Where("object_id = ? AND type = ?", id, objectType).First(&roles).Error; err != nil {
+	if err := s.db.Model(&models.Role{}).Where("object_id = ? AND type = ?", id, objectType).Find(&roles).Error; err != nil {
 		utils.Logger.Error("error while retriving roles for the object", zap.Uint("object_id", id))
 		return []string{}, err
 	}
-	out := make([]string, len(roles))
+	out := make([]string, 0, len(roles))
 	for _, role := range roles {
 		out = append(out, role.Name)
 	}
