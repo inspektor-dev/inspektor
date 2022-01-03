@@ -22,10 +22,6 @@ import { useStore } from "vuex";
 
 import api from "@/api/api";
 
-const getDatasources = async () => {
-  return await api.getDatasources();
-};
-
 const createColumn = () => {
   return [
     {
