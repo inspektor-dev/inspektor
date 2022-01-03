@@ -14,6 +14,7 @@ type User struct {
 	Password string         `json:"-"`
 	Meta     datatypes.JSON `json:"-"`
 	UserMeta *UserMeta      `gorm:"-"`
+	Roles    []string       `gorm:"-" json:"roles"`
 }
 
 func (u *User) UnmarshalMeta() {

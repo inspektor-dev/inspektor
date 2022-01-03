@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"inspektor/config"
+	"inspektor/models"
 	"inspektor/policy"
 	"inspektor/store"
 	"inspektor/types"
@@ -116,6 +117,16 @@ func (h *Handlers) GetUsers() InspectorHandler {
 			utils.Logger.Error("error while retriving users", zap.String("err_msg", err.Error()))
 			handleErr(err, ctx)
 			return
+		}
+		for _, user := range users {
+			roles, err := h.Store.GetRolesForObjectID(user.ID, models.UserType)
+			if err != nil {
+				utils.Logger.Error("error while retriving roles for the user",
+					zap.Uint("user_id", user.ID), zap.String("err_msg", err.Error()))
+				handleErr(err, ctx)
+				return
+			}
+			user.Roles = roles
 		}
 		utils.WriteSuccesMsgWithData("ok", http.StatusOK, users, ctx.Rw)
 	}
