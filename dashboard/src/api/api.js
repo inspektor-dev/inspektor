@@ -22,7 +22,9 @@ export default {
         return res.data
     },
     addDatasource: async (data) => {
-        console.log("post data", data)
         await axios.post("/datasource", data)
+    },
+    addUser: async(data) => {
+        await axios.post("/user", data)
     }
 }

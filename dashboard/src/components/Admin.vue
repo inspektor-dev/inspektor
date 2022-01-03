@@ -10,7 +10,7 @@
       </div>
     </n-gi>
     <n-gi span="3">
-      <div v-if="showUser" class="green">
+      <div v-if="showUser">
         <users />
       </div>
       <div v-if="showGithub" class="green"></div>
