@@ -138,7 +138,7 @@ func (h *Handlers) Init(router *mux.Router) {
 	router.HandleFunc("/session", h.AuthMiddleWare(h.GetSesssion())).Methods("GET", "OPTIONS")
 	router.HandleFunc("/policy/nofification", h.PolicyNotification()).Methods("POST", "OPTIONS")
 	router.HandleFunc("/user", h.AuthMiddleWare(h.AddUser())).Methods("POST", "OPTIONS")
-	router.HandleFunc("/user", h.AuthMiddleWare(h.GetUsers())).Methods("GET", "OPTIONS")
+	router.HandleFunc("/users", h.AuthMiddleWare(h.GetUsers())).Methods("GET", "OPTIONS")
 	cors := handlers.CORS(
 		handlers.AllowedHeaders([]string{"Content-Type", "Auth-Token"}),
 		handlers.AllowedOrigins([]string{"*"}),
