@@ -30,5 +30,9 @@ export default {
     getUsers: async () => {
         let res = await axios.get("/users")
         return res.data
+    },
+    getRoles: async () => {
+        let res = await axios.get("/roles")
+        return res.data 
     }
 }

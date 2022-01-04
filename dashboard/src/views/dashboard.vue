@@ -10,7 +10,7 @@
 
       <n-tabs type="line">
         <n-tab-pane name="oasis" tab="Datasource"><datasources></datasources></n-tab-pane>
-        <n-tab-pane name="the beatles" tab="Admin"><admin/></n-tab-pane>
+        <n-tab-pane name="the beatles" tab="Admin" v-if="isAdmin"><admin/></n-tab-pane>
       </n-tabs></n-card
     >
   </div>
@@ -27,14 +27,20 @@
 import Datasources from  '@/components/Datasources.vue'
 import Admin from '@/components/Admin.vue'
 import {useRouter} from 'vue-router';
+import {useStore} from 'vuex';
+import {computed} from 'vue';
 export default {
-  setup() {
+  async setup() {
     let router = useRouter();
+    let store = useStore();
+    await store.dispatch("updateDatasource");
     return {
-      logout: () =>{
+      logout: async () =>{
         localStorage.clear();
+        await store.dispatch("reset");
         router.push("/")
-      }
+      },
+      isAdmin: computed(() => store.state.isAdmin)
     }
   },
   components: {

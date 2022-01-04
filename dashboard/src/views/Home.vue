@@ -32,11 +32,13 @@ import { ref } from "vue";
 import { useMessage } from "naive-ui";
 import api from "@/api/api";
 import { useRouter } from "vue-router";
+import { useStore } from "vuex";
 
 export default {
   setup() {
     //console.log("login obj", login)
     let formRef = ref(null);
+    let store = useStore();
     const message = useMessage();
     let formValue = ref({
       username: "",
@@ -69,7 +71,9 @@ export default {
                 formValue.value.password
               );
               localStorage.setItem("access-token", token);
-              setTimeout(() => {
+              setTimeout(async () => {
+                await store.dispatch("init")
+                await store.dispatch("updateDatasource");
                 router.push("/dashboard");
               }, 1000);
             } catch (e) {

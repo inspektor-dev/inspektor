@@ -1,5 +1,5 @@
 <template >
-  <n-button type="success" @click="showModal = true">Add Datasources</n-button>
+  <n-button type="success" v-if="isAdmin" @click="showModal = true">Add Datasources</n-button>
   <n-modal v-model:show="showModal">
     <n-card
       style="width: 600px"
@@ -42,7 +42,6 @@ export default {
   components: { AddDatasource },
   async setup() {
     let store = useStore();
-    await store.dispatch("updateDatasource");
     let showModal = ref(false);
     return {
       showModal: showModal,
@@ -57,6 +56,9 @@ export default {
       count: computed(() => {
         return store.state.count;
       }),
+      isAdmin: computed(() => {
+        return store.state.isAdmin
+      })
     };
   },
   name: "Datasources",
