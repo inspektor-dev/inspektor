@@ -141,6 +141,12 @@ func (h *Handlers) PolicyNotification() http.HandlerFunc {
 	}
 }
 
+func (h *Handlers) Roles() InspectorHandler {
+	return func(ctx *types.Ctx) {
+		utils.WriteSuccesMsgWithData("ok", http.StatusOK, ctx.Claim.Roles, ctx.Rw)
+	}
+}
+
 func (h *Handlers) Init(router *mux.Router) {
 	router.HandleFunc("/login", h.Login()).Methods("POST", "OPTIONS")
 	router.HandleFunc("/datasource", h.AuthMiddleWare(h.CreateDataSource())).Methods("POST", "OPTIONS")
@@ -150,6 +156,7 @@ func (h *Handlers) Init(router *mux.Router) {
 	router.HandleFunc("/policy/nofification", h.PolicyNotification()).Methods("POST", "OPTIONS")
 	router.HandleFunc("/user", h.AuthMiddleWare(h.AddUser())).Methods("POST", "OPTIONS")
 	router.HandleFunc("/users", h.AuthMiddleWare(h.GetUsers())).Methods("GET", "OPTIONS")
+	router.HandleFunc("/roles", h.AuthMiddleWare(h.Roles())).Methods("GET", "OPTIONS")
 	cors := handlers.CORS(
 		handlers.AllowedHeaders([]string{"Content-Type", "Auth-Token"}),
 		handlers.AllowedOrigins([]string{"*"}),
