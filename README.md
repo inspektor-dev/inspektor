@@ -1,7 +1,13 @@
-# Inspektor
-[![Rust](https://github.com/poonai/inspektor/actions/workflows/rust.yml/badge.svg)](https://github.com/poonai/inspektor/actions/workflows/rust.yml)
+<p align="center">
+  <img src="docs/inspektor.png" alt="Inspektor" width="600" height="200" />
+</p>
 
-**Inspektor** is a access control layer for all your data sources. It act as gaurdian to your all datasources and enforces access polices to all your data sources. 
+<h1 align="center">Inspektor</h1>
+<p align="center">
+  <a href="https://github.com/poonai/inspektor/actions/workflows/rust.yml"><img src="https://github.com/poonai/inspektor/actions/workflows/rust.yml/badge.svg" alt="Build Status"></a>
+</p>
+
+**Inspektor** is a access control layer for all your data sources. It act as gaurdian  and enforces access polices to all your data sources. 
 
 With Inspektor, you can leverage open policy and GitOps to enforce polices. By having features like policy as a code and GitOps, Inspektor is a first class citizen for your mordern cloud native workloads.
 
