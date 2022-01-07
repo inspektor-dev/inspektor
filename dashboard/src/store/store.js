@@ -12,7 +12,7 @@ function getDefaultStore() {
 }
 
 const store = createStore({
-    state() {
+    async state() {
         return getDefaultStore()
     },
     mutations: {
@@ -40,6 +40,15 @@ const store = createStore({
         },
         async updateDatasource({ commit }) {
             let datasources = await api.getDatasources();
+            let sessions = await api.getSessions();
+            // merge session and meta in same object.
+            for (let i = 0; i < datasources.length; i++) {
+                for (let j = 0; j < sessions.length; j++) {
+                    if (sessions[j].objectID == datasources[i].id) {
+                        datasources[i].sessionMeta = sessions[j].meta
+                    }
+                }
+            }
             commit("setDatasource", datasources)
         },
         async updateUsers({ commit }) {
@@ -47,10 +56,12 @@ const store = createStore({
             console.log(users)
             commit("setUsers", users)
         },
-        async reset({commit}) {
+        async reset({ commit }) {
             commit("reset")
         }
     }
 })
+
+
 
 export default store;
