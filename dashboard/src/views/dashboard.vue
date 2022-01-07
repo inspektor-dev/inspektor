@@ -10,7 +10,6 @@
 
       <n-tabs type="line">
         <n-tab-pane name="oasis" tab="Datasource"><datasources></datasources></n-tab-pane>
-        <n-tab-pane name="session" tab="Session" v-if="isAdmin"><admin/></n-tab-pane>
         <n-tab-pane name="the beatles" tab="Admin" v-if="isAdmin"><admin/></n-tab-pane>
       </n-tabs></n-card
     >

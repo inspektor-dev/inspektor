@@ -47,20 +47,20 @@ const menuOptions = [
     key: "user",
     icon: renderIcon(UserIcon),
   },
-  {
-    label: () => {
-      return h("a", {}, "Github Access");
-    },
-    key: "github",
-    icon: renderIcon(GithubIcon),
-  },
-  {
-    label: () => {
-      return h("a", {}, "Slack Integration");
-    },
-    key: "slack",
-    icon: renderIcon(SlackIcon),
-  },
+  // {
+  //   label: () => {
+  //     return h("a", {}, "Github Access");
+  //   },
+  //   key: "github",
+  //   icon: renderIcon(GithubIcon),
+  // },
+  // {
+  //   label: () => {
+  //     return h("a", {}, "Slack Integration");
+  //   },
+  //   key: "slack",
+  //   icon: renderIcon(SlackIcon),
+  // },
 ];
 export default {
   setup() {
