@@ -14,32 +14,32 @@ axios.interceptors.response.use(function (res) {
 
 export default {
     login: async (username, password) => {
-        let res = await axios.post("/login", { username, password })
+        let res = await axios.post("/api/login", { username, password })
         return res.data.token
     },
     getDatasources: async () => {
-        let res = await axios.get("/datasource")
+        let res = await axios.get("/api/datasource")
         return res.data
     },
     addDatasource: async (data) => {
-        await axios.post("/datasource", data)
+        await axios.post("/api/datasource", data)
     },
     addUser: async (data) => {
-        await axios.post("/user", data)
+        await axios.post("/api/user", data)
     },
     getUsers: async () => {
-        let res = await axios.get("/users")
+        let res = await axios.get("/api/users")
         return res.data
     },
     getRoles: async () => {
-        let res = await axios.get("/roles")
+        let res = await axios.get("/api/roles")
         return res.data 
     },
     getSessions: async() => {
-        let res = await axios.get("/session")
+        let res = await axios.get("/api/session")
         return res.data
     },
     createSession: async (data) => {
-        await axios.post("/session", data)
+        await axios.post("/api/session", data)
     }
 }

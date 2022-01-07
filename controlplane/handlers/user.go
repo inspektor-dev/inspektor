@@ -148,15 +148,15 @@ func (h *Handlers) Roles() InspectorHandler {
 }
 
 func (h *Handlers) Init(router *mux.Router) {
-	router.HandleFunc("/login", h.Login()).Methods("POST", "OPTIONS")
-	router.HandleFunc("/datasource", h.AuthMiddleWare(h.CreateDataSource())).Methods("POST", "OPTIONS")
-	router.HandleFunc("/datasource", h.AuthMiddleWare(h.GetDataSources())).Methods("GET", "OPTIONS")
-	router.HandleFunc("/session", h.AuthMiddleWare(h.CreateSession())).Methods("POST", "OPTIONS")
-	router.HandleFunc("/session", h.AuthMiddleWare(h.GetSesssion())).Methods("GET", "OPTIONS")
-	router.HandleFunc("/policy/nofification", h.PolicyNotification()).Methods("POST", "OPTIONS")
-	router.HandleFunc("/user", h.AuthMiddleWare(h.AddUser())).Methods("POST", "OPTIONS")
-	router.HandleFunc("/users", h.AuthMiddleWare(h.GetUsers())).Methods("GET", "OPTIONS")
-	router.HandleFunc("/roles", h.AuthMiddleWare(h.Roles())).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/login", h.Login()).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/datasource", h.AuthMiddleWare(h.CreateDataSource())).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/datasource", h.AuthMiddleWare(h.GetDataSources())).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/session", h.AuthMiddleWare(h.CreateSession())).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/session", h.AuthMiddleWare(h.GetSesssion())).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/policy/nofification", h.PolicyNotification()).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/user", h.AuthMiddleWare(h.AddUser())).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/users", h.AuthMiddleWare(h.GetUsers())).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/roles", h.AuthMiddleWare(h.Roles())).Methods("GET", "OPTIONS")
 	cors := handlers.CORS(
 		handlers.AllowedHeaders([]string{"Content-Type", "Auth-Token"}),
 		handlers.AllowedOrigins([]string{"*"}),
