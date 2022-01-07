@@ -1,0 +1,8 @@
+FROM ubuntu:20.04
+
+
+COPY controlplane/dashboard/dist dashboard/dist
+
+COPY controlplane/inspektor .
+
+ENTRYPOINT  ["./inspektor"]
