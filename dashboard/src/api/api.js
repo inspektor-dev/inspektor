@@ -34,5 +34,12 @@ export default {
     getRoles: async () => {
         let res = await axios.get("/roles")
         return res.data 
+    },
+    getSessions: async() => {
+        let res = await axios.get("/session")
+        return res.data
+    },
+    createSession: async (data) => {
+        await axios.post("/session", data)
     }
 }
