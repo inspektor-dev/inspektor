@@ -157,6 +157,8 @@ func (h *Handlers) Init(router *mux.Router) {
 	router.HandleFunc("/api/user", h.AuthMiddleWare(h.AddUser())).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/users", h.AuthMiddleWare(h.GetUsers())).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/roles", h.AuthMiddleWare(h.Roles())).Methods("GET", "OPTIONS")
+	fileServer := http.FileServer(http.Dir("./dashboard/dist"))
+	router.PathPrefix("/").Handler(http.StripPrefix("/", fileServer))
 	cors := handlers.CORS(
 		handlers.AllowedHeaders([]string{"Content-Type", "Auth-Token"}),
 		handlers.AllowedOrigins([]string{"*"}),
