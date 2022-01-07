@@ -10,10 +10,10 @@ import (
 
 type Session struct {
 	gorm.Model
-	ObjectID    uint `json:"objectID"`
-	UserID      uint `json:"-"`
-	Meta        datatypes.JSON
-	SessionMeta *SessionMeta `gorm:"-" json:"sessionMeta"`
+	ObjectID    uint           `json:"objectID"`
+	UserID      uint           `json:"-"`
+	Meta        datatypes.JSON `json:"meta"`
+	SessionMeta *SessionMeta   `gorm:"-" json:"-"`
 }
 
 type SessionMeta struct {
