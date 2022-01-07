@@ -54,22 +54,22 @@ const createColumn = () => {
         return roles;
       },
     },
-    {
-      title: "Delete",
-      key: "roles",
-      render() {
-        return h(
-          NButton,
-          {
-            type: "error",
-            style: {
-              marginRight: "6px",
-            },
-          },
-          "Delete"
-        );
-      },
-    },
+    // {
+    //   title: "Delete",
+    //   key: "roles",
+    //   render() {
+    //     return h(
+    //       NButton,
+    //       {
+    //         type: "error",
+    //         style: {
+    //           marginRight: "6px",
+    //         },
+    //       },
+    //       "Delete"
+    //     );
+    //   },
+    // },
   ];
 };
 

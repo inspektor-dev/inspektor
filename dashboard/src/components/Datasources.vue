@@ -1,5 +1,7 @@
 <template >
-  <n-button type="success" v-if="isAdmin" @click="showModal = true">Add Datasources</n-button>
+  <n-button type="success" v-if="isAdmin" @click="showModal"
+    >Add Datasources</n-button
+  >
   <n-modal v-model:show="showModal">
     <n-card
       style="width: 600px"
@@ -10,19 +12,33 @@
       <add-datasource @onAdd="datasourceAdded"> </add-datasource>
     </n-card>
   </n-modal>
+
+  <n-modal v-model:show="showSessionModal">
+    <n-card
+      style="width: 600px"
+      title="Postgres Login Credentials"
+      :bordered="false"
+      size="huge"
+    >
+      <session-modal :session="currentSessionMeta" />
+    </n-card>
+  </n-modal>
+
   <div style="padding-top: 2%">
     <n-data-table :columns="columns" :data="data" :pagination="pagination" />
   </div>
 </template>
 <script>
 import { ref, h, computed } from "vue";
-import { NTag } from "naive-ui";
+import { NButton, NTag } from "naive-ui";
 import AddDatasource from "./AddDatasource.vue";
 import { useStore } from "vuex";
+import { useMessage } from "naive-ui";
 
 import api from "@/api/api";
+import SessionModal from "./SessionModal.vue";
 
-const createColumn = () => {
+const createColumn = (message, showSessionModal, currentSessionMeta, store) => {
   return [
     {
       title: "Datasource Name",
@@ -36,19 +52,50 @@ const createColumn = () => {
       title: "sidecar hostname",
       key: "sidecarHostname",
     },
+    {
+      title: "Session",
+      render(row) {
+        console.log("row", row.sessionMeta);
+        let buttonProperty = {
+          type: "success",
+          onClick: async () => {
+            try {
+              await api.createSession({ datasourceId: row.id });
+
+            } catch {
+              message.error("Unable to create session");
+            }
+          },
+        };
+        let buttonText = "Create Credentials";
+        if (row.sessionMeta != undefined) {
+          currentSessionMeta.value = row.sessionMeta;
+          buttonText = "Show Credentials";
+          buttonProperty.onClick = () => {
+            showSessionModal.value = true;
+          };
+        }
+        return h(NButton, buttonProperty, buttonText);
+      },
+    },
   ];
 };
 export default {
-  components: { AddDatasource },
+  components: { AddDatasource, SessionModal },
   async setup() {
     let store = useStore();
     let showModal = ref(false);
+    let showSessionModal = ref(false);
+    let currentSessionMeta = ref({});
+    let message = useMessage();
     return {
+      currentSessionMeta: currentSessionMeta,
       showModal: showModal,
+      showSessionModal: showSessionModal,
       data: computed(() => {
         return store.state.datasources;
       }),
-      columns: createColumn(),
+      columns: createColumn(message, showSessionModal, currentSessionMeta, store),
       datasourceAdded: async () => {
         showModal.value = false;
         await store.dispatch("updateDatasource");
@@ -57,8 +104,8 @@ export default {
         return store.state.count;
       }),
       isAdmin: computed(() => {
-        return store.state.isAdmin
-      })
+        return store.state.isAdmin;
+      }),
     };
   },
   name: "Datasources",

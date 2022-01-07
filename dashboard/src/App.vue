@@ -12,9 +12,11 @@
 </template>
 
 <script>
-import Axios from "axios";
+//import { useStore } from "vuex";
 export default {
-  setup() {
+   setup() {
+   // let store = useStore();
+    //await store.dispatch("init");
     // set axios config
   },
   name: "App",
