@@ -25,7 +25,7 @@ pub struct Config {
 }
 
 impl Config {
-    fn validate(&mut self) -> Result<(), anyhow::Error> {
+    pub fn validate(&mut self) -> Result<(), anyhow::Error> {
         if let Some(driver_type) = &self.driver_type {
             if driver_type != "postgres" {
                 return Err(anyhow!("only postgres driver supported"));
@@ -95,7 +95,7 @@ impl PostgresConfig {
     }
 }
 
-fn read_config(config_path: &std::path::Path) -> Result<Config, anyhow::Error> {
+pub fn read_config(config_path: &std::path::Path) -> Result<Config, anyhow::Error> {
     let config_buf = std::fs::read(config_path)
         .map_err(|e| anyhow!("error while reading config. err: {:?}", e))?;
     Ok(serde_yaml::from_slice::<Config>(&config_buf[..])?)

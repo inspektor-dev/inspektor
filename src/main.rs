@@ -31,22 +31,21 @@ use tokio::sync::watch;
 
 fn main() {
     env_logger::init();
-    // let app = App::new("inspektor")
-    //     .version("0.0.1")
-    //     .author("Balaji <rbalajis25@gmail.com>")
-    //     .about("inspector is used to autheticate your data layer")
-    //     .arg(
-    //         Arg::with_name("config_file")
-    //             .short("c")
-    //             .long("config_file")
-    //             .required(true)
-    //             .takes_value(true),
-    //     )
-    //     .get_matches();
-    // let config_path = app.value_of("config_file").unwrap();
-    // println!("{:?}", config_path)
-    // create grpc connection with control plane.
-    let config = config::Config::default();
+    let app = App::new("inspektor")
+        .version("0.0.1")
+        .author("Balaji <rbalajis25@gmail.com>")
+        .about("inspector is used to autheticate your data layer")
+        .arg(
+            Arg::with_name("config_file")
+                .short("c")
+                .long("config_file")
+                .required(true)
+                .takes_value(true),
+        )
+        .get_matches();
+    let config_path = app.value_of("config_file").unwrap();
+    let mut config = config::read_config(&std::path::PathBuf::from(config_path)).unwrap();
+    config.validate().unwrap();
 
     let env = Arc::new(EnvBuilder::new().build());
     let ch = ChannelBuilder::new(env).connect(config.controlplane_addr.as_ref().unwrap());
