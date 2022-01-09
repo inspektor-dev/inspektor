@@ -1,5 +1,5 @@
 <template >
-  <n-button type="success" v-if="isAdmin" @click="showModal"
+  <n-button type="success" v-if="isAdmin" @click="showModal = true"
     >Add Datasources</n-button
   >
   <n-modal v-model:show="showModal">
