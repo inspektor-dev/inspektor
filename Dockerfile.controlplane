@@ -1,6 +1,6 @@
 FROM ubuntu:20.04
 
-
+RUN apt-get update && apt-get install -y ca-certificates && update-ca-certificates
 COPY controlplane/dashboard/dist dashboard/dist
 
 COPY controlplane/inspektor .

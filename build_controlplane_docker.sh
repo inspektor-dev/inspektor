@@ -9,4 +9,4 @@ npm run build
 cd ../..
 
 
-docker build .  -t schoolboy/inspektor-controlplane -f Dockerfile.controlplane:latest
+docker build .  -t schoolboy/inspektor-controlplane:latest -f Dockerfile.controlplane

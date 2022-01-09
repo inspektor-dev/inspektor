@@ -1,0 +1,24 @@
+
+version: '3.5'
+
+services:
+  postgres:
+    container_name: postgres_container
+    image: postgres
+    environment:
+        POSTGRES_USER: "inspektoruser"
+        POSTGRES_PASSWORD: "inspektoruser"
+    volumes:
+       - postgres:/data/postgres
+    restart: unless-stopped
+  controlplane:
+    container_name: controlplane
+    image: schoolboy/inspektor-controlplane:latest
+    volumes:
+     - "./config.yaml:/config.yaml"
+    ports:
+     - 3123:3123
+    depends_on:
+      - "postgres"
+volumes: 
+    postgres:
