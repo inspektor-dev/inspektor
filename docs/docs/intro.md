@@ -1,35 +1,38 @@
 ---
 sidebar_position: 1
+title: Tutorial
 ---
 
-# Tutorial Intro
+# Introduction
 
-Let's discover **Docusaurus in less than 5 minutes**.
+Inpektor helps you to enfore access control for all your data sources. 
 
-## Getting Started
+In this tutorial, you'll be downloading and running the sample docker-compose setup and configure it to enforce access policy on postgres database for different user group. 
 
-Get started by **creating a new site**.
+# Prerequisite
+ - docker
+ - docker-compose
 
-Or **try Docusaurus immediately** with **[docusaurus.new](https://docusaurus.new)**.
+## Demo Inspektor setup.
 
-## Generate a new site
+Copy the given give yaml file and paste it to `docker-compose.yaml`
 
-Generate a new Docusaurus site using the **classic template**:
+```yaml
 
-```shell
-npm init docusaurus@latest my-website classic
+version: '3.5'
+
+services:
+  postgres:
+    container_name: postgres_container
+    image: postgres
+    environment:
+        POSTGRES_USER: "debuggeruser"
+        POSTGRES_PASSWORD: "debuggerpassword"
+    volumes:
+       - postgres:/data/postgres
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+volumes: 
+    postgres:
 ```
-
-## Start your site
-
-Run the development server:
-
-```shell
-cd my-website
-
-npx docusaurus start
-```
-
-Your site starts at `http://localhost:3000`.
-
-Open `docs/intro.md` and edit some lines: the site **reloads automatically** and displays your changes.
