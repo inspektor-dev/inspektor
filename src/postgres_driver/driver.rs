@@ -37,11 +37,14 @@ impl PostgresDriver {
         // run the socket message.
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async move {
-            let listener = TcpListener::bind(&"127.0.0.1:8080".to_string())
-                .await
-                .map_err(|_| anyhow!("unable to listern on the given port"))
-                .unwrap();
-            info!("postgres driver listeneing at 127.0.0.1:8080");
+            let listener = TcpListener::bind(format!(
+                "localhost:{}",
+                self.postgres_config.proxy_listen_port.as_ref().unwrap()
+            ))
+            .await
+            .map_err(|_| anyhow!("unable to listern on the given port"))
+            .unwrap();
+            info!("postgres driver listeneing at 127.0.0.1:{}", self.postgres_config.proxy_listen_port.as_ref().unwrap());
             loop {
                 let (socket, _) = listener.accept().await.unwrap();
                 let acceptor = acceptor.clone();

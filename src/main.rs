@@ -91,27 +91,11 @@ fn main() {
         });
     });
     let driver = postgres_driver::driver::PostgresDriver {
-        postgres_config: config::PostgresConfig::default(),
+        postgres_config: config.postgres_config.unwrap(),
         policy_watcher: policy_watcher,
         datasource: source,
         client: client,
         token: token.clone(),
     };
     driver.start();
-
-    // let rt = tokio::runtime::Runtime::new().unwrap();
-    // rt.block_on(async {
-    //     let (client, connection) = tokio_postgres::connect(
-    //         &format!(
-    //             "host=localhost port=5432 user={} dbname = {} password = {}",
-    //             "debuggeruser",
-    //             "inspektor",
-    //             "debuggerpassword"
-    //         ),
-    //         tokio_postgres::NoTls,
-    //     )
-    //     .await.unwrap();
-    //     tokio::spawn(connection);
-    //     println!("connected");
-    // });
 }
