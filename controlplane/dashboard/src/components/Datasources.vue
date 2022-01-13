@@ -61,7 +61,6 @@ const createColumn = (message, showSessionModal, currentSessionMeta, store) => {
           onClick: async () => {
             try {
               await api.createSession({ datasourceId: row.id });
-
             } catch {
               message.error("Unable to create session");
             }
@@ -76,6 +75,22 @@ const createColumn = (message, showSessionModal, currentSessionMeta, store) => {
           };
         }
         return h(NButton, buttonProperty, buttonText);
+      },
+    },
+    {
+      title: "sidecar token",
+      render(row) {
+        return h(
+          NButton,
+          {
+            type: "success",
+            onClick: () => {
+              navigator.clipboard.writeText(row.sidecarToken);
+              message.success("Token Copied!!");
+            },
+          },
+          "Copy Token"
+        );
       },
     },
   ];
@@ -95,7 +110,12 @@ export default {
       data: computed(() => {
         return store.state.datasources;
       }),
-      columns: createColumn(message, showSessionModal, currentSessionMeta, store),
+      columns: createColumn(
+        message,
+        showSessionModal,
+        currentSessionMeta,
+        store
+      ),
       datasourceAdded: async () => {
         showModal.value = false;
         await store.dispatch("updateDatasource");
