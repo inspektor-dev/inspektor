@@ -202,6 +202,9 @@ func (h *Handlers) Init(router *mux.Router) {
 	router.HandleFunc("/api/user", h.AuthMiddleWare(h.AddUser())).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/users", h.AuthMiddleWare(h.GetUsers())).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/roles", h.AuthMiddleWare(h.Roles())).Methods("GET", "OPTIONS")
+	router.HandleFunc("/readiness", func(rw http.ResponseWriter, r *http.Request) {
+		rw.Write([]byte("ok"))
+	})
 	spa := spaHandler{staticPath: "dashboard/dist", indexPath: "index.html"}
 	router.PathPrefix("/").Handler(spa)
 	cors := handlers.CORS(

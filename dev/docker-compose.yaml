@@ -6,12 +6,13 @@ services:
     container_name: postgres_container_dev
     image: postgres
     environment:
-        POSTGRES_USER: "debuggeruser"
-        POSTGRES_PASSWORD: "debuggerpassword"
+        POSTGRES_USER: "inspektoruser"
+        POSTGRES_PASSWORD: "inspektoruser"
+        PGDATA: /var/lib/postgresql/data
     volumes:
-       - postgres:/data/postgres
+       - postgresdev:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     restart: unless-stopped
 volumes: 
-    postgres:
+    postgresdev: 

@@ -1,8 +1,0 @@
-postgres_host: "postgres"
-postgres_port: "5432"
-database_name: "postgres"
-postgres_username: "inspektoruser"
-postgres_password: "inspektoruser"
-jwt_key: "demokey"
-policy_repo: "https://github.com/poonai/inspektor-policy.git"
-github_access_token: "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"

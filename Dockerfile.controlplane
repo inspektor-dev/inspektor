@@ -1,8 +1,11 @@
 FROM ubuntu:20.04
 
-RUN apt-get update && apt-get install -y ca-certificates && update-ca-certificates
+RUN apt-get update && apt-get install -y ca-certificates && update-ca-certificates && apt-get install -y wget && apt-get install -y netcat
+
+RUN  wget https://raw.githubusercontent.com/eficode/wait-for/v2.2.1/wait-for 
+
+RUN chmod u+x ./wait-for
+
 COPY controlplane/dashboard/dist dashboard/dist
 
 COPY controlplane/inspektor .
-
-ENTRYPOINT  ["./inspektor"]
