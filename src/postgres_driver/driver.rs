@@ -33,25 +33,28 @@ pub struct PostgresDriver {
 
 impl PostgresDriver {
     pub fn start(&self) {
-        let acceptor = self.get_ssl_acceptor();
+       // let acceptor = self.get_ssl_acceptor();
         // run the socket message.
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async move {
             let listener = TcpListener::bind(format!(
-                "localhost:{}",
+                "0.0.0.0:{}",
                 self.postgres_config.proxy_listen_port.as_ref().unwrap()
             ))
             .await
             .map_err(|_| anyhow!("unable to listern on the given port"))
             .unwrap();
-            info!("postgres driver listeneing at 127.0.0.1:{}", self.postgres_config.proxy_listen_port.as_ref().unwrap());
+            info!(
+                "postgres driver listeneing at 0.0.0.0:{}",
+                self.postgres_config.proxy_listen_port.as_ref().unwrap()
+            );
             loop {
                 let (socket, _) = listener.accept().await.unwrap();
-                let acceptor = acceptor.clone();
+         //       let acceptor = acceptor.clone();
                 let driver = self.clone();
                 let socket = PostgresConn::Unsecured(socket);
                 tokio::spawn(async move {
-                    driver.handle_client_conn(socket, acceptor).await;
+                    driver.handle_client_conn(socket, None).await;
                     ()
                 });
             }
@@ -60,19 +63,23 @@ impl PostgresDriver {
 
     // get_ssl_acceptor will get ssl acceptor if the sidecar is set to run on tls
     // mode.
-    fn get_ssl_acceptor(&self) -> SslAcceptor {
-        let mut acceptor = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
-        acceptor
-            .set_private_key_file("/home/poonai/inspektor/key.pem", SslFiletype::PEM)
-            .unwrap();
-        acceptor
-            .set_certificate_chain_file("/home/poonai/inspektor/cert.pem")
-            .unwrap();
-        let acceptor = acceptor.build();
-        acceptor
-    }
+    // fn get_ssl_acceptor(&self) -> SslAcceptor {
+    //     let mut acceptor = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
+    //     acceptor
+    //         .set_private_key_file("/home/poonai/inspektor/key.pem", SslFiletype::PEM)
+    //         .unwrap();
+    //     acceptor
+    //         .set_certificate_chain_file("/home/poonai/inspektor/cert.pem")
+    //         .unwrap();
+    //     let acceptor = acceptor.build();
+    //     acceptor
+    // }
 
-    async fn handle_client_conn(&self, mut client_conn: PostgresConn, acceptor: SslAcceptor) {
+    async fn handle_client_conn(
+        &self,
+        mut client_conn: PostgresConn,
+        acceptor: Option<SslAcceptor>,
+    ) {
         loop {
             // get the initial startup message from client.
             let msg = match decode_init_startup_message(&mut client_conn).await {
@@ -151,6 +158,11 @@ impl PostgresDriver {
                     return;
                 }
                 FrontendMessage::SslRequest => {
+                    if let None = acceptor {
+                        debug!("dropping connection since we are not able to upgrade the connection to ssl");
+                        return;
+                    }
+                    //
                     if let PostgresConn::Unsecured(mut inner) = client_conn {
                         // tell the client that you are upgrading for secure connection
                         if let Err(e) = inner.write_all(&[ACCEPT_SSL_ENCRYPTION]).await {
@@ -160,7 +172,7 @@ impl PostgresDriver {
                             );
                             return;
                         }
-                        let ssl = Ssl::new(acceptor.context()).unwrap();
+                        let ssl = Ssl::new(acceptor.as_ref().unwrap().context()).unwrap();
                         let mut stream = SslStream::new(ssl, inner).unwrap();
                         Pin::new(&mut stream).accept().await.unwrap();
                         client_conn = PostgresConn::Secured(stream);
@@ -172,6 +184,7 @@ impl PostgresDriver {
                     return;
                 }
                 _ => {
+                    error!("don't know the message type");
                     // all the return should send a error message before closing.
                     return;
                 }

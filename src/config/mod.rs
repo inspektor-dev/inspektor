@@ -63,6 +63,7 @@ pub struct PostgresConfig {
     pub target_addr: Option<String>,
     pub target_username: Option<String>,
     pub target_password: Option<String>,
+    pub target_port: Option<String>,
     pub proxy_listen_port: Option<String>,
 }
 
@@ -73,6 +74,7 @@ impl Default for PostgresConfig {
             target_username: Some(String::from("debuggeruser")),
             target_password: Some(String::from("debuggerpassword")),
             proxy_listen_port: Some(String::from("8080")),
+            target_port: Some(String::from("5432"))
         }
     }
 }
@@ -87,6 +89,9 @@ impl PostgresConfig {
         }
         if self.target_password.is_none() {
             return Err(anyhow!("target password is requrired parameter"));
+        }
+        if self.target_port.is_none(){
+            return Err(anyhow!("target port is a required parameter"));
         }
         if let None = self.proxy_listen_port {
             self.proxy_listen_port = Some("8080".to_string())

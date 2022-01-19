@@ -139,10 +139,19 @@ impl ProtocolHandler {
     // the packet based on the opa policy.
     pub async fn serve(&mut self) -> Result<(), anyhow::Error> {
         debug!("started serving");
-
+        println!(
+            "host={} port={} user={} dbname = {} password = {}",
+            self.config.target_addr.as_ref().unwrap(),
+            self.config.target_port.as_ref().unwrap(),
+            self.config.target_username.as_ref().unwrap(),
+            self.connected_db,
+            self.config.target_password.as_ref().unwrap()
+        );
         let (client, connection) = tokio_postgres::connect(
             &format!(
-                "host=localhost port=5432 user={} dbname = {} password = {}",
+                "host={} port={} user={} dbname = {} password = {}",
+                self.config.target_addr.as_ref().unwrap(),
+                self.config.target_port.as_ref().unwrap(),
                 self.config.target_username.as_ref().unwrap(),
                 self.connected_db,
                 self.config.target_password.as_ref().unwrap()
@@ -376,15 +385,19 @@ impl ProtocolHandler {
     // connect_target will create an unsecured connection with target postgres instance.
     async fn connect_target(config: &PostgresConfig) -> Result<PostgresConn, anyhow::Error> {
         Ok(PostgresConn::Unsecured(
-            TcpStream::connect(config.target_addr.as_ref().unwrap())
-                .await
-                .map_err(|e| {
-                    error!(
-                        "error while creating tcp connection with target postgres. err: {:?}",
-                        e
-                    );
-                    return anyhow!("unable to connect to target postgres server");
-                })?,
+            TcpStream::connect(format!(
+                "{}:{}",
+                config.target_addr.as_ref().unwrap(),
+                config.target_port.as_ref().unwrap()
+            ))
+            .await
+            .map_err(|e| {
+                error!(
+                    "error while creating tcp connection with target postgres. err: {:?}",
+                    e
+                );
+                return anyhow!("unable to connect to target postgres server");
+            })?,
         ))
     }
 
