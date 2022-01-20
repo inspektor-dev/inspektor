@@ -48,14 +48,17 @@ func (p *PolicyManager) Init() error {
 	if p.config.PolicyRepo != "" {
 		p.gitEnabled = true
 	}
-	// clone the policy repo to the fs path.
-	repo, err := git.PlainClone(p.fsPath, false, &git.CloneOptions{
+	opt := &git.CloneOptions{
 		URL: p.config.PolicyRepo,
-		Auth: &http.BasicAuth{
+	}
+	if p.config.GithubAccessToken != "" {
+		opt.Auth = &http.BasicAuth{
 			Username: "inspektor",
 			Password: p.config.GithubAccessToken,
-		},
-	})
+		}
+	}
+	// clone the policy repo to the fs path.
+	repo, err := git.PlainClone(p.fsPath, false, opt)
 	if err != nil {
 		utils.Logger.Error("error while cloning policy repository", zap.String("err_msg", err.Error()))
 		return err
@@ -71,13 +74,17 @@ func (p *PolicyManager) Sync() error {
 		utils.Logger.Error("error while retriving worktree", zap.String("err_msg", err.Error()))
 		return err
 	}
-	err = w.Pull(&git.PullOptions{
+	opt := &git.PullOptions{
 		RemoteName: "origin",
-		Auth: &http.BasicAuth{
+	}
+
+	if p.config.GithubAccessToken != "" {
+		opt.Auth = &http.BasicAuth{
 			Username: "inspektor",
 			Password: p.config.GithubAccessToken,
-		},
-	})
+		}
+	}
+	err = w.Pull(opt)
 	if err != nil {
 		utils.Logger.Error("error while pulling the policy repository", zap.String("err_msg", err.Error()))
 		return err
