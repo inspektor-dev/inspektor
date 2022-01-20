@@ -19,6 +19,10 @@ The **data plane** deployed along with your data service as a **sidecar**, to **
 policies.
 
 
+<p align="center">
+  <img src="docs/static/img/inspektordesign.png" alt="Inspektor design" width="600" height="200" />
+</p>
+
 The **control plane** act an management service to dynamically configure all your data plane to enforce policies.
 
 ## Supported Data Source
