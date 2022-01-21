@@ -5,6 +5,8 @@
 <h1 align="center">Inspektor</h1>
 <p align="center">
   <a href="https://github.com/poonai/inspektor/actions/workflows/rust.yml"><img src="https://github.com/poonai/inspektor/actions/workflows/rust.yml/badge.svg" alt="Build Status"></a>
+      <a href="https://github.com/poonai/inspektor/blob/main/LICENSE"><img src="https://img.shields.io/github/license/poonai/inspektor" alt="Apache 2 License" height="22"/></a>
+
 </p>
 
 **Inspektor** is a access control layer for all your data sources. It act as gaurdian  and enforces access polices to all your data sources. 
