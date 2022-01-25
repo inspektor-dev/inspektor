@@ -33,13 +33,19 @@ export default {
     },
     getRoles: async () => {
         let res = await axios.get("/api/roles")
-        return res.data 
+        return res.data
     },
-    getSessions: async() => {
+    getSessions: async () => {
         let res = await axios.get("/api/session")
         return res.data
     },
     createSession: async (data) => {
         await axios.post("/api/session", data)
+    },
+    intializeToken: () => {
+        let token = localStorage.getItem("access-token");
+        if (token != null) {
+            axios.defaults.headers["Auth-Token"] = token;
+        }
     }
 }

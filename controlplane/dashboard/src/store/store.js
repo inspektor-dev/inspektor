@@ -8,16 +8,28 @@ function getDefaultStore() {
         datasources: [],
         users: [],
         isAdmin: false,
+        sup: true,
+        count: 1,
     }
 }
 
 const store = createStore({
-    async state() {
+     state() {
         return getDefaultStore()
     },
     mutations: {
         setDatasource(state, datasource) {
-            state.datasources = datasource
+            if (state.datasources == undefined) {
+                state.datasources = datasource
+                return
+            }
+            while(state.datasources.length) {
+                state.datasources.pop()
+            }
+            datasource.forEach(data => {
+                console.log("pushing", data)
+                state.datasources.push(data)
+            })    
         },
         setUsers(state, users) {
             state.users = users
@@ -27,10 +39,14 @@ const store = createStore({
         },
         reset(state) {
             state = getDefaultStore()
+        },
+        increment(state) {
+            state.count++
         }
     },
     actions: {
         async init({ commit }) {
+            api.intializeToken()
             let roles = await api.getRoles();
             if (roles.indexOf('admin') == -1) {
                 console.log("ignoring")
@@ -39,6 +55,7 @@ const store = createStore({
             commit('setIsAdmin', true)
         },
         async updateDatasource({ commit }) {
+            console.log("datasource updated")
             let datasources = await api.getDatasources();
             let sessions = await api.getSessions();
             // merge session and meta in same object.
@@ -58,6 +75,11 @@ const store = createStore({
         },
         async reset({ commit }) {
             commit("reset")
+        }
+    },
+    getters: {
+        datasources(state) {
+            return state.datasources
         }
     }
 })

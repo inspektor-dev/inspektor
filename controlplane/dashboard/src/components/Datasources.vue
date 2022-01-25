@@ -1,7 +1,9 @@
 <template >
+<h1>{{ count }} asdfasdf</h1>
   <n-button type="success" v-if="isAdmin" @click="showModal = true"
     >Add Datasources</n-button
   >
+  
   <n-modal v-model:show="showModal">
     <n-card
       style="width: 600px"
@@ -23,9 +25,10 @@
       <session-modal :session="currentSessionMeta" />
     </n-card>
   </n-modal>
+  
 
   <div style="padding-top: 2%">
-    <n-data-table :columns="columns" :data="data" :pagination="pagination" />
+    <n-data-table :columns="columns" :data="data" :row-key="rowKey" />
   </div>
 </template>
 <script>
@@ -55,12 +58,12 @@ const createColumn = (message, showSessionModal, currentSessionMeta, store) => {
     {
       title: "Session",
       render(row) {
-        console.log("row", row.sessionMeta);
         let buttonProperty = {
           type: "success",
           onClick: async () => {
             try {
               await api.createSession({ datasourceId: row.id });
+               await store.dispatch("updateDatasource");
             } catch {
               message.error("Unable to create session");
             }
@@ -107,15 +110,8 @@ export default {
       currentSessionMeta: currentSessionMeta,
       showModal: showModal,
       showSessionModal: showSessionModal,
-      data: computed(() => {
-        return store.state.datasources;
-      }),
-      columns: createColumn(
-        message,
-        showSessionModal,
-        currentSessionMeta,
-        store
-      ),
+      data: ref(computed(() => store.state.datasources)),
+      columns: createColumn(message, showSessionModal, currentSessionMeta, store),
       datasourceAdded: async () => {
         showModal.value = false;
         await store.dispatch("updateDatasource");
@@ -126,6 +122,7 @@ export default {
       isAdmin: computed(() => {
         return store.state.isAdmin;
       }),
+      rowKey: (data) => data.id,
     };
   },
   name: "Datasources",

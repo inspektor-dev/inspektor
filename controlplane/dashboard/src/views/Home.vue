@@ -71,11 +71,9 @@ export default {
                 formValue.value.password
               );
               localStorage.setItem("access-token", token);
-              setTimeout(async () => {
-                await store.dispatch("init")
-                await store.dispatch("updateDatasource");
-                router.push("/dashboard");
-              }, 1000);
+              await store.dispatch("init");
+              await store.dispatch("updateDatasource");
+              router.push("/dashboard");
             } catch (e) {
               console.log(e.response);
               message.error(e.response.data.msg);
