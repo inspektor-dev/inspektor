@@ -1,5 +1,4 @@
 <template >
-<h1>{{ count }} asdfasdf</h1>
   <n-button type="success" v-if="isAdmin" @click="showModal = true"
     >Add Datasources</n-button
   >
