@@ -4,7 +4,7 @@ let token = localStorage.getItem("access-token");
 if (token != null) {
     axios.defaults.headers["Auth-Token"] = token;
 }
-axios.defaults.baseURL = "http://localhost:3123"
+//axios.defaults.baseURL = "http://localhost:3123"
 axios.interceptors.response.use(function (res) {
     return res.data
 }, function (error) {
