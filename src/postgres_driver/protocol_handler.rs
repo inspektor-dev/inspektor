@@ -259,7 +259,7 @@ impl ProtocolHandler {
     ) -> Result<ProtocolHandler, anyhow::Error> {
         debug!("intializing protocol handler");
         let mut target_conn = ProtocolHandler::connect_target(&config).await?;
-        target_conn = ProtocolHandler::try_ssl_upgrade(&config, target_conn).await?;
+        //target_conn = ProtocolHandler::try_ssl_upgrade(&config, target_conn).await?;
 
         // create startup parameter to establish authenticated connection.
         let startup_params = HashMap::from([
