@@ -16,6 +16,10 @@
 
 With Inspektor, you can leverage open policy and GitOps to enforce polices. By having features like policy as a code and GitOps, Inspektor is a first class citizen for your mordern cloud native workloads.
 
+If you have ideas 🧵 for improving inspektor, please join [Inspektor Discord](https://discord.gg/YxZbDJHTxf) or visit the [GitHub Discussion](https://github.com/poonai/inspektor/discussions):) 
+
+⭐ If you find this project interesting, please consider starring the project on GitHub⭐
+
 ## How it works
 
 Inspektor has two components: the **data plane** and the **control plane**.
