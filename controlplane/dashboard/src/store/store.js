@@ -10,11 +10,12 @@ function getDefaultStore() {
         isAdmin: false,
         sup: true,
         count: 1,
+        config: {},
     }
 }
 
 const store = createStore({
-     state() {
+    state() {
         return getDefaultStore()
     },
     mutations: {
@@ -23,13 +24,13 @@ const store = createStore({
                 state.datasources = datasource
                 return
             }
-            while(state.datasources.length) {
+            while (state.datasources.length) {
                 state.datasources.pop()
             }
             datasource.forEach(data => {
                 console.log("pushing", data)
                 state.datasources.push(data)
-            })    
+            })
         },
         setUsers(state, users) {
             state.users = users
@@ -42,6 +43,9 @@ const store = createStore({
         },
         increment(state) {
             state.count++
+        },
+        config(state, data) {
+            state.config = data
         }
     },
     actions: {
@@ -52,6 +56,8 @@ const store = createStore({
                 console.log("ignoring")
                 return
             }
+            let config = await api.config()
+            commit("config", config)
             commit('setIsAdmin', true)
         },
         async updateDatasource({ commit }) {
@@ -75,6 +81,10 @@ const store = createStore({
         },
         async reset({ commit }) {
             commit("reset")
+        },
+        async refreshConfig({commit}) {
+            let config = await api.config()
+            commit("config", config)
         }
     },
     getters: {

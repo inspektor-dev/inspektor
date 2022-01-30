@@ -4,7 +4,7 @@ let token = localStorage.getItem("access-token");
 if (token != null) {
     axios.defaults.headers["Auth-Token"] = token;
 }
-//axios.defaults.baseURL = "http://localhost:3123"
+axios.defaults.baseURL = "http://localhost:3123"
 axios.interceptors.response.use(function (res) {
     return res.data
 }, function (error) {
@@ -41,6 +41,13 @@ export default {
     },
     createSession: async (data) => {
         await axios.post("/api/session", data)
+    },
+    config: async() => {
+        let res = await axios.get("/api/config")
+        return res.data
+    },
+    refreshPolicy: async() => {
+        await axios.post("/api/policy/nofification")
     },
     intializeToken: () => {
         let token = localStorage.getItem("access-token");
