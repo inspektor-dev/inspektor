@@ -77,4 +77,5 @@ type CreateSessionRequest struct {
 
 type ConfigResponse struct {
 	PolicyRepoURL string `json:"policyRepoUrl"`
+	PolicyHash    string `json:"policyHash"`
 }

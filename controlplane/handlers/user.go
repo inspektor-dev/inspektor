@@ -202,6 +202,7 @@ func (h *Handlers) Init(router *mux.Router) {
 	router.HandleFunc("/api/user", h.AuthMiddleWare(h.AddUser())).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/users", h.AuthMiddleWare(h.GetUsers())).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/roles", h.AuthMiddleWare(h.Roles())).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/config", h.AuthMiddleWare(h.Config())).Methods("GET")
 	router.HandleFunc("/readiness", func(rw http.ResponseWriter, r *http.Request) {
 		rw.Write([]byte("ok"))
 	})

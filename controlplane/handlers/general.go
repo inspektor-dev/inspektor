@@ -28,6 +28,7 @@ func (h *Handlers) Config() InspectorHandler {
 		}
 		res := &types.ConfigResponse{
 			PolicyRepoURL: h.Cfg.PolicyRepo,
+			PolicyHash:    h.Policy.GetPolicyHash()[:7],
 		}
 		utils.WriteSuccesMsgWithData("ok", http.StatusOK, res, ctx.Rw)
 	}

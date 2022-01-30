@@ -93,6 +93,15 @@ func (p *PolicyManager) Sync() error {
 	return nil
 }
 
+func (p *PolicyManager) GetPolicyHash() string {
+	head, err := p.repo.Head()
+	if err != nil {
+		utils.Logger.Error("error while retriving policy head", zap.String("err_msg", err.Error()))
+		return ""
+	}
+	return head.Hash().String()
+}
+
 func (p *PolicyManager) Subscribe() (string, chan struct{}) {
 	p.Lock()
 	defer p.Unlock()
