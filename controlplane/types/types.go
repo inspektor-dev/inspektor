@@ -74,3 +74,7 @@ func (c *CreateDataSourceRequest) Validate() error {
 type CreateSessionRequest struct {
 	DatasourceID uint `json:"datasourceId"`
 }
+
+type ConfigResponse struct {
+	PolicyRepoURL string `json:"policyRepoUrl"`
+}
