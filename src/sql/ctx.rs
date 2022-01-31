@@ -90,7 +90,7 @@ impl Ctx {
             let protected_columns_set = protected_columns.iter().collect::<HashSet<&String>>();
             let table_columns = self.table_info.get(table_name).unwrap();
             for col in table_columns {
-                if protected_columns_set.contains(col) {
+                if protected_columns_set.contains(col) || protected_columns.len() == 0 {
                     selections.push(SelectItem::ExprWithAlias {
                         expr: Expr::Value(Value::Null),
                         alias: Ident {

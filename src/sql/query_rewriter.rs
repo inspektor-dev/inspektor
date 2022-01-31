@@ -239,7 +239,7 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
                 // before checking the rule engine. we have to check the state becauase this can be cte table
                 // or some aliased table so we have to check the state before advancing to the rule engine.
                 let protected_columns = match local_state.get_protected_columns(&table_name) {
-                    Some(cols) => cols,
+                    Some(cols) => Some(cols),
                     None => {
                         let mut cols = vec![];
                         if let Some(protected_cols) =
@@ -264,12 +264,13 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
                                 }
                             }
                         }
-                        cols
+                        Some(cols)
                     }
                 };
-                if protected_columns.len() == 0 {
-                    return Ok(local_state);
+                if protected_columns.is_none() {
+                    return Ok(local_state)
                 }
+                let protected_columns = protected_columns.unwrap();
                 if let Some(alias) = alias {
                     let alias_name = alias.name.value.clone();
                     local_state.overwrite_table_info(&table_name, alias_name.clone());
@@ -1214,6 +1215,33 @@ mod tests {
             state,
             "UPDATE kids SET phone = 'Dramatic' WHERE phone = '9843421696';",
             "UPDATE kids SET phone = 'Dramatic' WHERE phone = '9843421696'",
+        );
+    }
+
+    #[test]
+    fn test_protected_table(){
+        let rule_engine = HardRuleEngine {
+            protected_columns: HashMap::from([(String::from("kids"), vec![])]),
+            insert_allowed: false,
+            update_allowed: false,
+        };
+
+        let state = Ctx::new(HashMap::from([(
+            String::from("kids"),
+            vec![
+                String::from("phone"),
+                String::from("id"),
+                String::from("name"),
+                String::from("address"),
+            ],
+        )]));
+
+        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
+        assert_rewriter(
+            &rewriter,
+            state,
+            "select * from kids",
+            "SELECT NULL AS \"kids.phone\", NULL AS \"kids.id\", NULL AS \"kids.name\", NULL AS \"kids.address\" FROM kids",
         );
     }
 }
