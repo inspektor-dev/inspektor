@@ -54,16 +54,10 @@ impl Display for QueryRewriterError {
                 )
             }
             QueryRewriterError::UnAuthorizedInsert => {
-                write!(
-                    f,
-                    "unauthorized insert"
-                )
+                write!(f, "unauthorized insert")
             }
             QueryRewriterError::UnAuthorizedUpdate => {
-                write!(
-                    f,
-                    "unauthorized update"
-                )
+                write!(f, "unauthorized update")
             }
         }
     }

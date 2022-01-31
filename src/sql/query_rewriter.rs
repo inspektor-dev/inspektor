@@ -246,7 +246,6 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
                             self.rule_engine.get_protected_columns(&table_name)
                         {
                             cols = Some(protected_cols);
-                            
                         } else {
                             for ns in &self.namespaces {
                                 let ns_table_name = format!("{}.{}", ns, &table_name);
@@ -269,7 +268,7 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
                     }
                 };
                 if protected_columns.is_none() {
-                    return Ok(local_state)
+                    return Ok(local_state);
                 }
                 let protected_columns = protected_columns.unwrap();
                 if let Some(alias) = alias {
@@ -1220,29 +1219,48 @@ mod tests {
     }
 
     #[test]
-    fn test_protected_table(){
+    fn test_protected_table() {
         let rule_engine = HardRuleEngine {
             protected_columns: HashMap::from([(String::from("kids"), vec![])]),
             insert_allowed: false,
             update_allowed: false,
         };
 
-        let state = Ctx::new(HashMap::from([(
-            String::from("kids"),
-            vec![
-                String::from("phone"),
-                String::from("id"),
-                String::from("name"),
-                String::from("address"),
-            ],
-        )]));
+        let state = Ctx::new(HashMap::from([
+            (
+                String::from("kids"),
+                vec![
+                    String::from("phone"),
+                    String::from("id"),
+                    String::from("name"),
+                    String::from("address"),
+                ],
+            ),
+            (
+                String::from("transactions"),
+                vec![
+                    String::from("merchant_name"),
+                    String::from("kid_id"),
+                    String::from("id"),
+                    String::from("amount"),
+                ],
+            ),
+        ]));
+
+        let rewriter = QueryRewriter::new(rule_engine.clone(), vec!["public".to_string()]);
+        assert_rewriter(
+            &rewriter,
+            state.clone(),
+            "select * from kids",
+            "SELECT NULL AS \"kids.phone\", NULL AS \"kids.id\", NULL AS \"kids.name\", NULL AS \"kids.address\" FROM kids",
+        );
 
         let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         assert_rewriter(
             &rewriter,
             state,
-            "select * from kids",
-            "SELECT NULL AS \"kids.phone\", NULL AS \"kids.id\", NULL AS \"kids.name\", NULL AS \"kids.address\" FROM kids",
+            "select * from kids join transactions on transactions.kid_id = kids.id",
+            "SELECT NULL AS \"kids.phone\", NULL AS \"kids.id\", NULL AS \"kids.name\", NULL AS \"kids.address\", transactions.* FROM kids JOIN transactions ON transactions.kid_id = kids.id",
         );
     }
 }

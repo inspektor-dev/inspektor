@@ -69,7 +69,10 @@ impl RuleEngine for HardRuleEngine {
 
     fn is_protected_column(&self, table_name: &String, column: &String) -> bool {
         if let Some(protected_columns) = self.protected_columns.get(table_name) {
-            return protected_columns.iter().position(|protected_column| *protected_column == *column).is_some()
+            return protected_columns
+                .iter()
+                .position(|protected_column| *protected_column == *column)
+                .is_some();
         }
         return false;
     }

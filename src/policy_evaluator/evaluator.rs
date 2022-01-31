@@ -50,7 +50,7 @@ impl PolicyResult {
             }
             inner_protected_column.insert(table_name, vec![splits[2].to_string()]);
         }
-        HardRuleEngine{
+        HardRuleEngine {
             protected_columns: inner_protected_column,
             insert_allowed: self.insert,
             update_allowed: self.update,
@@ -153,33 +153,27 @@ impl PolicyEvaluator {
                 .collect::<Vec<String>>(),
             _ => Vec::new(),
         };
-        
+
         let update = self.evaluator.evaluate(
-            *self
-                .entrypoints
-                .get(&String::from("update"))
-                .unwrap(),
+            *self.entrypoints.get(&String::from("update")).unwrap(),
             &input,
             &data,
         )?;
 
-        let update = match self.get_result(update){
+        let update = match self.get_result(update) {
             Value::Bool(val) => val,
-            _ => false
+            _ => false,
         };
 
         let insert = self.evaluator.evaluate(
-            *self
-                .entrypoints
-                .get(&String::from("insert"))
-                .unwrap(),
+            *self.entrypoints.get(&String::from("insert")).unwrap(),
             &input,
             &data,
         )?;
 
-        let insert = match self.get_result(insert){
+        let insert = match self.get_result(insert) {
             Value::Bool(val) => val,
-            _ => false
+            _ => false,
         };
         Ok(PolicyResult {
             allow: allow,

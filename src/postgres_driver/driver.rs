@@ -33,7 +33,7 @@ pub struct PostgresDriver {
 
 impl PostgresDriver {
     pub fn start(&self) {
-       // let acceptor = self.get_ssl_acceptor();
+        // let acceptor = self.get_ssl_acceptor();
         // run the socket message.
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async move {
@@ -50,7 +50,7 @@ impl PostgresDriver {
             );
             loop {
                 let (socket, _) = listener.accept().await.unwrap();
-         //       let acceptor = acceptor.clone();
+                //       let acceptor = acceptor.clone();
                 let driver = self.clone();
                 let socket = PostgresConn::Unsecured(socket);
                 tokio::spawn(async move {
