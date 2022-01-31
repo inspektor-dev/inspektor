@@ -241,11 +241,12 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
                 let protected_columns = match local_state.get_protected_columns(&table_name) {
                     Some(cols) => Some(cols),
                     None => {
-                        let mut cols = vec![];
+                        let mut cols = None;
                         if let Some(protected_cols) =
                             self.rule_engine.get_protected_columns(&table_name)
                         {
-                            cols = protected_cols;
+                            cols = Some(protected_cols);
+                            
                         } else {
                             for ns in &self.namespaces {
                                 let ns_table_name = format!("{}.{}", ns, &table_name);
@@ -258,13 +259,13 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
                                             "".to_string(),
                                         )));
                                     }
-                                    cols = columns;
+                                    cols = Some(columns);
                                     table_name = ns_table_name;
                                     break;
                                 }
                             }
                         }
-                        Some(cols)
+                        cols
                     }
                 };
                 if protected_columns.is_none() {
