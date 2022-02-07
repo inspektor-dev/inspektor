@@ -18,6 +18,7 @@ use burrego::opa::wasm::Evaluator;
 use log::*;
 use serde_json::{Map, Value};
 use std::collections::{HashMap, HashSet};
+
 /// PolicyEvaluator is used to to evaluate policy decision for all the end user
 /// action.
 pub struct PolicyEvaluator {
@@ -28,7 +29,7 @@ pub struct PolicyEvaluator {
 pub struct PolicyResult {
     pub allow: bool,
     pub allowed_attributes: Vec<String>,
-    pub protected_attributes: Vec<String>
+    pub protected_attributes: Vec<String>,
 }
 
 impl PolicyResult {
@@ -56,14 +57,17 @@ impl PolicyResult {
         }
     }
 
-    pub fn get_protected_tables(&self) -> Vec<(&str, &str)> {
+    pub fn get_protected_tables(&self, dbname: &String) -> Vec<(&str, &str)> {
         let mut set: HashSet<(&str, &str)> = HashSet::default();
-        for column in &self.allowed_attributes {
+        for column in &self.protected_attributes {
             let splits = column.split(".").collect::<Vec<&str>>();
-            if splits.len() != 3 {
+            if splits.len() != 4 {
                 continue;
             }
-            set.insert((splits[0], splits[1]));
+            if splits[0] != dbname {
+                continue;
+            }
+            set.insert((splits[1], splits[2]));
         }
         set.into_iter().collect::<Vec<(&str, &str)>>()
     }
@@ -125,7 +129,7 @@ impl PolicyEvaluator {
             return Ok(PolicyResult {
                 allow: false,
                 allowed_attributes: vec![],
-                protected_attributes: vec![]
+                protected_attributes: vec![],
             });
         }
         // get allowed attributes for the user.
@@ -167,11 +171,10 @@ impl PolicyEvaluator {
             _ => Vec::new(),
         };
 
-       
         Ok(PolicyResult {
             allow: allow,
             allowed_attributes: allowed_attributes,
-            protected_attributes: protected_attributes
+            protected_attributes: protected_attributes,
         })
     }
 
@@ -231,8 +234,11 @@ mod tests {
                 &vec![String::from("support"), String::from("admin")],
             )
             .unwrap();
-        assert_eq!(result.allow, true);        
+        assert_eq!(result.allow, true);
         assert_eq!(result.allowed_attributes, Vec::<String>::default());
-        assert_eq!(result.protected_attributes, vec!["prod","postgres.public.kids"]);
+        assert_eq!(
+            result.protected_attributes,
+            vec!["prod", "postgres.public.kids"]
+        );
     }
 }

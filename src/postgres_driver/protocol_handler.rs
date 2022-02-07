@@ -70,7 +70,7 @@ impl ProtocolHandler {
             &self.connected_db,
             &self.groups,
         )?;
-        let protected_tables = result.get_protected_tables();
+        let protected_tables = result.get_protected_tables(&self.connected_db);
 
         if protected_tables.len() == 0 {
             return Ok(TableInfo::default());
@@ -184,11 +184,19 @@ impl ProtocolHandler {
                         }
                     };
                     // let's check whether new policy allows the current db connection
-                    let result = evaluator.evaluate(&self.datasource_name, &self.connected_db, &self.groups)?;
+                    let result = evaluator.evaluate(&self.datasource_name, &"view".to_string(), &self.groups)?;
                     if !result.allow{
                         error!("updated policy violating the existing connection so dropping the connection");
-                        continue;
+                        return Err(anyhow!("updated policy violating the existing connection"));
                     }
+                    if let Some(_) = result
+                    .protected_attributes
+                    .iter()
+                    .position(|attribute| attribute == self.connected_db)
+                {
+                    error!("unautorized db access");
+                    return Err(anyhow!("updated policy violating the existing connection"));
+                }
                     self.policy_evaluator = evaluator;
                 }
                 n = self.target_conn.read(&mut target_buf) => {

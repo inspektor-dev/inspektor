@@ -122,7 +122,7 @@ impl PostgresDriver {
 
                     let result = match evaluator.evaluate(
                         &self.datasource.data_source_name,
-                        params.get("database").unwrap(),
+                        &"view".to_string(),
                         &groups,
                     ) {
                         Ok(res) => res,
@@ -134,9 +134,21 @@ impl PostgresDriver {
                     if !result.allow {
                         // since this datasource is not allowed by the group
                         // let's drop the connection here.
-                        info!("incomming connection don't have access to the given db ");
+                        info!("incomming connection don't have access to the given datasource");
                         return;
                     }
+
+                    // terminate the connection if the incoming db access is fall under protected
+                    // attribute.
+                    if let Some(_) = result
+                        .protected_attributes
+                        .iter()
+                        .position(|attribute| attribute == params.get("database").unwrap())
+                    {
+                        error!("unautorized db access");
+                        return;
+                    }
+
                     let mut handler = match ProtocolHandler::initialize(
                         self.postgres_config.clone(),
                         client_conn,
