@@ -50,11 +50,7 @@ impl PolicyResult {
             }
             inner_protected_column.insert(table_name, vec![splits[2].to_string()]);
         }
-        HardRuleEngine {
-            protected_columns: inner_protected_column,
-            insert_allowed: true,
-            update_allowed: true,
-        }
+        HardRuleEngine::default()
     }
 
     pub fn get_protected_tables(&self, dbname: &String) -> Vec<(&str, &str)> {

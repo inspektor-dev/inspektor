@@ -192,7 +192,7 @@ impl ProtocolHandler {
                     if let Some(_) = result
                     .protected_attributes
                     .iter()
-                    .position(|attribute| attribute == self.connected_db)
+                    .position(|attribute| *attribute == self.connected_db)
                 {
                     error!("unautorized db access");
                     return Err(anyhow!("updated policy violating the existing connection"));
