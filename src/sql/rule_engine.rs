@@ -21,6 +21,7 @@ pub trait RuleEngine {
     fn is_insert_allowed(&self) -> bool;
     fn is_update_allowed(&self) -> bool;
     fn is_copy_allowed(&self) -> bool;
+    fn get_allowed_insert_attributes(&self) -> &HashMap<String, Vec<String>>;
     fn is_protected_column(&self, table_name: &String, column: &String) -> bool;
 }
 
@@ -31,6 +32,9 @@ pub struct HardRuleEngine {
     pub insert_allowed: bool,
     pub update_allowed: bool,
     pub copy_allowed: bool,
+    pub copy_allowed_attributes: HashMap<String, Vec<String>>,
+    pub insert_allowed_attributes: HashMap<String, Vec<String>>,
+    pub update_allowed_attributes: HashMap<String, Vec<String>>
 }
 
 impl RuleEngine for HardRuleEngine {
@@ -82,6 +86,10 @@ impl RuleEngine for HardRuleEngine {
     fn is_insert_allowed(&self) -> bool {
         self.insert_allowed
     }
+
+    fn get_allowed_insert_attributes(&self) -> &HashMap<String, Vec<String>> {
+        &self.insert_allowed_attributes
+    }
     
     fn is_update_allowed(&self) -> bool {
         self.update_allowed
@@ -100,7 +108,10 @@ impl HardRuleEngine {
             protected_columns,
             insert_allowed: false,
             update_allowed: false,
-            copy_allowed: false
+            copy_allowed: false,
+            copy_allowed_attributes: HashMap::default(),
+            update_allowed_attributes: HashMap::default(),
+            insert_allowed_attributes: HashMap::default()
         }
     }
 }
