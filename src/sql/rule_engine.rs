@@ -23,6 +23,7 @@ pub trait RuleEngine {
     fn is_copy_allowed(&self) -> bool;
     fn get_allowed_insert_attributes(&self) -> &HashMap<String, Vec<String>>;
     fn get_allowed_copy_attributes(&self) -> &HashMap<String, Vec<String>>;
+    fn get_allowed_update_attributes(&self) -> &HashMap<String, Vec<String>>;
     fn is_protected_column(&self, table_name: &String, column: &String) -> bool;
 }
 
@@ -94,6 +95,10 @@ impl RuleEngine for HardRuleEngine {
 
     fn get_allowed_copy_attributes(&self) -> &HashMap<String, Vec<String>> {
         &self.copy_allowed_attributes
+    }
+
+    fn get_allowed_update_attributes(&self) -> &HashMap<String, Vec<String>> {
+        &self.update_allowed_attributes
     }
     
     fn is_update_allowed(&self) -> bool {
