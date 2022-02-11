@@ -18,6 +18,7 @@ use burrego::opa::wasm::Evaluator;
 use log::*;
 use serde_json::{Map, Value};
 use std::collections::{HashMap, HashSet};
+
 /// PolicyEvaluator is used to to evaluate policy decision for all the end user
 /// action.
 pub struct PolicyEvaluator {
@@ -27,16 +28,15 @@ pub struct PolicyEvaluator {
 
 pub struct PolicyResult {
     pub allow: bool,
-    pub protected_columns: Vec<String>,
-    pub insert: bool,
-    pub update: bool,
+    pub allowed_attributes: Vec<String>,
+    pub protected_attributes: Vec<String>,
 }
 
 impl PolicyResult {
     // to_rule_engine will convert the policy result to sql rule engine.
     pub fn to_rule_engine(self) -> HardRuleEngine {
         let mut inner_protected_column: HashMap<String, Vec<String>> = HashMap::default();
-        for column in self.protected_columns {
+        for column in self.allowed_attributes {
             // all columns should have 2 dots
             // schema.table.column
             let splits = column.split(".").collect::<Vec<&str>>();
@@ -50,21 +50,20 @@ impl PolicyResult {
             }
             inner_protected_column.insert(table_name, vec![splits[2].to_string()]);
         }
-        HardRuleEngine {
-            protected_columns: inner_protected_column,
-            insert_allowed: self.insert,
-            update_allowed: self.update,
-        }
+        HardRuleEngine::default()
     }
 
-    pub fn get_protected_tables(&self) -> Vec<(&str, &str)> {
+    pub fn get_protected_tables(&self, dbname: &String) -> Vec<(&str, &str)> {
         let mut set: HashSet<(&str, &str)> = HashSet::default();
-        for column in &self.protected_columns {
+        for column in &self.protected_attributes {
             let splits = column.split(".").collect::<Vec<&str>>();
             if splits.len() != 3 {
                 continue;
             }
-            set.insert((splits[0], splits[1]));
+            if splits[0] != dbname {
+                continue;
+            }
+            set.insert((splits[1], splits[2]));
         }
         set.into_iter().collect::<Vec<(&str, &str)>>()
     }
@@ -85,16 +84,12 @@ impl PolicyEvaluator {
             evaluator.entrypoint_id(&"inspektor/resource/acl/allow")?,
         );
         entrypoints.insert(
-            String::from("protected_columns"),
-            evaluator.entrypoint_id(&"inspektor/resource/acl/protected_columns")?,
+            String::from("allowed_attributes"),
+            evaluator.entrypoint_id(&"inspektor/resource/acl/allowed_attributes")?,
         );
         entrypoints.insert(
-            String::from("insert"),
-            evaluator.entrypoint_id(&"inspektor/resource/acl/insert")?,
-        );
-        entrypoints.insert(
-            String::from("update"),
-            evaluator.entrypoint_id(&"inspektor/resource/acl/update")?,
+            String::from("protected_attributes"),
+            evaluator.entrypoint_id(&"inspektor/resource/acl/protected_attributes")?,
         );
         Ok(PolicyEvaluator {
             evaluator,
@@ -106,14 +101,14 @@ impl PolicyEvaluator {
     pub fn evaluate(
         &mut self,
         data_source: &String,
-        db_name: &String,
+        action: &String,
         groups: &Vec<String>,
     ) -> Result<PolicyResult, anyhow::Error> {
         debug!(
-            "evaluating policy with data_soruce {:?} db_name {:?} groups {:?}",
-            data_source, db_name, groups
+            "evaluating policy with data_soruce {:?} action {:?} groups {:?}",
+            data_source, action, groups
         );
-        let input = self.get_input_value(data_source, db_name, groups);
+        let input = self.get_input_value(data_source, action, groups);
         let data = Value::Object(Map::default());
 
         let allow = self.evaluator.evaluate(
@@ -129,21 +124,20 @@ impl PolicyEvaluator {
         if !allow {
             return Ok(PolicyResult {
                 allow: false,
-                insert: false,
-                update: false,
-                protected_columns: Vec::default(),
+                allowed_attributes: vec![],
+                protected_attributes: vec![],
             });
         }
-        // get protected columns for the user.
-        let protected_columns = self.evaluator.evaluate(
+        // get allowed attributes for the user.
+        let allowed_attributes = self.evaluator.evaluate(
             *self
                 .entrypoints
-                .get(&String::from("protected_columns"))
+                .get(&String::from("allowed_attributes"))
                 .unwrap(),
             &input,
             &data,
         )?;
-        let protected_columns = match self.get_result(protected_columns) {
+        let allowed_attributes = match self.get_result(allowed_attributes) {
             Value::Array(vals) => vals
                 .into_iter()
                 .map(|i| match i {
@@ -154,32 +148,29 @@ impl PolicyEvaluator {
             _ => Vec::new(),
         };
 
-        let update = self.evaluator.evaluate(
-            *self.entrypoints.get(&String::from("update")).unwrap(),
+        let protected_attributes = self.evaluator.evaluate(
+            *self
+                .entrypoints
+                .get(&String::from("protected_attributes"))
+                .unwrap(),
             &input,
             &data,
         )?;
-
-        let update = match self.get_result(update) {
-            Value::Bool(val) => val,
-            _ => false,
+        let protected_attributes = match self.get_result(protected_attributes) {
+            Value::Array(vals) => vals
+                .into_iter()
+                .map(|i| match i {
+                    Value::String(s) => return s,
+                    _ => unreachable!("expected string"),
+                })
+                .collect::<Vec<String>>(),
+            _ => Vec::new(),
         };
 
-        let insert = self.evaluator.evaluate(
-            *self.entrypoints.get(&String::from("insert")).unwrap(),
-            &input,
-            &data,
-        )?;
-
-        let insert = match self.get_result(insert) {
-            Value::Bool(val) => val,
-            _ => false,
-        };
         Ok(PolicyResult {
             allow: allow,
-            update: update,
-            insert: insert,
-            protected_columns: protected_columns,
+            allowed_attributes: allowed_attributes,
+            protected_attributes: protected_attributes,
         })
     }
 
@@ -199,12 +190,12 @@ impl PolicyEvaluator {
     fn get_input_value(
         &self,
         data_source: &String,
-        db_name: &String,
+        action: &String,
         groups: &Vec<String>,
     ) -> serde_json::Value {
         let mut object = Map::with_capacity(2);
         object.insert(
-            String::from("data_source"),
+            String::from("datasource"),
             Value::String(data_source.clone()),
         );
         object.insert(
@@ -216,7 +207,7 @@ impl PolicyEvaluator {
                     .collect::<Vec<Value>>(),
             ),
         );
-        object.insert(String::from("db_name"), Value::String(db_name.clone()));
+        object.insert(String::from("action"), Value::String(action.clone()));
         Value::Object(object)
     }
 }
@@ -235,17 +226,15 @@ mod tests {
         let result = evaluator
             .evaluate(
                 &String::from("postgres-prod"),
-                &String::from("inspektor"),
-                &vec![String::from("dev"), String::from("admin")],
+                &String::from("view"),
+                &vec![String::from("support"), String::from("admin")],
             )
             .unwrap();
         assert_eq!(result.allow, true);
-        assert_eq!(result.update, true);
-        assert_eq!(result.insert, false);
-
+        assert_eq!(result.allowed_attributes, Vec::<String>::default());
         assert_eq!(
-            result.protected_columns,
-            vec![String::from("public.data_sources.side_car_token")]
+            result.protected_attributes,
+            vec!["prod", "postgres.public.kids"]
         );
     }
 }

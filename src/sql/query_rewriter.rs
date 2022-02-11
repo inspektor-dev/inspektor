@@ -15,12 +15,13 @@
 use crate::sql::ctx::Ctx;
 use crate::sql::error::QueryRewriterError;
 use crate::sql::rule_engine::RuleEngine;
+use std::collections::HashMap;
 
 use anyhow::Result;
 use log::*;
 use sqlparser::ast::{
-    Assignment, Expr, FunctionArg, FunctionArgExpr, Ident, Query, Select, SelectItem, SetExpr,
-    Statement, TableFactor, TableWithJoins, TrimWhereField, Value,
+    Assignment, Expr, FunctionArg, FunctionArgExpr, Ident, ObjectName, Query, Select, SelectItem,
+    SetExpr, Statement, TableFactor, TableWithJoins, TrimWhereField, Value,
 };
 // QueryRewriter validates the user query and rewrites if neccessary.
 pub struct QueryRewriter<T: RuleEngine + Clone> {
@@ -65,27 +66,22 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
                     if !self.rule_engine.is_insert_allowed() {
                         return Err(QueryRewriterError::UnAuthorizedInsert);
                     }
-                    if columns.len() == 0 {
+                    let allowed_attributes = self.rule_engine.get_allowed_insert_attributes();
+                    if !self.is_operation_allowed(&table_name, &columns, allowed_attributes) {
                         return Err(QueryRewriterError::UnAuthorizedInsert);
                     }
-                    // check whether any of the column is protected column.
-                    for column in columns {
-                        let table_name = join_indents(&table_name.0);
-                        if self
-                            .rule_engine
-                            .is_protected_column(&table_name, &column.value)
-                        {
-                            return Err(QueryRewriterError::UnAuthorizedInsert);
-                        }
-                        for ns in &self.namespaces {
-                            let table_name = format!("{}.{}", ns, table_name);
-                            if self
-                                .rule_engine
-                                .is_protected_column(&table_name, &column.value)
-                            {
-                                return Err(QueryRewriterError::UnAuthorizedInsert);
-                            }
-                        }
+                }
+                Statement::Copy {
+                    table_name,
+                    columns,
+                    ..
+                } => {
+                    if !self.rule_engine.is_copy_allowed() {
+                        return Err(QueryRewriterError::UnAuthorizedInsert);
+                    }
+                    let allowed_attributes = self.rule_engine.get_allowed_copy_attributes();
+                    if !self.is_operation_allowed(&table_name, &columns, allowed_attributes) {
+                        return Err(QueryRewriterError::UnAuthorizedInsert);
                     }
                 }
                 _ => {
@@ -96,6 +92,67 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
         Ok(())
     }
 
+    pub fn is_operation_allowed(
+        &self,
+        table_name: &ObjectName,
+        columns: &Vec<Ident>,
+        allowed_attributes: &HashMap<String, Vec<String>>,
+    ) -> bool {
+        if table_name.0.len() > 1 {
+            // table name have a schema prefix so let's just
+            // validate directly.
+            let table_name = join_indents(&table_name.0);
+            if self.validate_allowed_attributes(allowed_attributes, table_name, columns) {
+                return true;
+            }
+            // this is unauthorized insert statment.
+            return false;
+        }
+        let table_name = join_indents(&table_name.0);
+        // let's add schema as prefix to validate the insert.
+        let mut allowed = false;
+        for ns in &self.namespaces {
+            let ns_table_name = format!("{}.{}", ns, table_name);
+            if self.validate_allowed_attributes(allowed_attributes, ns_table_name, columns) {
+                allowed = true;
+                break;
+            }
+        }
+        if !allowed {
+            return false;
+        }
+        return true;
+    }
+
+    pub fn validate_allowed_attributes(
+        &self,
+        allowed_attributes: &HashMap<String, Vec<String>>,
+        table_name: String,
+        cols: &Vec<Ident>,
+    ) -> bool {
+        match allowed_attributes.get(&table_name) {
+            Some(allowed_cols) => {
+                if allowed_cols.len() == 0 {
+                    // since there is no columns to filter it's safe to allow this validation.
+                    return true;
+                }
+                for col in cols {
+                    if allowed_cols
+                        .iter()
+                        .position(|attribute| *attribute == col.value)
+                        .is_none()
+                    {
+                        // incoming columns is not part of allowed column.
+                        // so the caller operation is not allowed.
+                        return false;
+                    }
+                }
+                return true;
+            }
+            None => return false,
+        }
+    }
+
     /// handle_update validate the given table and assignment are allowed by the user, if not this
     /// throw error.
     pub fn handle_update(
@@ -103,7 +160,8 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
         table: &TableWithJoins,
         assignments: &Vec<Assignment>,
     ) -> Result<(), QueryRewriterError> {
-        // get the table name.
+        // postgres update will have only one table so it's safe to
+        // find the table and validate the whether it's allowed to update.
         let table_name = match &table.relation {
             TableFactor::Table { name, .. } => join_indents(&name.0),
             _ => {
@@ -114,33 +172,19 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
                 return Err(QueryRewriterError::UnAuthorizedUpdate);
             }
         };
-        // is_protected check whether the columns in given table name is protected or not.
-        let is_protected = |table_name: &String| -> Result<(), QueryRewriterError> {
-            if let Some(protected_columns) = self.rule_engine.get_protected_columns(table_name) {
-                for assignment in assignments {
-                    let column = &assignment.id.last().unwrap().value;
-                    // check column is in protected columns.
-                    if protected_columns
-                        .iter()
-                        .position(|protected_column| *protected_column == *column)
-                        .is_some()
-                    {
-                        return Err(QueryRewriterError::UnAuthorizedUpdate);
-                    }
-                }
+        // let's get the columns which user wants to update.
+        let mut columns: Vec<Ident> = vec![];
+        for assignment in assignments {
+            for column in &assignment.id {
+                columns.push(column.clone());
             }
-            return Ok(());
-        };
-
-        // validate whether this update is allowed or not.
-        if let Err(e) = is_protected(&table_name) {
-            return Err(e);
         }
-        for ns in &self.namespaces {
-            let ns_table_name = format!("{}.{}", ns, table_name);
-            if let Err(e) = is_protected(&ns_table_name) {
-                return Err(e);
-            }
+        if !self.is_operation_allowed(
+            &ObjectName(vec![Ident::new(table_name)]),
+            &columns,
+            self.rule_engine.get_allowed_update_attributes(),
+        ) {
+            return Err(QueryRewriterError::UnAuthorizedUpdate);
         }
         Ok(())
     }
@@ -666,6 +710,7 @@ mod tests {
             )]),
             insert_allowed: false,
             update_allowed: false,
+            ..Default::default()
         };
 
         let state = Ctx::new(HashMap::from([(
@@ -700,6 +745,7 @@ mod tests {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
             insert_allowed: false,
             update_allowed: false,
+            ..Default::default()
         };
 
         let state = Ctx::new(HashMap::from([
@@ -726,6 +772,7 @@ mod tests {
             )]),
             insert_allowed: false,
             update_allowed: false,
+            ..Default::default()
         };
 
         let state = Ctx::new(HashMap::from([(
@@ -757,6 +804,7 @@ mod tests {
             )]),
             insert_allowed: false,
             update_allowed: false,
+            ..Default::default()
         };
 
         let state = Ctx::new(HashMap::from([(
@@ -793,6 +841,7 @@ mod tests {
             )]),
             insert_allowed: false,
             update_allowed: false,
+            ..Default::default()
         };
 
         let state = Ctx::new(HashMap::from([
@@ -840,6 +889,7 @@ mod tests {
             ]),
             insert_allowed: false,
             update_allowed: false,
+            ..Default::default()
         };
 
         let state = Ctx::new(HashMap::from([
@@ -906,6 +956,7 @@ mod tests {
             ]),
             insert_allowed: false,
             update_allowed: false,
+            ..Default::default()
         };
 
         let state = Ctx::new(HashMap::from([
@@ -944,6 +995,7 @@ mod tests {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
             insert_allowed: false,
             update_allowed: false,
+            ..Default::default()
         };
 
         let state = Ctx::new(HashMap::from([(
@@ -971,6 +1023,7 @@ mod tests {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
             insert_allowed: false,
             update_allowed: false,
+            ..Default::default()
         };
 
         let state = Ctx::new(HashMap::from([(
@@ -1051,6 +1104,7 @@ mod tests {
             )]),
             insert_allowed: false,
             update_allowed: false,
+            ..Default::default()
         };
 
         let state = Ctx::new(HashMap::from([(
@@ -1132,6 +1186,7 @@ mod tests {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
             insert_allowed: false,
             update_allowed: false,
+            ..Default::default()
         };
 
         let state = Ctx::new(get_table_info());
@@ -1147,8 +1202,13 @@ mod tests {
     fn test_insert() {
         let rule_engine = HardRuleEngine {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("id")])]),
-            insert_allowed: false,
+            insert_allowed: true,
+            insert_allowed_attributes: HashMap::from([(
+                String::from("kids"),
+                vec![String::from("id")],
+            )]),
             update_allowed: false,
+            ..Default::default()
         };
         let rewriter = QueryRewriter::new(rule_engine, vec![]);
         let state = Ctx::new(get_table_info());
@@ -1162,14 +1222,19 @@ mod tests {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("phone")])]),
             insert_allowed: true,
             update_allowed: false,
+            insert_allowed_attributes: HashMap::from([(
+                String::from("public.kids"),
+                vec![String::from("phone")],
+            )]),
+            ..Default::default()
         };
-        let rewriter = QueryRewriter::new(rule_engine, vec![]);
+        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         let state = Ctx::new(get_table_info());
         assert_rewriter(
             &rewriter,
             state,
-            "INSERT INTO KIDS(phone) values('9843421696')",
-            "INSERT INTO KIDS (phone) VALUES ('9843421696')",
+            "INSERT INTO kids(phone) values('9843421696')",
+            "INSERT INTO kids (phone) VALUES ('9843421696')",
         )
     }
 
@@ -1179,6 +1244,7 @@ mod tests {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("id")])]),
             insert_allowed: false,
             update_allowed: false,
+            ..Default::default()
         };
         let rewriter = QueryRewriter::new(rule_engine, vec![]);
         let state = Ctx::new(get_table_info());
@@ -1193,6 +1259,7 @@ mod tests {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("id")])]),
             insert_allowed: false,
             update_allowed: true,
+            ..Default::default()
         };
         let rewriter = QueryRewriter::new(rule_engine, vec![]);
         let state = Ctx::new(get_table_info());
@@ -1207,8 +1274,13 @@ mod tests {
             protected_columns: HashMap::from([(String::from("kids"), vec![String::from("id")])]),
             insert_allowed: false,
             update_allowed: true,
+            update_allowed_attributes: HashMap::from([(
+                String::from("public.kids"),
+                vec![String::from("phone")],
+            )]),
+            ..Default::default()
         };
-        let rewriter = QueryRewriter::new(rule_engine, vec![]);
+        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         let state = Ctx::new(get_table_info());
         assert_rewriter(
             &rewriter,
@@ -1224,6 +1296,7 @@ mod tests {
             protected_columns: HashMap::from([(String::from("kids"), vec![])]),
             insert_allowed: false,
             update_allowed: false,
+            ..Default::default()
         };
 
         let state = Ctx::new(HashMap::from([

@@ -18,6 +18,7 @@ use crate::postgres_driver::errors::ProtocolHandlerError;
 use crate::postgres_driver::message::*;
 use crate::sql::ctx::Ctx;
 use crate::sql::query_rewriter::QueryRewriter;
+use crate::sql::rule_engine::HardRuleEngine;
 use anyhow::*;
 use log::*;
 use md5::{Digest, Md5};
@@ -70,7 +71,7 @@ impl ProtocolHandler {
             &self.connected_db,
             &self.groups,
         )?;
-        let protected_tables = result.get_protected_tables();
+        let protected_tables = result.get_protected_tables(&self.connected_db);
 
         if protected_tables.len() == 0 {
             return Ok(TableInfo::default());
@@ -184,11 +185,19 @@ impl ProtocolHandler {
                         }
                     };
                     // let's check whether new policy allows the current db connection
-                    let result = evaluator.evaluate(&self.datasource_name, &self.connected_db, &self.groups)?;
+                    let result = evaluator.evaluate(&self.datasource_name, &"view".to_string(), &self.groups)?;
                     if !result.allow{
                         error!("updated policy violating the existing connection so dropping the connection");
-                        continue;
+                        return Err(anyhow!("updated policy violating the existing connection"));
                     }
+                    if let Some(_) = result
+                    .protected_attributes
+                    .iter()
+                    .position(|attribute| *attribute == self.connected_db)
+                {
+                    error!("unautorized db access");
+                    return Err(anyhow!("updated policy violating the existing connection"));
+                }
                     self.policy_evaluator = evaluator;
                 }
                 n = self.target_conn.read(&mut target_buf) => {
@@ -540,15 +549,6 @@ impl ProtocolHandler {
         if query.contains("BEGIN READ ONLY") {
             return Ok(());
         }
-        let result = self.policy_evaluator.evaluate(
-            &self.datasource_name,
-            &self.connected_db,
-            &self.groups,
-        )?;
-        if !result.allow {
-            error!("updated policy violating the existing connection so dropping the connection");
-            return Err(ProtocolHandlerError::PolicyRejected);
-        }
         let dialect = sqlparser::dialect::PostgreSqlDialect {};
         let mut statements = match sqlparser::parser::Parser::parse_sql(&dialect, query) {
             Ok(statements) => statements,
@@ -560,7 +560,7 @@ impl ProtocolHandler {
                 return Err(ProtocolHandlerError::ErrParsingQuery);
             }
         };
-        let rule = result.to_rule_engine();
+        let rule = self.get_rule_engine()?;
         let rewriter = QueryRewriter::new(rule, schemas);
         rewriter.rewrite(&mut statements, ctx)?;
         let mut out = String::from("");
@@ -569,5 +569,69 @@ impl ProtocolHandler {
         }
         *query = out;
         Ok(())
+    }
+
+    fn get_rule_engine(&mut self) -> Result<HardRuleEngine, anyhow::Error> {
+        let insert_result = self.policy_evaluator.evaluate(
+            &self.datasource_name,
+            &"insert".to_string(),
+            &self.groups,
+        )?;
+        let update_result = self.policy_evaluator.evaluate(
+            &self.datasource_name,
+            &"update".to_string(),
+            &self.groups,
+        )?;
+        let copy_result = self.policy_evaluator.evaluate(
+            &self.datasource_name,
+            &"copy".to_string(),
+            &self.groups,
+        )?;
+        let view_result = self.policy_evaluator.evaluate(
+            &self.datasource_name,
+            &"view".to_string(),
+            &self.groups,
+        )?;
+
+        let rule_engine = HardRuleEngine {
+            protected_columns: self.filter_attributes_for_db(view_result.protected_attributes),
+            insert_allowed: insert_result.allow,
+            insert_allowed_attributes: self
+                .filter_attributes_for_db(insert_result.allowed_attributes),
+            copy_allowed: copy_result.allow,
+            copy_allowed_attributes: self.filter_attributes_for_db(copy_result.allowed_attributes),
+            update_allowed: update_result.allow,
+            update_allowed_attributes: self
+                .filter_attributes_for_db(update_result.allowed_attributes),
+            view_allowed: view_result.allow,
+        };
+        Ok(rule_engine)
+    }
+
+    fn filter_attributes_for_db(&self, attributes: Vec<String>) -> HashMap<String, Vec<String>> {
+        let mut filtered_attributes: HashMap<String, Vec<String>> = HashMap::new();
+        for attribute in attributes {
+            let splits = attribute.split(".").collect::<Vec<&str>>();
+            if splits.len() != 3 {
+                continue;
+            }
+            if splits[0] != self.connected_db {
+                continue;
+            }
+            let table_name = format!("{}.{}", splits[1], splits[2]);
+            if let Some(cols) = filtered_attributes.get_mut(&table_name) {
+                if splits.len() != 4 {
+                    continue;
+                }
+                cols.push(splits[3].to_string());
+                continue;
+            }
+            let mut cols = vec![];
+            if splits.len() == 4 {
+                cols.push(splits[3].to_string());
+            }
+            filtered_attributes.insert(table_name, cols);
+        }
+        return filtered_attributes;
     }
 }
