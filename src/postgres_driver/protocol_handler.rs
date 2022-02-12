@@ -68,7 +68,7 @@ impl ProtocolHandler {
     ) -> Result<TableInfo, anyhow::Error> {
         let result = self.policy_evaluator.evaluate(
             &self.datasource_name,
-            &self.connected_db,
+            &"view".to_string(),
             &self.groups,
         )?;
         let protected_tables = result.get_protected_tables(&self.connected_db);
@@ -545,6 +545,7 @@ impl ProtocolHandler {
         ctx: Ctx,
         schemas: Vec<String>,
     ) -> Result<(), ProtocolHandlerError> {
+        debug!("input query {}", query);
         // TODO: this needs to worked out.
         if query.contains("BEGIN READ ONLY") {
             return Ok(());
@@ -561,12 +562,14 @@ impl ProtocolHandler {
             }
         };
         let rule = self.get_rule_engine()?;
+        debug!("rewriting with schema {:?}", schemas);
         let rewriter = QueryRewriter::new(rule, schemas);
         rewriter.rewrite(&mut statements, ctx)?;
         let mut out = String::from("");
         for statement in statements {
             out = format!("{}{};", out, statement);
         }
+        debug!("output query {}", out);
         *query = out;
         Ok(())
     }
@@ -593,6 +596,8 @@ impl ProtocolHandler {
             &self.groups,
         )?;
 
+        debug!("view result {:?}", view_result);
+
         let rule_engine = HardRuleEngine {
             protected_columns: self.filter_attributes_for_db(view_result.protected_attributes),
             insert_allowed: insert_result.allow,
@@ -605,6 +610,7 @@ impl ProtocolHandler {
                 .filter_attributes_for_db(update_result.allowed_attributes),
             view_allowed: view_result.allow,
         };
+        debug!("evaluating policy with rule {:?}", rule_engine);
         Ok(rule_engine)
     }
 
@@ -612,7 +618,7 @@ impl ProtocolHandler {
         let mut filtered_attributes: HashMap<String, Vec<String>> = HashMap::new();
         for attribute in attributes {
             let splits = attribute.split(".").collect::<Vec<&str>>();
-            if splits.len() != 3 {
+            if splits.len() < 3 {
                 continue;
             }
             if splits[0] != self.connected_db {
