@@ -1,0 +1,7 @@
+postgres_port: 5432
+postgres_host: localhost
+database_name: "postgres"
+postgres_username: "postgres"
+postgres_password: "postgrespass"
+jwt_key: "%2*234sdf"
+policy_repo: "https://github.com/poonai/inspektor-policy"
