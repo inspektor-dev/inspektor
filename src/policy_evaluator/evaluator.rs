@@ -25,7 +25,7 @@ pub struct PolicyEvaluator {
     evaluator: Evaluator,
     entrypoints: HashMap<String, i32>,
 }
-
+#[derive(Debug)]
 pub struct PolicyResult {
     pub allow: bool,
     pub allowed_attributes: Vec<String>,
@@ -57,7 +57,7 @@ impl PolicyResult {
         let mut set: HashSet<(&str, &str)> = HashSet::default();
         for column in &self.protected_attributes {
             let splits = column.split(".").collect::<Vec<&str>>();
-            if splits.len() != 3 {
+            if splits.len() < 3 {
                 continue;
             }
             if splits[0] != dbname {
