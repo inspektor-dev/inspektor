@@ -1,12 +1,13 @@
 package systest
 
 import (
-	"database/sql"
 	"fmt"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
+	"database/sql"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 )
@@ -97,4 +98,10 @@ func TestPostgresSelect(t *testing.T) {
 		assert(actor.LastName.String != "", "expected last_name but got empty string", t)
 		assert(actor.LastUpdate != nil, "expected last_update but got nil", t)
 	}
+}
+
+func TestInsertNotAllowed(t *testing.T) {
+	db := getDB("postgres", t)
+	_, err := db.Exec("insert into actor (first_name, last_name) values ('poonai', 'kuttypoonai');")
+	assert(strings.Contains(err.Error(), "unauthorized insert"), "expected unathorized insert message", t)
 }
