@@ -30,3 +30,9 @@ jobs:
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
+    - name: Setup go
+      uses: actions/setup-go@v2
+      with:
+        go-version: '^1.13.1'
+    - name: "system testing"
+      run : cd systest && chmod u+x ./test.sh; ./test.sh
