@@ -1,2 +1,4 @@
 controlplane
 dataplane
+seed.sql
+policy_dir

@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#!/bin/bash
 
 rm controlplane
 rm dataplane
@@ -34,6 +35,13 @@ docker-compose up -d
 ./wait.sh localhost:5432
 
 sleep 3
+
+if [ -e seed.sql ]
+then 
+   echo "using cached seed sql file"
+else 
+   wget https://raw.githubusercontent.com/poonai/inspektor-policy/main/seed.sql
+fi
 
 echo "postgres started"
 
