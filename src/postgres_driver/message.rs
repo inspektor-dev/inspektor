@@ -20,6 +20,23 @@ pub enum Value {
 }
 
 #[derive(Debug)]
+pub enum ReadyState {
+    Idle,
+    Transaction,
+    FailedTransaction,
+}
+
+impl ReadyState {
+    fn get_state_byte(&self) -> u8 {
+        match self {
+            ReadyState::Idle => b'I',
+            ReadyState::Transaction => b'T',
+            ReadyState::FailedTransaction => b'E',
+        }
+    }
+}
+
+#[derive(Debug)]
 pub enum BackendMessage {
     ErrorMsg(Option<String>),
     AuthenticationOk { success: bool },
@@ -28,6 +45,7 @@ pub enum BackendMessage {
     AuthenticationSASL { mechanisms: Vec<String> },
     AuthenticationSASLContinue { data: Vec<u8> },
     AuthenticationSASLFinal { data: Vec<u8> },
+    ReadyForQuery { state: ReadyState },
 }
 
 impl BackendMessage {
@@ -54,14 +72,23 @@ impl BackendMessage {
                 buf.put_u8(b'E');
                 write_message(&mut buf, |buf| {
                     if let Some(msg) = msg {
-                        buf.put_u8(1);
+                        buf.put_u8(b'S');
+                        write_cstr(buf, "ERROR".to_string().as_bytes())?;
+                        buf.put_u8(b'C');
+                        write_cstr(buf, "42501".to_string().as_bytes())?;
+                        buf.put_u8(b'M');
                         write_cstr(buf, msg.as_bytes())?;
-                        return Ok(());
                     }
-                    buf.put_u8(0);
+                    buf.put_u8(b'\0');
                     Ok(())
                 })
                 .unwrap();
+                buf
+            }
+            BackendMessage::ReadyForQuery{state} => {
+                buf.put_u8(b'Z');
+                buf.put_u32(5);
+                buf.put_u8(state.get_state_byte());
                 buf
             }
             _ => {

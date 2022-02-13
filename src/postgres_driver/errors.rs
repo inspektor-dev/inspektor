@@ -22,6 +22,6 @@ pub enum ProtocolHandlerError {
     ErrParsingQuery,
     #[error(transparent)]
     Other(#[from] anyhow::Error),
-    #[error("query rewriter error")]
+    #[error("{0}")]
     RewriterError(#[from] QueryRewriterError),
 }

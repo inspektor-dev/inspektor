@@ -228,10 +228,16 @@ impl ProtocolHandler {
                             let ctx =  Ctx::new(table_info.column_relation.clone());
                             if let Err(e) = self.handle_frontend_message(&mut msg, ctx, table_info.schemas.clone()){
                                 error!("error while handling frontend message {:?}", e);
-                                let rsp = BackendMessage::ErrorMsg(Some(format!("{:?}", e)));
+                                let rsp = BackendMessage::ErrorMsg(Some(format!("{}", e)));
                                 if let Err(e) = self.client_conn.write_all(&rsp.encode()).await{
                                     error!("error while writing the rsp message to the client {:?}", e);
                                     return Ok(());
+                                }
+                                // after sending error message we should send ready for query command
+                                // otherwise client doesn't know that it can send commands.
+                                if let Err(e) = self.client_conn.write_all(&BackendMessage::ReadyForQuery{state: ReadyState::Idle}.encode()).await {
+                                    error!("error while sending ready for query message {:?}", e);
+                                    return Ok(())
                                 }
                                 continue;
                             }
