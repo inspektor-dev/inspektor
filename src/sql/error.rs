@@ -24,6 +24,7 @@ pub enum QueryRewriterError {
     RewriteExpr { alias_name: String },
     UnAuthorizedInsert,
     UnAuthorizedUpdate,
+    UnAthorizedCopy,
 }
 
 impl Display for QueryRewriterError {
@@ -58,6 +59,9 @@ impl Display for QueryRewriterError {
             }
             QueryRewriterError::UnAuthorizedUpdate => {
                 write!(f, "unauthorized update")
+            }
+            QueryRewriterError::UnAthorizedCopy => {
+                write!(f, "unauthorized copy")
             }
         }
     }
