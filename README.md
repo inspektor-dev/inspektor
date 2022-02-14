@@ -31,7 +31,7 @@ policies.
 <p align="center">
   <img src="docs/static/img/inspektordesign.png" alt="Inspektor design" width="600" height="400" />
 </p> -->
-![Inspektor Overview](docs/static/img/inspektordesign.png#gh-dark-mode-only)
+![Inspektor Overview](docs/static/img/inspektordesign.png)
 
 
 The **control plane** act an management service to dynamically configure all your data plane to enforce policies.
