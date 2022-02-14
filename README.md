@@ -27,10 +27,12 @@ Inspektor has two components: the **data plane** and the **control plane**.
 The **data plane** deployed along with your data service as a **sidecar**, to **intercept** all the network traffic to your data service to enforce access
 policies.
 
-
+<!-- 
 <p align="center">
-  <img src="docs/static/img/inspektordesign.png" alt="Inspektor design" width="600" height="200" />
-</p>
+  <img src="docs/static/img/inspektordesign.png" alt="Inspektor design" width="600" height="400" />
+</p> -->
+![Inspektor Overview](docs/static/img/inspektordesign.png#gh-dark-mode-only)
+
 
 The **control plane** act an management service to dynamically configure all your data plane to enforce policies.
 
