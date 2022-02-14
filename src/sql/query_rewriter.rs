@@ -77,11 +77,11 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
                     ..
                 } => {
                     if !self.rule_engine.is_copy_allowed() {
-                        return Err(QueryRewriterError::UnAuthorizedInsert);
+                        return Err(QueryRewriterError::UnAthorizedCopy);
                     }
                     let allowed_attributes = self.rule_engine.get_allowed_copy_attributes();
                     if !self.is_operation_allowed(&table_name, &columns, allowed_attributes) {
-                        return Err(QueryRewriterError::UnAuthorizedInsert);
+                        return Err(QueryRewriterError::UnAthorizedCopy);
                     }
                 }
                 _ => {

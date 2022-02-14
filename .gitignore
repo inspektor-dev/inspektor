@@ -3,4 +3,3 @@
 /controlplane/inspektor
 /controlplane/dashboard/node_modules
 /controlplane/policy_dir
-dataplane_config.yaml

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"database/sql"
+
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 )
@@ -66,14 +67,6 @@ func assert(assert bool, msg string, t *testing.T) {
 		t.Fatal(msg)
 	}
 }
-
-func stringFromPtr(in *string) string {
-	if in == nil {
-		return ""
-	}
-	return *in
-}
-
 func TestPostgresSelect(t *testing.T) {
 	// as per default policy actor table shuold not return
 	// first_name.
@@ -104,4 +97,17 @@ func TestInsertNotAllowed(t *testing.T) {
 	db := getDB("postgres", t)
 	_, err := db.Exec("insert into actor (first_name, last_name) values ('poonai', 'kuttypoonai');")
 	assert(strings.Contains(err.Error(), "unauthorized insert"), "expected unathorized insert message", t)
+}
+
+func TestCopy(t *testing.T) {
+	cmd := exec.Command("psql", `sslmode=disable host=localhost port=8081 dbname=postgres user=fragrant-sun password=d8c1e29d7e58be`, "-c", `\COPY actor(first_name,last_name) from 'data.csv' DELIMITER ',' CSV HEADER;`)
+	output, err := cmd.CombinedOutput()
+	assert(err != nil, "expected error but got nil", t)
+	assert(strings.Contains(string(output), "unauthorized copy"), "unauthorized copy error message expected", t)
+}
+
+func TestUpdate(t *testing.T) {
+	db := getDB("postgres", t)
+	_, err := db.Exec("update actor set first_name = 'poonai' where first_name = 'PENELOPE'")
+	assert(strings.Contains(err.Error(), "unauthorized update"), "expected unathorized update message", t)
 }
