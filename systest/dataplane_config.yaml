@@ -1,0 +1,9 @@
+driver_type: "postgres"
+controlplane_addr: "localhost:5003"
+secret_token: "b5571a086fb62180cf5493a4a6555a641dede6a45048fda0d79b24fc9a8e"
+postgres_config:
+  target_addr: "localhost"
+  target_username: "postgres"
+  target_password: "postgrespass"
+  target_port: "5432"
+  proxy_listen_port: "8081"
