@@ -38,8 +38,23 @@ func runCluster() *Cluster {
 	}
 }
 
-func getDB(dbName string, t *testing.T) *sqlx.DB {
-	psqlconn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", "localhost", 8081, "fragrant-sun", "d8c1e29d7e58be", dbName)
+type Credential struct {
+	UserName string
+	Password string
+}
+
+var Credentials = map[string]Credential{"admin": {
+	UserName: "fragrant-sun",
+	Password: "d8c1e29d7e58be",
+},
+	"dev": {
+		UserName: "divine-butterfly",
+		Password: "f3535f770dadb1",
+	}}
+
+func getDB(dbName string, role string, t *testing.T) *sqlx.DB {
+	cred := Credentials[role]
+	psqlconn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", "localhost", 8081, cred.UserName, cred.Password, dbName)
 	db, err := sqlx.Open("postgres", psqlconn)
 	if err != nil {
 		t.Fatal(err)
@@ -76,7 +91,7 @@ func TestPostgresSelect(t *testing.T) {
 		LastName   sql.NullString `db:"last_name"`
 		LastUpdate *time.Time     `db:"last_update"`
 	}{}
-	db := getDB("postgres", t)
+	db := getDB("postgres", "admin", t)
 	rows, err := db.Queryx("SELECT actor_id, first_name, last_name, last_update FROM actor limit 1")
 	if err != nil {
 		t.Fatal(err)
@@ -93,8 +108,11 @@ func TestPostgresSelect(t *testing.T) {
 	}
 }
 
+// divine-butterfly
+// f3535f770dadb1
+
 func TestInsertNotAllowed(t *testing.T) {
-	db := getDB("postgres", t)
+	db := getDB("postgres", "admin", t)
 	_, err := db.Exec("insert into actor (first_name, last_name) values ('poonai', 'kuttypoonai');")
 	assert(strings.Contains(err.Error(), "unauthorized insert"), "expected unathorized insert message", t)
 }
@@ -106,8 +124,16 @@ func TestCopy(t *testing.T) {
 	assert(strings.Contains(string(output), "unauthorized copy"), "unauthorized copy error message expected", t)
 }
 
+func TestCopySuccess(t *testing.T) {
+	cred := Credentials["dev"]
+	cmd := exec.Command("psql", fmt.Sprintf(`sslmode=disable host=localhost port=8081 dbname=postgres user=%s password=%s`, cred.UserName, cred.Password), "-c", `\COPY actor(first_name,last_name) from 'data.csv' DELIMITER ',' CSV HEADER;`)
+	output, err := cmd.CombinedOutput()
+	assert(err == nil, "expected nil but got error", t)
+	assert(strings.Contains(string(output), "COPY 1"), "expected COPY 1", t)
+}
+
 func TestUpdate(t *testing.T) {
-	db := getDB("postgres", t)
+	db := getDB("postgres", "admin", t)
 	_, err := db.Exec("update actor set first_name = 'poonai' where first_name = 'PENELOPE'")
 	assert(strings.Contains(err.Error(), "unauthorized update"), "expected unathorized update message", t)
 }
