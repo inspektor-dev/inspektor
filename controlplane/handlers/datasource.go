@@ -87,6 +87,15 @@ func (h *Handlers) GetDataSources() InspectorHandler {
 			utils.WriteErrorMsg("server down", http.StatusInternalServerError, ctx.Rw)
 			return
 		}
+		for idx, datasource := range datasources {
+			roles, err := h.Store.GetRolesForObjectID(datasource.ID, models.DataSourceType)
+			if err != nil {
+				utils.Logger.Error("error while retriving data source roles", zap.String("err_msg", err.Error()))
+				continue
+			}
+			datasource.Roles = roles
+			datasources[idx] = datasource
+		}
 		utils.WriteSuccesMsgWithData("ok", http.StatusOK, datasources, ctx.Rw)
 	}
 }

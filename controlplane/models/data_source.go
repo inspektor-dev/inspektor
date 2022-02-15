@@ -15,4 +15,5 @@ type DataSource struct {
 	Type            string         `json:"type"`
 	SideCarHostName string         `json:"sidecarHostname"`
 	SideCarToken    string         `json:"sidecarToken,omitempty"`
+	Roles           []string       `gorm:"-" json:"roles"`
 }
