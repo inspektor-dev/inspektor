@@ -12,6 +12,10 @@
 
 </p>
 
+<p align="center">
+  <img src="docs/static/img/inspektordesign.png" alt="Inspektor design"  height="700" />
+</p>
+
 **Inspektor** is a access control layer for all your data sources. It act as gaurdian  and enforces access polices to all your data sources. 
 
 With Inspektor, you can leverage open policy and GitOps to enforce polices. By having features like policy as a code and GitOps, Inspektor is a first class citizen for your mordern cloud native workloads.
@@ -28,12 +32,6 @@ The **data plane** deployed along with your data service as a **sidecar**, to **
 policies.
 
 The **control plane** act an management service to dynamically configure all your data plane to enforce policies.
-<!-- 
-<p align="center">
-  <img src="docs/static/img/inspektordesign.png" alt="Inspektor design" width="600" height="400" />
-</p> -->
-![Inspektor Overview](docs/static/img/inspektordesign.png)
-
 
 ## Supported Data Source
  - Postgres
