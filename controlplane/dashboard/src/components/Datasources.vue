@@ -31,7 +31,7 @@
 </template>
 <script>
 import { ref, h, computed } from "vue";
-import { NButton, NTag } from "naive-ui";
+import { NButton, NTag, NDynamicTags } from "naive-ui";
 import AddDatasource from "./AddDatasource.vue";
 import { useStore } from "vuex";
 import { useMessage } from "naive-ui";
@@ -81,13 +81,44 @@ const createColumn = (message, showSessionModal, currentSessionMeta, store) => {
     {
       title: "Roles",
       render: (row) => {
-        let tags = [];
-        for (let i = 0; i < row.roles.length; i++) {
-          tags.push(
-            h(NTag, { style: { marginLeft: "1px" }, round: true , type: 'info'}, row.roles[i])
-          );
-        }
-        return h("div", {}, tags);
+        // let tags = [];
+        // for (let i = 0; i < row.roles.length; i++) {
+        //   tags.push(
+        //     h(
+        //       NTag,
+        //       { style: { marginLeft: "1px" }, round: true, type: "info" },
+        //       row.roles[i]
+        //     )
+        //   );
+        // }
+        // tags.push(
+        //   h(
+        //     NTag,
+        //     { style: { marginLeft: "1px" }, round: true, type: "success" },
+        //     "Add Role"
+        //   )
+        // );
+        return h(
+          NDynamicTags,
+          {
+            closable: false,
+            defaultValue: row.roles,
+            onUpdateValue: async (updatedRoles) => {
+              console.log("updated roles", updatedRoles);
+              try {
+                await api.updateRoles({
+                  type: "DATA_SOURCE",
+                  roles: updatedRoles,
+                  id: row.id,
+                });
+                await store.dispatch("updateDatasource");
+              } catch {
+                message.error("error while adding roles");
+              }
+            },
+          },
+          ""
+        );
       },
     },
     {

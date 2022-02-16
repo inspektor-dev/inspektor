@@ -49,6 +49,9 @@ export default {
     refreshPolicy: async() => {
         await axios.post("/api/policy/nofification")
     },
+    updateRoles: async(data) => {
+        await axios.post("/api/roles", data)
+    },
     intializeToken: () => {
         let token = localStorage.getItem("access-token");
         if (token != null) {
