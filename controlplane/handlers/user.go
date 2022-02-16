@@ -99,7 +99,7 @@ func (h *Handlers) AddUser() InspectorHandler {
 			handleErr(err, ctx)
 			return
 		}
-		if err := h.Store.WriteRoleForUserObjectID(user.ID, req.Roles); err != nil {
+		if err := h.Store.WriteRoleForObjectID(user.ID, req.Roles, models.UserType); err != nil {
 			utils.Logger.Error("error while adding roles to the user", zap.String("err_msg", err.Error()))
 			handleErr(err, ctx)
 			return
@@ -146,6 +146,60 @@ func (h *Handlers) PolicyNotification() http.HandlerFunc {
 func (h *Handlers) Roles() InspectorHandler {
 	return func(ctx *types.Ctx) {
 		utils.WriteSuccesMsgWithData("ok", http.StatusOK, ctx.Claim.Roles, ctx.Rw)
+	}
+}
+
+func (h *Handlers) AddRoles() InspectorHandler {
+	return func(ctx *types.Ctx) {
+		if utils.IndexOf(ctx.Claim.Roles, "admin") == -1 {
+			utils.WriteErrorMsgWithErrCode("only admin can create data source", types.ErrInvalidAccess, http.StatusUnauthorized, ctx.Rw)
+			return
+		}
+		req := &types.AddRoleRequest{}
+		if err := json.NewDecoder(ctx.R.Body).Decode(req); err != nil {
+			utils.Logger.Error("error while decoding request", zap.String("err_msg", err.Error()))
+			utils.WriteErrorMsg("invalid json", http.StatusBadRequest, ctx.Rw)
+			return
+		}
+		if utils.IndexOf([]string{models.DataSourceType, models.UserType}, req.Type) == -1 {
+			utils.WriteErrorMsg("invalid type", http.StatusBadRequest, ctx.Rw)
+			return
+		}
+		// validate whether the given object id even exist
+		if req.Type == models.UserType {
+			_, err := h.Store.GetUserByID(req.ID)
+			if err != nil {
+				handleErr(err, ctx)
+				return
+			}
+		} else {
+			_, err := h.Store.GetDatasourceByWhere("id = ?", req.ID)
+			if err != nil {
+				handleErr(err, ctx)
+				return
+			}
+		}
+		// let's filter the roles if it's already existing.
+		roles, err := h.Store.GetRolesForObjectID(req.ID, req.Type)
+		if err != nil {
+			utils.Logger.Error("error while retriving roles for the given object id", zap.String("err_msg", err.Error()))
+			return
+		}
+		filteredRoles := []string{}
+		for _, role := range req.Roles {
+			if utils.IndexOf(roles, role) > -1 {
+				// skip if role already exist
+				continue
+			}
+			filteredRoles = append(filteredRoles, role)
+		}
+		err = h.Store.WriteRoleForObjectID(req.ID, filteredRoles, req.Type)
+		if err != nil {
+			handleErr(err, ctx)
+			return
+		}
+
+		utils.WriteSuccesMsg("ok", http.StatusOK, ctx.Rw)
 	}
 }
 
@@ -202,6 +256,7 @@ func (h *Handlers) Init(router *mux.Router) {
 	router.HandleFunc("/api/user", h.AuthMiddleWare(h.AddUser())).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/users", h.AuthMiddleWare(h.GetUsers())).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/roles", h.AuthMiddleWare(h.Roles())).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/roles", h.AuthMiddleWare(h.AddRoles())).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/config", h.AuthMiddleWare(h.Config())).Methods("GET")
 	router.HandleFunc("/readiness", func(rw http.ResponseWriter, r *http.Request) {
 		rw.Write([]byte("ok"))

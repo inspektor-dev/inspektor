@@ -11,6 +11,7 @@ import (
 var (
 	ErrRoleAlreadyExist = errors.New("role already exist")
 	ErrSessionExist     = errors.New("only one session can exist")
+	ErrNotExist         = errors.New("items not exist")
 )
 
 const (
@@ -78,4 +79,10 @@ type CreateSessionRequest struct {
 type ConfigResponse struct {
 	PolicyRepoURL string `json:"policyRepoUrl"`
 	PolicyHash    string `json:"policyHash"`
+}
+
+type AddRoleRequest struct {
+	Type  string   `json:"type"`
+	ID    uint     `json:"id"`
+	Roles []string `json:"roles"`
 }

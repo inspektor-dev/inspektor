@@ -56,6 +56,8 @@ func handleErr(err error, ctx *types.Ctx) {
 	switch err {
 	case types.ErrSessionExist:
 		utils.WriteErrorMsg("session already exist for this datasource", http.StatusBadRequest, ctx.Rw)
+	case types.ErrNotExist:
+		utils.WriteErrorMsg("request id is not exist", http.StatusBadRequest, ctx.Rw)
 	default:
 		utils.WriteErrorMsg("server down", http.StatusInternalServerError, ctx.Rw)
 	}

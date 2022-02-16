@@ -54,7 +54,7 @@ func (s *Store) init() error {
 		utils.Logger.Error("error while creating admin account", zap.String("err_msg", err.Error()))
 		return err
 	}
-	if err := s.WriteRoleForUserObjectID(user.ID, []string{"admin"}); err != nil && err != types.ErrRoleAlreadyExist {
+	if err := s.WriteRoleForObjectID(user.ID, []string{"admin"}, models.UserType); err != nil && err != types.ErrRoleAlreadyExist {
 		utils.Logger.Error("error while creating role for the default admin user", zap.String("err_msg", err.Error()))
 	}
 	return nil
@@ -66,7 +66,7 @@ func (s *Store) GetUserByName(name string) (*models.User, error) {
 	return user, err
 }
 
-func (s *Store) WriteRoleForUserObjectID(id uint, roles []string) error {
+func (s *Store) WriteRoleForObjectID(id uint, roles []string, objectType string) error {
 	// if the role already exist for the object then we should throw error.
 	// TODO: simple way is that we can put primary key constraint on two columns.
 
@@ -88,7 +88,7 @@ func (s *Store) WriteRoleForUserObjectID(id uint, roles []string) error {
 		}
 		rolesObj = append(rolesObj, &models.Role{
 			ObjectID: id,
-			Type:     models.UserType,
+			Type:     objectType,
 			Name:     role,
 		})
 		dupmap[role] = struct{}{}
@@ -122,9 +122,17 @@ func (s *Store) GetDatasourceByWhere(query interface{}, args ...interface{}) (*m
 	dataSource := &models.DataSource{}
 	if err := s.db.Model(&models.DataSource{}).Where(query, args...).First(dataSource).Error; err != nil {
 		utils.Logger.Error("error while fetching data source", zap.String("err_msg", err.Error()))
-		return nil, err
+		return nil, convertErr(err)
 	}
 	return dataSource, nil
+}
+
+func convertErr(err error) error {
+	switch err {
+	case gorm.ErrRecordNotFound:
+		return types.ErrNotExist
+	}
+	return err
 }
 
 func (s *Store) GetObjectIDsForRoles(objectType string, roles []string) ([]uint, error) {
@@ -244,4 +252,13 @@ func (s *Store) GetUsers() ([]*models.User, error) {
 	users := []*models.User{}
 	err := s.db.Model(&models.User{}).Find(&users).Error
 	return users, err
+}
+
+func (s *Store) GetUserByID(id uint) (*models.User, error) {
+	user := &models.User{}
+	err := s.db.Model(&models.User{}).Where("id = ?", id).First(user).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, types.ErrNotExist
+	}
+	return user, err
 }
