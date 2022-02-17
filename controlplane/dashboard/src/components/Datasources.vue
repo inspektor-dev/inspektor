@@ -101,6 +101,7 @@ const createColumn = (message, showSessionModal, currentSessionMeta, store) => {
         return h(
           NDynamicTags,
           {
+            disabled: !store.state.isAdmin,
             closable: false,
             defaultValue: row.roles,
             onUpdateValue: async (updatedRoles) => {
