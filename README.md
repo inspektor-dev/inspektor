@@ -16,7 +16,7 @@
   <img src="docs/static/img/inspektordesign.png" alt="Inspektor design"  height="700" />
 </p>
 
-**Inspektor** is a access control layer for all your data sources. It act as gaurdian  and enforces access polices to all your data sources. 
+**Inspektor** is a access control layer for all your data sources. It act as guardian and enforces access polices to all your data sources. 
 
 With Inspektor, you can leverage open policy and GitOps to enforce polices. By having features like policy as a code and GitOps, Inspektor is a first class citizen for your mordern cloud native workloads.
 
