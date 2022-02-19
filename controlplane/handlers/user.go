@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"inspektor/config"
 	"inspektor/models"
+	"inspektor/openconnect"
 	"inspektor/policy"
 	"inspektor/store"
 	"inspektor/types"
@@ -22,9 +24,10 @@ import (
 )
 
 type Handlers struct {
-	Store  *store.Store
-	Cfg    *config.Config
-	Policy *policy.PolicyManager
+	Store       *store.Store
+	Cfg         *config.Config
+	Policy      *policy.PolicyManager
+	oauthClient openconnect.OpenConnect
 }
 
 type LoginRequest struct {
@@ -203,6 +206,34 @@ func (h *Handlers) AddRoles() InspectorHandler {
 	}
 }
 
+func (h *Handlers) OAuthUrl() http.HandlerFunc {
+	return func(rw http.ResponseWriter, r *http.Request) {
+		res := &types.OauthResponse{}
+		if h.oauthClient == nil {
+			utils.WriteSuccesMsgWithData("ok", http.StatusOK, res, rw)
+			return
+		}
+		res.Provider = h.Cfg.IdpProvider
+		res.Url = h.oauthClient.GetConfig().AuthCodeURL("hello")
+		//utils.WriteSuccesMsgWithData("ok", http.StatusOK, res, rw)
+		http.Redirect(rw, r, res.Url, http.StatusTemporaryRedirect)
+	}
+}
+
+func (h *Handlers) OAuthCallBack() http.HandlerFunc {
+	return func(rw http.ResponseWriter, r *http.Request) {
+		code := r.URL.Query().Get("code")
+		token, err := h.oauthClient.GetConfig().Exchange(context.TODO(), code)
+		if err != nil {
+			utils.Logger.Error("error while retiving token source", zap.String("err_msg", err.Error()))
+			utils.WriteErrorMsg("unable to get token", http.StatusBadRequest, rw)
+			return
+		}
+		email := h.oauthClient.GetEmail(token)
+		utils.WriteErrorMsg(email, http.StatusOK, rw)
+	}
+}
+
 // spaHandler implements the http.Handler interface, so we can use it
 // to respond to HTTP requests. The path to the static directory and
 // path to the index file within that static directory are used to
@@ -258,11 +289,14 @@ func (h *Handlers) Init(router *mux.Router) {
 	router.HandleFunc("/api/roles", h.AuthMiddleWare(h.Roles())).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/roles", h.AuthMiddleWare(h.AddRoles())).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/config", h.AuthMiddleWare(h.Config())).Methods("GET")
+	router.HandleFunc("/api/oauth", h.OAuthUrl()).Methods("GET")
+	router.HandleFunc("/api/auth/callback/", h.OAuthCallBack()).Methods("GET")
+	router.HandleFunc("/api/auth/callback", h.OAuthCallBack()).Methods("GET")
 	router.HandleFunc("/readiness", func(rw http.ResponseWriter, r *http.Request) {
 		rw.Write([]byte("ok"))
 	})
-	spa := spaHandler{staticPath: "dashboard/dist", indexPath: "index.html"}
-	router.PathPrefix("/").Handler(spa)
+	// spa := spaHandler{staticPath: "dashboard/dist", indexPath: "index.html"}
+	// router.PathPrefix("/").Handler(spa)
 	cors := handlers.CORS(
 		handlers.AllowedHeaders([]string{"Content-Type", "Auth-Token"}),
 		handlers.AllowedOrigins([]string{"*"}),
@@ -270,4 +304,7 @@ func (h *Handlers) Init(router *mux.Router) {
 		handlers.AllowedMethods([]string{"GET", "HEAD", "POST", "DELETE"}),
 	)
 	router.Use(cors)
+	if h.Cfg.IdpProvider != "" {
+		h.oauthClient = openconnect.GetOpenConnectClient(h.Cfg)
+	}
 }

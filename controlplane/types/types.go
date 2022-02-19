@@ -86,3 +86,8 @@ type AddRoleRequest struct {
 	ID    uint     `json:"id"`
 	Roles []string `json:"roles"`
 }
+
+type OauthResponse struct {
+	Provider string `json:"provider"`
+	Url      string `json:"url"`
+}
