@@ -11,7 +11,9 @@
     "@vicons/ionicons5": "^0.11.0",
     "axios": "^0.24.0",
     "core-js": "^3.6.5",
+    "js-cookie": "^3.0.1",
     "vue": "^3.0.0",
+    "vue-cookies": "^1.7.4",
     "vue-router": "^4.0.0-0",
     "vuex": "^4.0.2"
   },
