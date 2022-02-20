@@ -24,7 +24,7 @@ import (
 
 type OpenConnect interface {
 	GetConfig() *oauth2.Config
-	GetEmail(token *oauth2.Token) string
+	GetUserName(token *oauth2.Token) string
 }
 
 var OpenConnectRegistry = map[string]func(cfg *config.Config) OpenConnect{"github": NewGithubProvider}
