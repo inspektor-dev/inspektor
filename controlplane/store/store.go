@@ -262,3 +262,43 @@ func (s *Store) GetUserByID(id uint) (*models.User, error) {
 	}
 	return user, err
 }
+
+func (s *Store) UpsertUser(username string, roles []string) (*models.User, error) {
+	user, err := s.GetUserByName(username)
+	if err != nil {
+		if err != gorm.ErrRecordNotFound {
+			utils.Logger.Error("error while retriving users", zap.String("err_msg", err.Error()))
+			return nil, err
+		}
+		utils.Logger.Debug("creating user entry since no user exist for the given username", zap.String("username", username))
+		user, err := s.CreateUser(username, "ldpusers")
+		if err != nil {
+			utils.Logger.Error("error while creating user", zap.String("err_msg", err.Error()), zap.String("username", username))
+			return nil, err
+		}
+		err = s.WriteRoleForObjectID(user.ID, roles, models.UserType)
+		if err != nil {
+			utils.Logger.Error("error while creating roles for the user", zap.String("username", username), zap.String("err_msg", err.Error()))
+		}
+		return user, err
+	}
+	utils.Logger.Info("user alreadu exist. syncing roles")
+	if len(roles) == 0 {
+		return user, nil
+	}
+	err = s.SyncRoles(user.ID, models.UserType, roles)
+	if err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+func (s *Store) SyncRoles(objectID uint, objectType string, roles []string) error {
+	// delete existing roles
+	err := s.db.Unscoped().Model(&models.Role{}).Delete(&models.Role{}, "object_id = ? and type = ?", objectID, objectType).Error
+	if err != nil {
+		utils.Logger.Error("error while deleting existing roles", zap.String("err_msg", err.Error()))
+		return err
+	}
+	return s.WriteRoleForObjectID(objectID, roles, objectType)
+}

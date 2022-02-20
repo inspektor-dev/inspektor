@@ -1,11 +1,24 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Home from '../views/Home.vue'
+import Cookie from "js-cookie";
 
 const routes = [
   {
     path: '/',
     name: 'Home',
-    component: Home
+    component: Home,
+    beforeEnter: (_, _1, next) => {
+      let cookie = Cookie.get("servertoken")
+      if (cookie != null) {
+        localStorage.setItem('access-token', cookie)
+      }
+      let token = localStorage.getItem('access-token')
+      if (token != null) {
+        next({ path: "/dashboard" })
+        return
+      }
+      next()
+    }
   },
   {
     path: '/dashboard',
@@ -22,7 +35,11 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to,_, next) => {
+router.beforeEach((to, _, next) => {
+  let cookie = Cookie.get("servertoken")
+  if (cookie != null) {
+    localStorage.setItem('access-token', cookie)
+  }
   let token = localStorage.getItem('access-token')
   if (token == null && to.path != '/') {
     next({ path: '/' })

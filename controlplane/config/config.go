@@ -15,6 +15,10 @@ type Config struct {
 	GithubAccessToken string `mapstructure:"github_access_token"`
 	PolicyRepo        string `mapstructure:"policy_repo"`
 	PolicyPath        string `mapstructure:"policy_path"`
+	IdpProvider       string `mapstructure:"idp_provider"`
+	IdpClientID       string `mapstructure:"idp_client_id"`
+	IdpClientSecret   string `mapstructure:"idp_client_secret"`
+	IdpServiceAccount string `mapstructure:"idp_service_account"`
 }
 
 func (c *Config) Validate() error {

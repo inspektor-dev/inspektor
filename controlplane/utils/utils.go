@@ -157,3 +157,11 @@ func CleanDir(dir string) {
 	Check(os.RemoveAll(dir))
 	Check(os.MkdirAll(dir, 0755))
 }
+
+// String converts pointer string to normal string.
+func String(in *string) string {
+	if in == nil {
+		return ""
+	}
+	return *in
+}
