@@ -3,7 +3,9 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"inspektor/config"
+	"inspektor/idp"
 	"inspektor/models"
 	"inspektor/openconnect"
 	"inspektor/policy"
@@ -28,6 +30,7 @@ type Handlers struct {
 	Cfg         *config.Config
 	Policy      *policy.PolicyManager
 	oauthClient openconnect.OpenConnect
+	idpClient   idp.IdpClient
 }
 
 type LoginRequest struct {
@@ -215,6 +218,7 @@ func (h *Handlers) OAuthUrl() http.HandlerFunc {
 		}
 		res.Provider = h.Cfg.IdpProvider
 		res.Url = h.oauthClient.GetConfig().AuthCodeURL("hello")
+		fmt.Println(res.Url)
 		//utils.WriteSuccesMsgWithData("ok", http.StatusOK, res, rw)
 		http.Redirect(rw, r, res.Url, http.StatusTemporaryRedirect)
 	}
@@ -229,8 +233,43 @@ func (h *Handlers) OAuthCallBack() http.HandlerFunc {
 			utils.WriteErrorMsg("unable to get token", http.StatusBadRequest, rw)
 			return
 		}
-		email := h.oauthClient.GetEmail(token)
-		utils.WriteErrorMsg(email, http.StatusOK, rw)
+		username := h.oauthClient.GetUserName(token)
+		roles, err := h.idpClient.GetRoles(username)
+		if err != nil {
+			utils.Logger.Error("error while retiving user roles", zap.String("err_msg", err.Error()), zap.String("username", username))
+			utils.WriteErrorMsg("error while retiving user roles", http.StatusBadRequest, rw)
+			return
+		}
+		fmt.Println(username)
+		fmt.Println(roles)
+		user, err := h.Store.UpsertUser(username, roles)
+		if err != nil {
+			utils.Logger.Error("error while upserting user", zap.String("err_msg", err.Error()))
+			utils.WriteErrorMsg("server down", http.StatusInternalServerError, rw)
+			return
+		}
+		claim := &types.Claim{
+			UserName: username,
+			ObjectID: user.ID,
+			StandardClaims: jwt.StandardClaims{
+				ExpiresAt: time.Now().Add(time.Hour * 2).Unix(),
+			},
+		}
+		jwtToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claim)
+		tokenString, err := jwtToken.SignedString([]byte(h.Cfg.JwtKey))
+		if err != nil {
+			utils.Logger.Error("Failed while signing jwt key", zap.String("error_msg", err.Error()))
+			utils.WriteErrorMsg("Error while signing key", http.StatusInternalServerError, rw)
+			return
+		}
+		cookie := http.Cookie{
+			Name:   "servertoken",
+			Value:  tokenString,
+			MaxAge: 5,
+			Path:   "/",
+		}
+		http.SetCookie(rw, &cookie)
+		http.Redirect(rw, r, "/", http.StatusTemporaryRedirect)
 	}
 }
 
@@ -295,8 +334,8 @@ func (h *Handlers) Init(router *mux.Router) {
 	router.HandleFunc("/readiness", func(rw http.ResponseWriter, r *http.Request) {
 		rw.Write([]byte("ok"))
 	})
-	// spa := spaHandler{staticPath: "dashboard/dist", indexPath: "index.html"}
-	// router.PathPrefix("/").Handler(spa)
+	spa := spaHandler{staticPath: "dashboard/dist", indexPath: "index.html"}
+	router.PathPrefix("/").Handler(spa)
 	cors := handlers.CORS(
 		handlers.AllowedHeaders([]string{"Content-Type", "Auth-Token"}),
 		handlers.AllowedOrigins([]string{"*"}),
@@ -306,5 +345,10 @@ func (h *Handlers) Init(router *mux.Router) {
 	router.Use(cors)
 	if h.Cfg.IdpProvider != "" {
 		h.oauthClient = openconnect.GetOpenConnectClient(h.Cfg)
+		idpClient, err := idp.GetIdpClient(h.Cfg)
+		if err != nil {
+			utils.Logger.Fatal("error retriving ldp client", zap.String("err_msg", err.Error()))
+		}
+		h.idpClient = idpClient
 	}
 }
