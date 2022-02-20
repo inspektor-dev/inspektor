@@ -31,9 +31,8 @@ type GithubOpenConnect struct {
 
 func NewGithubProvider(cfg *config.Config) OpenConnect {
 	oCfg := getBaseConfig(cfg)
-	oCfg.Scopes = []string{"admin:read:org", "user:email"}
+	oCfg.Scopes = []string{"admin:org:read", "user:email"}
 	oCfg.Endpoint = github.Endpoint
-	oCfg.RedirectURL = "http://localhost:3123/api/auth/callback/"
 	return &GithubOpenConnect{
 		cfg: oCfg,
 	}
@@ -43,14 +42,14 @@ func (g *GithubOpenConnect) GetConfig() *oauth2.Config {
 	return g.cfg
 }
 
-func (g *GithubOpenConnect) GetEmail(token *oauth2.Token) string {
+func (g *GithubOpenConnect) GetUserName(token *oauth2.Token) string {
 	client := githubClient.NewClient(g.cfg.Client(context.TODO(), token))
 	user, _, err := client.Users.Get(context.TODO(), "")
 	if err != nil {
 		utils.Logger.Error("error while retriving user details in github", zap.String("err_msg", err.Error()))
 		return ""
 	}
-	return utils.String(user.Email)
+	return utils.String(user.Login)
 }
 
 func GetGithubUserEmail(token oauth2.TokenSource) string {
@@ -60,5 +59,5 @@ func GetGithubUserEmail(token oauth2.TokenSource) string {
 		utils.Logger.Error("error while retriving user details in github", zap.String("err_msg", err.Error()))
 		return ""
 	}
-	return utils.String(user.Email)
+	return utils.String(user.Login)
 }
