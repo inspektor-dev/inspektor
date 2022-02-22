@@ -27,7 +27,7 @@ If you have ideas 🧵 for improving inspektor, please join [Inspektor Discord](
 ## Use Cases
 - Create access credentials in no time for your dev team to debug
 - Manage all your data policies in a centralized place and avoid managing data policies in silos
-- Protect PPI data of your customers 
+- Protect PPI data of your customers while collaborating
 - Avoid dangerous commands like `DELETE`,`UPDATE` accidentally. 
 
 ## How it works
