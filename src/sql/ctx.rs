@@ -85,16 +85,27 @@ impl Ctx {
 
     // column_expr_for_table returns accepted columne expression for the given table.
     pub fn column_expr_for_table(&self, table_name: &String) -> Vec<SelectItem> {
+        // should_prefix will determine whether we should prefix
+        // table name as column name.
+        let mut should_prefix = false;
+        let splits = table_name.split(".").collect::<Vec<&str>>();
+        if splits.len() > 1 {
+            should_prefix = true;
+        }
         let mut selections = vec![];
         if let Some(protected_columns) = self.protected_columns.get(table_name) {
             let protected_columns_set = protected_columns.iter().collect::<HashSet<&String>>();
             let table_columns = self.table_info.get(table_name).unwrap();
             for col in table_columns {
                 if protected_columns_set.contains(col) || protected_columns.len() == 0 {
+                    let column_name = match should_prefix {
+                        true => format!("{}.{}", table_name, col),
+                        false => format!("{}", col),
+                    };
                     selections.push(SelectItem::ExprWithAlias {
                         expr: Expr::Value(Value::Null),
                         alias: Ident {
-                            value: format!("{}.{}", table_name, col),
+                            value: column_name,
                             quote_style: Some('"'),
                         },
                     });
