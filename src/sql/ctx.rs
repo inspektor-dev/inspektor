@@ -67,7 +67,7 @@ impl Ctx {
         let mut froms = self.from.clone().into_iter().collect::<Vec<String>>();
         froms.sort();
         for from in froms {
-            let exprs = self.column_expr_for_table(&from);
+            let exprs = self.column_expr_for_table(&from, false);
             if exprs.len() == 0 {
                 selections.push(SelectItem::QualifiedWildcard(ObjectName(vec![Ident::new(
                     from,
@@ -84,10 +84,14 @@ impl Ctx {
     }
 
     // column_expr_for_table returns accepted columne expression for the given table.
-    pub fn column_expr_for_table(&self, table_name: &String) -> Vec<SelectItem> {
+    pub fn column_expr_for_table(
+        &self,
+        table_name: &String,
+        prefix_table_name: bool,
+    ) -> Vec<SelectItem> {
         // should_prefix will determine whether we should prefix
         // table name as column name.
-        let mut should_prefix = false;
+        let mut should_prefix = prefix_table_name;
         let splits = table_name.split(".").collect::<Vec<&str>>();
         if splits.len() > 1 {
             should_prefix = true;
@@ -111,10 +115,16 @@ impl Ctx {
                     });
                     continue;
                 }
-                selections.push(SelectItem::UnnamedExpr(Expr::CompoundIdentifier(vec![
-                    Ident::new(table_name.to_string()),
-                    Ident::new(col.to_string()),
-                ])));
+                if should_prefix {
+                    selections.push(SelectItem::UnnamedExpr(Expr::CompoundIdentifier(vec![
+                        Ident::new(table_name.to_string()),
+                        Ident::new(col.to_string()),
+                    ])));
+                    continue;
+                }
+                selections.push(SelectItem::UnnamedExpr(Expr::Identifier(Ident::new(
+                    col.to_string(),
+                ))));
             }
         }
         return selections;

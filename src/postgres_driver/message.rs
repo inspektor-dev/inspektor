@@ -85,7 +85,7 @@ impl BackendMessage {
                 .unwrap();
                 buf
             }
-            BackendMessage::ReadyForQuery{state} => {
+            BackendMessage::ReadyForQuery { state } => {
                 buf.put_u8(b'Z');
                 buf.put_u32(5);
                 buf.put_u8(state.get_state_byte());

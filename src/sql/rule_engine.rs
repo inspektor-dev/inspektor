@@ -37,7 +37,7 @@ pub struct HardRuleEngine {
     pub view_allowed: bool,
     pub copy_allowed_attributes: HashMap<String, Vec<String>>,
     pub insert_allowed_attributes: HashMap<String, Vec<String>>,
-    pub update_allowed_attributes: HashMap<String, Vec<String>>
+    pub update_allowed_attributes: HashMap<String, Vec<String>>,
 }
 
 impl RuleEngine for HardRuleEngine {
@@ -101,7 +101,7 @@ impl RuleEngine for HardRuleEngine {
     fn get_allowed_update_attributes(&self) -> &HashMap<String, Vec<String>> {
         &self.update_allowed_attributes
     }
-    
+
     fn is_update_allowed(&self) -> bool {
         self.update_allowed
     }
@@ -123,7 +123,7 @@ impl HardRuleEngine {
             view_allowed: false,
             copy_allowed_attributes: HashMap::default(),
             update_allowed_attributes: HashMap::default(),
-            insert_allowed_attributes: HashMap::default()
+            insert_allowed_attributes: HashMap::default(),
         }
     }
 }
