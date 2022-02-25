@@ -402,7 +402,7 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
             SelectItem::QualifiedWildcard(object_name) => {
                 // first ident must be table.
                 let table_name = &object_name.0[0].value;
-                let selections = state.column_expr_for_table(table_name);
+                let selections = state.column_expr_for_table(table_name, true);
                 if selections.len() != 0 {
                     return Ok(selections);
                 }
@@ -728,7 +728,7 @@ mod tests {
             &rewriter,
             state.clone(),
             "select * from kids",
-            "SELECT NULL AS \"kids.phone\", kids.id, kids.name, kids.address FROM kids",
+            "SELECT NULL AS \"phone\", id, name, address FROM kids",
         );
 
         assert_rewriter(
@@ -791,7 +791,7 @@ mod tests {
             state,
             "WITH DUMMY AS (SELECT * FROM kids LIMIT 1)
             SELECT * FROM DUMMY",
-            "WITH DUMMY AS (SELECT NULL AS \"kids.phone\", kids.id, kids.name, kids.address FROM kids LIMIT 1) SELECT * FROM DUMMY",
+            "WITH DUMMY AS (SELECT NULL AS \"phone\", id, name, address FROM kids LIMIT 1) SELECT * FROM DUMMY",
         );
     }
 
@@ -828,7 +828,7 @@ mod tests {
             &rewriter,
             state,
             "select * from (with dummy as (select * from kids) select * from dummy)as nested limit 1;",
-            "SELECT * FROM (WITH dummy AS (SELECT NULL AS \"kids.phone\", kids.id, kids.name, kids.address FROM kids) SELECT * FROM dummy) AS nested LIMIT 1",
+            "SELECT * FROM (WITH dummy AS (SELECT NULL AS \"phone\", id, name, address FROM kids) SELECT * FROM dummy) AS nested LIMIT 1",
         );
     }
 
@@ -869,7 +869,7 @@ mod tests {
             &rewriter,
             state.clone(),
             "select * from kids UNION select * from public.kids2",
-            "SELECT NULL AS \"kids.phone\", kids.id, kids.name, kids.address FROM kids UNION SELECT * FROM public.kids2",
+            "SELECT NULL AS \"phone\", id, name, address FROM kids UNION SELECT * FROM public.kids2",
         );
 
         assert_rewriter(
@@ -943,7 +943,7 @@ mod tests {
             &rewriter,
             state.clone(),
             "select * from transactions join kids on transactions.kid_id = kids.id limit 10;",
-            r#"SELECT NULL AS "kids.phone", kids.id, kids.name, kids.address, transactions.* FROM transactions JOIN kids ON transactions.kid_id = kids.id LIMIT 10"#,
+            r#"SELECT NULL AS "phone", id, name, address, transactions.* FROM transactions JOIN kids ON transactions.kid_id = kids.id LIMIT 10"#,
         );
     }
 
@@ -1325,7 +1325,7 @@ mod tests {
             &rewriter,
             state.clone(),
             "select * from kids",
-            "SELECT NULL AS \"kids.phone\", NULL AS \"kids.id\", NULL AS \"kids.name\", NULL AS \"kids.address\" FROM kids",
+            "SELECT NULL AS \"phone\", NULL AS \"id\", NULL AS \"name\", NULL AS \"address\" FROM kids",
         );
 
         let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
@@ -1333,7 +1333,7 @@ mod tests {
             &rewriter,
             state,
             "select * from kids join transactions on transactions.kid_id = kids.id",
-            "SELECT NULL AS \"kids.phone\", NULL AS \"kids.id\", NULL AS \"kids.name\", NULL AS \"kids.address\", transactions.* FROM kids JOIN transactions ON transactions.kid_id = kids.id",
+            "SELECT NULL AS \"phone\", NULL AS \"id\", NULL AS \"name\", NULL AS \"address\", transactions.* FROM kids JOIN transactions ON transactions.kid_id = kids.id",
         );
     }
 }

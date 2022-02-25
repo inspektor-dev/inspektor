@@ -108,6 +108,30 @@ func TestPostgresSelect(t *testing.T) {
 	}
 }
 
+func TestPostgresSelectWildCard(t *testing.T) {
+	actor := struct {
+		ActorID    int            `db:"actor_id"`
+		FirstName  sql.NullString `db:"first_name"`
+		LastName   sql.NullString `db:"last_name"`
+		LastUpdate *time.Time     `db:"last_update"`
+	}{}
+	db := getDB("postgres", "admin", t)
+	rows, err := db.Queryx("SELECT * FROM actor limit 1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		err := rows.StructScan(&actor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert(actor.ActorID != 0, "expected actor id but got zero", t)
+		assert(actor.FirstName.String == "", "expected first name to be empty", t)
+		assert(actor.LastName.String != "", "expected last_name but got empty string", t)
+		assert(actor.LastUpdate != nil, "expected last_update but got nil", t)
+	}
+}
+
 // divine-butterfly
 // f3535f770dadb1
 
