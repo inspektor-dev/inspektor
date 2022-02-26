@@ -163,7 +163,7 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
         // postgres update will have only one table so it's safe to
         // find the table and validate the whether it's allowed to update.
         let table_name = match &table.relation {
-            TableFactor::Table { name, .. } => join_indents(&name.0),
+            TableFactor::Table { name, .. } => name.0.clone(),
             _ => {
                 warn!(
                     "unexpected releationship for the update statement table {:?}",
@@ -180,7 +180,7 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
             }
         }
         if !self.is_operation_allowed(
-            &ObjectName(vec![Ident::new(table_name)]),
+            &ObjectName(table_name),
             &columns,
             self.rule_engine.get_allowed_update_attributes(),
         ) {
@@ -1276,7 +1276,7 @@ mod tests {
             update_allowed: true,
             update_allowed_attributes: HashMap::from([(
                 String::from("public.kids"),
-                vec![String::from("phone")],
+                vec![String::from("mobile_number")],
             )]),
             ..Default::default()
         };
@@ -1285,8 +1285,8 @@ mod tests {
         assert_rewriter(
             &rewriter,
             state,
-            "UPDATE kids SET phone = 'Dramatic' WHERE phone = '9843421696';",
-            "UPDATE kids SET phone = 'Dramatic' WHERE phone = '9843421696'",
+            "UPDATE public.kids SET mobile_number = 'Dramatic' WHERE mobile_number = '9843421696';",
+            "UPDATE public.kids SET mobile_number = 'Dramatic' WHERE mobile_number = '9843421696'",
         );
     }
 
