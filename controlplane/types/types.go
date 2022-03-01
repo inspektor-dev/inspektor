@@ -91,3 +91,10 @@ type OauthResponse struct {
 	Provider string `json:"provider"`
 	Url      string `json:"url"`
 }
+
+type CreateTempSession struct {
+	UserID       uint     `json:"userID"`
+	DatasourceID uint     `json:"datasourceID"`
+	ExpiresAt    int64    `json:"expireAt"`
+	Roles        []string `json:"roles"`
+}
