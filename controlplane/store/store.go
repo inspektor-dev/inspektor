@@ -118,6 +118,16 @@ func (s *Store) GetDataSources(ids ...uint) ([]*models.DataSource, error) {
 	return dataSources, nil
 }
 
+func (s *Store) GetDatasource(id uint) (*models.DataSource, error) {
+	datasource := &models.DataSource{}
+	err := s.db.Model(&models.Role{}).Where("id = ?", id).First(datasource).Error
+	if err != nil {
+		utils.Logger.Error("error while retriving data source", zap.String("err_msg", err.Error()))
+		return datasource, err
+	}
+	return datasource, nil
+}
+
 func (s *Store) GetDatasourceByWhere(query interface{}, args ...interface{}) (*models.DataSource, error) {
 	dataSource := &models.DataSource{}
 	if err := s.db.Model(&models.DataSource{}).Where(query, args...).First(dataSource).Error; err != nil {
@@ -301,4 +311,15 @@ func (s *Store) SyncRoles(objectID uint, objectType string, roles []string) erro
 		return err
 	}
 	return s.WriteRoleForObjectID(objectID, roles, objectType)
+}
+
+func handleGormErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	switch err {
+	case gorm.ErrRecordNotFound:
+		return types.ErrNotExist
+	}
+	return err
 }

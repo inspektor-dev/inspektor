@@ -209,6 +209,44 @@ func (h *Handlers) AddRoles() InspectorHandler {
 	}
 }
 
+func (h *Handlers) CreateTempSession() InspectorHandler {
+	return func(ctx *types.Ctx) {
+		if utils.IndexOf(ctx.Claim.Roles, "admin") == -1 {
+			utils.WriteErrorMsgWithErrCode("only admin can create data source", types.ErrInvalidAccess, http.StatusUnauthorized, ctx.Rw)
+			return
+		}
+		req := &types.CreateTempSession{}
+		if err := json.NewDecoder(ctx.R.Body).Decode(req); err != nil {
+			utils.Logger.Error("error while decoding user request", zap.String("err_msg", err.Error()))
+			utils.WriteErrorMsg("invalid request", http.StatusBadRequest, ctx.Rw)
+			return
+		}
+		// validate user and datasource exist.
+		_, err := h.Store.GetDatasource(req.DatasourceID)
+		if err != nil {
+			utils.Logger.Error("error while retriving datasoruce", zap.String("err_msg", err.Error()))
+			handleErr(err, ctx)
+			return
+		}
+		_, err = h.Store.GetUserByID(req.UserID)
+		if err != nil {
+			utils.Logger.Error("error while retriving datasoruce", zap.String("err_msg", err.Error()))
+			handleErr(err, ctx)
+			return
+		}
+		if len(req.Roles) == 0 {
+			utils.WriteErrorMsg("expected atleast one role to create session", http.StatusBadRequest, ctx.Rw)
+			return
+		}
+
+		if time.Now().UnixNano() < req.ExpiresAt {
+			utils.WriteErrorMsg("expiry time should be greater than current time", http.StatusBadRequest, ctx.Rw)
+			return
+		}
+
+	}
+}
+
 func (h *Handlers) OAuthUrl() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		res := &types.OauthResponse{}
