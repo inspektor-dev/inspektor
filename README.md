@@ -33,7 +33,7 @@ OPA is used for a unified toolset and framework for policy across the cloud-nati
 
 Here is the example policy, written using rego. This example policy allows users with ‘support’ roles to modify the shipped column of the claimed_items table and hides the email column of the customer table from the users with the ‘support’ role.
 
-```
+```rego
 package inspektor.resource.acl
 
 default allow = false
