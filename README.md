@@ -90,6 +90,11 @@ attributes := {attributes | attributes := permission.protected_attributes}
 Inspektor comprises 2 main components. 
 1. The Control Plane
 2. The Data Plane
+
+<p align="center">
+  <img src="docs/static/img/inspektordesign.png" alt="Inspektor design"  height="700" />
+</p>
+
 ### The Control Plane:
 The control plane acts as a management service that dynamically configures your data plane in order to enforce policies. 
 
@@ -98,9 +103,6 @@ It is like a control center where an admin can configure and access all the role
 ### The Data Plane:
 The data plane is deployed along with your data service. Dataplane enforces the access policies on all the queries that are coming to your database by intercepting the network traffic.
 
-<p align="center">
-  <img src="docs/static/img/inspektordesign.png" alt="Inspektor design"  height="700" />
-</p>
 
 
 ## Supported Data Source
