@@ -21,7 +21,7 @@ type SessionMeta struct {
 	PostgresPassword string   `json:"postgresPassword"`
 	PostgresUsername string   `json:"postgresUsername"`
 	TempRoles        []string `json:"tempRoles"`
-	ExpiresAt        uint64   `json:"expiresAt"`
+	ExpiresAt        int64    `json:"expiresAt"`
 }
 
 func (s *Session) UnmarshalMeta() {

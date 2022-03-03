@@ -242,6 +242,12 @@ func (s *Store) CreateSessionForUser(userID uint, datasourceID uint) error {
 	})
 }
 
+func (s *Store) CreateSession(sess *models.Session) error {
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		return tx.Model(&models.Session{}).Create(sess).Error
+	})
+}
+
 func (s *Store) CreateUser(username, password string) (*models.User, error) {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
