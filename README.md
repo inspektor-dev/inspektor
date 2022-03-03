@@ -55,7 +55,7 @@ role_permission := {
 "copy": {"allowed": false, "allowed_attributes": {}, "protected_attributes":{}},
  
 # support role can view every columns of the database except email column of customers table.
-"view": {"allowed": true, "protected_attributes": {"http://prod.public.customers.email"}}, }}],
+"view": {"allowed": true, "protected_attributes": {"prod.public.customers.email"}}, }}],
 }
 
 # retrive all the resources that can be accessible by the 
