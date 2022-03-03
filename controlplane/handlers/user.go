@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt"
+	"github.com/goombaio/namegenerator"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
@@ -243,7 +244,24 @@ func (h *Handlers) CreateTempSession() InspectorHandler {
 			utils.WriteErrorMsg("expiry time should be greater than current time", http.StatusBadRequest, ctx.Rw)
 			return
 		}
-
+		session := &models.Session{
+			ObjectID: req.DatasourceID,
+			UserID:   req.UserID,
+			SessionMeta: &models.SessionMeta{
+				Type:             "postgres",
+				PostgresPassword: utils.GenerateSecureToken(7),
+				PostgresUsername: namegenerator.NewNameGenerator(time.Now().UnixNano()).Generate(),
+				TempRoles:        req.Roles,
+				ExpiresAt:        req.ExpiresAt,
+			},
+		}
+		session.MarshalMeta()
+		if err := h.Store.CreateSession(session); err != nil {
+			utils.Logger.Error("error while creating temp session", zap.String("err_msg", err.Error()))
+			handleErr(err, ctx)
+			return
+		}
+		utils.WriteSuccesMsg("ok", http.StatusOK, ctx.Rw)
 	}
 }
 
