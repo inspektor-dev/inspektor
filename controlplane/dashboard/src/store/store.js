@@ -67,7 +67,7 @@ const store = createStore({
             // merge session and meta in same object.
             for (let i = 0; i < datasources.length; i++) {
                 for (let j = 0; j < sessions.length; j++) {
-                    if (sessions[j].objectID == datasources[i].id) {
+                    if (sessions[j].objectID == datasources[i].id && sessions[j].meta.expiresAt == 0) {
                         datasources[i].sessionMeta = sessions[j].meta
                     }
                 }
@@ -82,7 +82,7 @@ const store = createStore({
         async reset({ commit }) {
             commit("reset")
         },
-        async refreshConfig({commit}) {
+        async refreshConfig({ commit }) {
             let config = await api.config()
             commit("config", config)
         }
