@@ -2,8 +2,9 @@
 sidebar_position: 4
 title: Deployment
 ---
-## Prerequisite
-Docker & Docker-Compose
+## Prerequisites
+* Docker 
+* Docker-Compose
 
 ## Docker
 Install Docker by going to the [Docker](https://docs.docker.com/desktop/) website. Once done, install [Docker Compose](https://docs.docker.com/compose/install/) by going to the Docker-Compose website
@@ -60,7 +61,7 @@ policy_repo: "https://github.com/poonai/inspektor-policy.git"
 Run the below command in your terminal to run the control plane.
 
 ```
-Docker-compose up
+Docker-compose
 ```
 Now that you have everything set up and running, it’s time to put the control plane to use. Go to localhost:3123 and log in using the user name ‘admin’ and password ‘admin’. Use the user menu to create your users.
 
