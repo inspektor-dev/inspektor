@@ -27,7 +27,7 @@ func (u *User) UnmarshalMeta() {
 
 func (u *User) MarshalJSON() ([]byte, error) {
 	u.UnmarshalMeta()
-	return json.Marshal(map[string]interface{}{"username": u.Name, "roles": u.Roles, "meta": u.UserMeta})
+	return json.Marshal(map[string]interface{}{"username": u.Name, "roles": u.Roles, "meta": u.UserMeta, "id": u.ID})
 }
 
 func (u *User) MarshalMeta() {
