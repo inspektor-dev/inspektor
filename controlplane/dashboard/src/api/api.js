@@ -52,6 +52,13 @@ export default {
     updateRoles: async(data) => {
         await axios.post("/api/roles", data)
     },
+    createTempCredentials: async(data) => {
+        await axios.post("/api/session/temp", data)
+    },
+    getTempCredentials: async(data) => {
+       let res =  await axios.get("/api/session/temp", data)
+       return res.data
+    },
     intializeToken: () => {
         let token = localStorage.getItem("access-token");
         if (token != null) {
