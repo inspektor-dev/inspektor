@@ -240,10 +240,11 @@ func (h *Handlers) CreateTempSession() InspectorHandler {
 			return
 		}
 
-		if time.Now().UnixNano() < req.ExpiresAt {
-			utils.WriteErrorMsg("expiry time should be greater than current time", http.StatusBadRequest, ctx.Rw)
+		if req.ExpiryMinute == 0 {
+			utils.WriteErrorMsg("expiry minute should be greater than zero", http.StatusBadRequest, ctx.Rw)
 			return
 		}
+
 		session := &models.Session{
 			ObjectID: req.DatasourceID,
 			UserID:   req.UserID,
@@ -252,7 +253,7 @@ func (h *Handlers) CreateTempSession() InspectorHandler {
 				PostgresPassword: utils.GenerateSecureToken(7),
 				PostgresUsername: namegenerator.NewNameGenerator(time.Now().UnixNano()).Generate(),
 				TempRoles:        req.Roles,
-				ExpiresAt:        req.ExpiresAt,
+				ExpiresAt:        time.Now().Add(time.Minute * time.Duration(req.ExpiryMinute)).UnixNano(),
 			},
 		}
 		session.MarshalMeta()
@@ -378,6 +379,8 @@ func (h *Handlers) Init(router *mux.Router) {
 	router.HandleFunc("/api/datasource", h.AuthMiddleWare(h.GetDataSources())).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/session", h.AuthMiddleWare(h.CreateSession())).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/session", h.AuthMiddleWare(h.GetSesssion())).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/session/temp", h.AuthMiddleWare(h.CreateTempSession())).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/session/temp", h.AuthMiddleWare(h.GetTempSessions())).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/policy/nofification", h.PolicyNotification()).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/user", h.AuthMiddleWare(h.AddUser())).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/users", h.AuthMiddleWare(h.GetUsers())).Methods("GET", "OPTIONS")
