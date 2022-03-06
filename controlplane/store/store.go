@@ -120,7 +120,7 @@ func (s *Store) GetDataSources(ids ...uint) ([]*models.DataSource, error) {
 
 func (s *Store) GetDatasource(id uint) (*models.DataSource, error) {
 	datasource := &models.DataSource{}
-	err := s.db.Model(&models.Role{}).Where("id = ?", id).First(datasource).Error
+	err := s.db.Model(&models.DataSource{}).Where("id = ?", id).First(datasource).Error
 	if err != nil {
 		utils.Logger.Error("error while retriving data source", zap.String("err_msg", err.Error()))
 		return datasource, err
