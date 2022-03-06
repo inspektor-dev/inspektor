@@ -6,6 +6,7 @@ import api from "@/api/api";
 function getDefaultStore() {
     return {
         datasources: [],
+        tempDatasource: [],
         users: [],
         isAdmin: false,
         sup: true,
@@ -28,7 +29,6 @@ const store = createStore({
                 state.datasources.pop()
             }
             datasource.forEach(data => {
-                console.log("pushing", data)
                 state.datasources.push(data)
             })
         },
@@ -46,6 +46,9 @@ const store = createStore({
         },
         config(state, data) {
             state.config = data
+        },
+        setTempDatasource(state, datasource) {
+            state.tempDatasource = datasource
         }
     },
     actions: {
@@ -73,6 +76,14 @@ const store = createStore({
                 }
             }
             commit("setDatasource", datasources)
+            let tempSesions = await api.getTempCredentials()
+            let tempDatasources = []
+            for (let k= 0; k< tempSesions.length; k++){
+                let datasource = tempSesions[k].datasource;
+                datasource.sessionMeta = tempSesions[k]
+                tempDatasources.push(datasource)
+            }
+            commit("setTempDatasource", tempDatasources)
         },
         async updateUsers({ commit }) {
             let users = await api.getUsers()
