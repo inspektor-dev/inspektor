@@ -14,6 +14,7 @@ type Session struct {
 	UserID      uint           `json:"-"`
 	Meta        datatypes.JSON `json:"meta"`
 	SessionMeta *SessionMeta   `gorm:"-" json:"-"`
+	Datasource  *DataSource    `gorm:"-" json:"datasource"`
 }
 
 type SessionMeta struct {
