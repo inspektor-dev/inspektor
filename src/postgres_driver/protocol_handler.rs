@@ -570,7 +570,9 @@ impl ProtocolHandler {
         let rule = self.get_rule_engine()?;
         debug!("rewriting with schema {:?}", schemas);
         let rewriter = QueryRewriter::new(rule, schemas);
-        rewriter.rewrite(&mut statements, ctx)?;
+        for statement in &mut statements {
+            rewriter.rewrite(statement, &ctx)?;
+        }
         let mut out = String::from("");
         for statement in statements {
             out = format!("{}{};", out, statement);
