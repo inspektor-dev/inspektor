@@ -552,10 +552,6 @@ impl ProtocolHandler {
         schemas: Vec<String>,
     ) -> Result<(), ProtocolHandlerError> {
         debug!("input query {}", query);
-        // TODO: this needs to worked out.
-        if query.contains("BEGIN READ ONLY") {
-            return Ok(());
-        }
         let dialect = sqlparser::dialect::PostgreSqlDialect {};
         let mut statements = match sqlparser::parser::Parser::parse_sql(&dialect, query) {
             Ok(statements) => statements,
@@ -575,7 +571,7 @@ impl ProtocolHandler {
         }
         let mut out = String::from("");
         for statement in statements {
-            out = format!("{}{};", out, statement);
+            out = format!("{}{};", out, statement);    
         }
         debug!("output query {}", out);
         *query = out;
