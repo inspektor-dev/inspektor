@@ -42,52 +42,48 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
 
     pub fn rewrite(
         &self,
-        statements: &mut Vec<Statement>,
-        state: Ctx,
+        statement: &mut Statement,
+        state: &Ctx,
     ) -> Result<(), QueryRewriterError> {
-        for statement in statements {
-            match statement {
-                Statement::Query(query) => {
-                    self.handle_query(query, &state)?;
+        match statement {
+            Statement::Query(query) => {
+                self.handle_query(query, state)?;
+            }
+            Statement::Update {
+                table, assignments, ..
+            } => {
+                if !self.rule_engine.is_update_allowed() {
+                    return Err(QueryRewriterError::UnAuthorizedUpdate);
                 }
-                Statement::Update {
-                    table, assignments, ..
-                } => {
-                    if !self.rule_engine.is_update_allowed() {
-                        return Err(QueryRewriterError::UnAuthorizedUpdate);
-                    }
-                    self.handle_update(&table, &assignments)?;
+                self.handle_update(&table, &assignments)?;
+            }
+            Statement::Insert {
+                columns,
+                table_name,
+                ..
+            } => {
+                if !self.rule_engine.is_insert_allowed() {
+                    return Err(QueryRewriterError::UnAuthorizedInsert);
                 }
-                Statement::Insert {
-                    columns,
-                    table_name,
-                    ..
-                } => {
-                    if !self.rule_engine.is_insert_allowed() {
-                        return Err(QueryRewriterError::UnAuthorizedInsert);
-                    }
-                    let allowed_attributes = self.rule_engine.get_allowed_insert_attributes();
-                    if !self.is_operation_allowed(&table_name, &columns, allowed_attributes) {
-                        return Err(QueryRewriterError::UnAuthorizedInsert);
-                    }
-                }
-                Statement::Copy {
-                    table_name,
-                    columns,
-                    ..
-                } => {
-                    if !self.rule_engine.is_copy_allowed() {
-                        return Err(QueryRewriterError::UnAthorizedCopy);
-                    }
-                    let allowed_attributes = self.rule_engine.get_allowed_copy_attributes();
-                    if !self.is_operation_allowed(&table_name, &columns, allowed_attributes) {
-                        return Err(QueryRewriterError::UnAthorizedCopy);
-                    }
-                }
-                _ => {
-                    continue;
+                let allowed_attributes = self.rule_engine.get_allowed_insert_attributes();
+                if !self.is_operation_allowed(&table_name, &columns, allowed_attributes) {
+                    return Err(QueryRewriterError::UnAuthorizedInsert);
                 }
             }
+            Statement::Copy {
+                table_name,
+                columns,
+                ..
+            } => {
+                if !self.rule_engine.is_copy_allowed() {
+                    return Err(QueryRewriterError::UnAthorizedCopy);
+                }
+                let allowed_attributes = self.rule_engine.get_allowed_copy_attributes();
+                if !self.is_operation_allowed(&table_name, &columns, allowed_attributes) {
+                    return Err(QueryRewriterError::UnAthorizedCopy);
+                }
+            }
+            _ => {}
         }
         Ok(())
     }
@@ -673,7 +669,9 @@ mod tests {
     ) {
         let dialect = PostgreSqlDialect {};
         let mut statements = Parser::parse_sql(&dialect, input).unwrap();
-        rewriter.rewrite(&mut statements, state).unwrap();
+        for statement in &mut statements {
+            rewriter.rewrite(statement, &state).unwrap();
+        }
         assert_eq!(output, format!("{}", statements[0]))
     }
 
@@ -685,8 +683,10 @@ mod tests {
     ) {
         let dialect = PostgreSqlDialect {};
         let mut statements = Parser::parse_sql(&dialect, input).unwrap();
-        let rewriter_err = rewriter.rewrite(&mut statements, state).unwrap_err();
-        assert_eq!(rewriter_err, err)
+        for statement in &mut statements {
+            let rewriter_err = rewriter.rewrite(statement, &state).unwrap_err();
+            assert_eq!(rewriter_err, err)
+        }
     }
 
     #[test]
