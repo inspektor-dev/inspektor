@@ -2407,7 +2407,7 @@ dependencies = [
 [[package]]
 name = "sqlparser"
 version = "0.13.1-alpha.0"
-source = "git+https://github.com/poonai/sqlparser-rs?branch=poonai/tablefunction#479946683ce7f49c91c118dd3e44cf40c754edb1"
+source = "git+https://github.com/poonai/sqlparser-rs?branch=poonai/tablefunction#0a45d58cd96441c6775231738042855cdf25e681"
 dependencies = [
  "log",
 ]
