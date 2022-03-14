@@ -34,6 +34,15 @@ impl ReadyState {
             ReadyState::FailedTransaction => b'E',
         }
     }
+
+    fn from_u8(state: u8) -> ReadyState {
+        match state {
+            b'I' => ReadyState::Idle,
+            b'T' => ReadyState::Transaction,
+            b'E' => ReadyState::FailedTransaction,
+            _ => unreachable!("invalid ready state"),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -46,6 +55,7 @@ pub enum BackendMessage {
     AuthenticationSASLContinue { data: Vec<u8> },
     AuthenticationSASLFinal { data: Vec<u8> },
     ReadyForQuery { state: ReadyState },
+    Message { data: Vec<u8>, meta: u8 },
 }
 
 impl BackendMessage {
@@ -91,6 +101,16 @@ impl BackendMessage {
                 buf.put_u8(state.get_state_byte());
                 buf
             }
+            BackendMessage::Message { meta, data } => {
+                debug!("encoding emeta {:?}", *meta as char);
+                buf.put_u8(*meta);
+                write_message(&mut buf, |buf| {
+                    buf.extend_from_slice(&data[..]);
+                    Ok(())
+                })
+                .unwrap();
+                buf
+            }
             _ => {
                 unreachable!("encoding invalid startup message")
             }
@@ -108,20 +128,18 @@ where
         error!("error while reading the meta for backend message {:?}", e);
         anyhow!("error reading backend meta")
     })?;
-
+    let len = decode_frame_length(&mut conn).await.map_err(|e| {
+        error!("error while decoding frame lenght {:?}", e);
+        anyhow!("invalid backend message")
+    })?;
+    let mut buf = BytesMut::new();
+    buf.resize(len, b'0');
+    conn.read_exact(&mut buf).await.map_err(|err| {
+        error!("error while reading backend message {:?}", err);
+        anyhow!("error while decoding error messaage")
+    })?;
     match meta[0] {
         b'R' => {
-            let len = decode_frame_length(&mut conn).await.map_err(|e| {
-                error!("error while decoding frame lenght {:?}", e);
-                anyhow!("invalid backend message")
-            })?;
-            let mut buf = BytesMut::new();
-            buf.resize(len, b'0');
-            conn.read_exact(&mut buf).await.map_err(|err| {
-                error!("error while reading backend message {:?}", err);
-                anyhow!("error while decoding error messaage")
-            })?;
-
             let msg_type = NetworkEndian::read_u32(&buf);
             buf.advance(4);
             match msg_type {
@@ -153,15 +171,6 @@ where
             }
         }
         b'E' => {
-            let msg_len = decode_frame_length(&mut conn).await.map_err(|e| {
-                error!("error while decoding backend error message length");
-                e
-            })?;
-            let mut buf = BytesMut::new();
-            buf.resize(msg_len, b'0');
-            conn.read_exact(&mut buf)
-                .await
-                .map_err(|_| anyhow!("error while decoing err msg from postgres target"))?;
             if buf[0] == 0 {
                 return Ok(BackendMessage::ErrorMsg(None));
             }
@@ -169,9 +178,15 @@ where
             let err_msg = read_cstr(&mut buf)?;
             return Ok(BackendMessage::ErrorMsg(Some(err_msg)));
         }
+        b'Z' => {
+            let state = ReadyState::from_u8(buf[0]);
+            return Ok(BackendMessage::ReadyForQuery { state: state });
+        }
         _ => {
-            error!("invalid meta message for backend {:?}", meta[0]);
-            return Err(anyhow!("invalid backend message"));
+            return Ok(BackendMessage::Message {
+                data: buf.to_vec(),
+                meta: meta[0],
+            });
         }
     }
 }
