@@ -70,7 +70,7 @@ const store = createStore({
             // merge session and meta in same object.
             for (let i = 0; i < datasources.length; i++) {
                 for (let j = 0; j < sessions.length; j++) {
-                    if (sessions[j].objectID == datasources[i].id && sessions[j].meta.expiresAt == 0) {
+                    if (sessions[j].objectID == datasources[i].id && (sessions[j].meta.expiresAt == 0 || sessions[j].meta.expiresAt == undefined)) {
                         datasources[i].sessionMeta = sessions[j].meta
                     }
                 }
@@ -78,7 +78,7 @@ const store = createStore({
             commit("setDatasource", datasources)
             let tempSesions = await api.getTempCredentials()
             let tempDatasources = []
-            for (let k= 0; k< tempSesions.length; k++){
+            for (let k = 0; k < tempSesions.length; k++) {
                 let datasource = tempSesions[k].datasource;
                 datasource.sessionMeta = tempSesions[k]
                 tempDatasources.push(datasource)
