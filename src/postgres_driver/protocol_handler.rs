@@ -24,6 +24,7 @@ use log::*;
 use md5::{Digest, Md5};
 use openssl::ssl::{Ssl, SslConnector, SslMethod};
 use postgres_protocol::authentication::sasl;
+use sqlparser::ast::Statement;
 use std::collections::{HashMap, HashSet};
 use std::pin::Pin;
 use std::time::Duration;
@@ -52,6 +53,7 @@ pub struct ProtocolHandler {
     config: PostgresConfig,
     connected_db: String,
     datasource_name: String,
+    pending_error: Option<ProtocolHandlerError>,
 }
 
 #[derive(Default)]
@@ -200,20 +202,35 @@ impl ProtocolHandler {
                 }
                     self.policy_evaluator = evaluator;
                 }
-                n = self.target_conn.read(&mut target_buf) => {
+                n = decode_backend_message(&mut self.target_conn) => {
                     match n {
                         Err(e) =>{
                                 println!("failed to read from socket; err = {:?}", e);
                                 return Ok(());
                         },
-                        Ok(n) =>{
-                            if n == 0 {
-                               return Ok(());
+                        Ok(msg) =>{
+                            if self.pending_error.is_some(){
+                                // check the incoming message is ready for query.
+                                // if it's ready for query send the error message before
+                                // forwarding ready for query message.
+                                match &msg{
+                                    BackendMessage::ReadyForQuery{..} => {
+                                        // send the pending error message.
+                                        let e = self.pending_error.as_ref().unwrap();
+                                        let err_rsp = BackendMessage::ErrorMsg(Some(format!("{}", e)));
+                                        if let Err(e) = self.client_conn.write_all(&err_rsp.encode()).await{
+                                            error!("error while writing the rsp message to the client {:?}", e);
+                                            return Ok(());
+                                        }
+                                    },
+                                    _=> {}
+                                }
                             }
-                            if let Err(e) = self.client_conn.write_all(&target_buf[0..n]).await{
+                            if let Err(e) = self.client_conn.write_all(&msg.encode()).await{
                                 error!("error while writing the rsp message to the client {:?}", e);
                                 return Ok(());
                             }
+                            continue;
                         }
                     }
                 }
@@ -383,6 +400,7 @@ impl ProtocolHandler {
                         config: config.clone(),
                         connected_db: client_parms.get("database").unwrap().clone(),
                         datasource_name: datasource_name,
+                        pending_error: None,
                     };
                     return Ok(handler);
                 }
@@ -566,12 +584,18 @@ impl ProtocolHandler {
         let rule = self.get_rule_engine()?;
         debug!("rewriting with schema {:?}", schemas);
         let rewriter = QueryRewriter::new(rule, schemas);
-        for statement in &mut statements {
-            rewriter.rewrite(statement, &ctx)?;
-        }
         let mut out = String::from("");
-        for statement in statements {
-            out = format!("{}{};", out, statement);    
+        let mut good_to_forward = false;
+        for statement in &mut statements {
+            if let Err(e) = rewriter.rewrite(statement, &ctx) {
+                if !good_to_forward {
+                    return Err(ProtocolHandlerError::RewriterError(e));
+                }
+                self.pending_error = Some(ProtocolHandlerError::RewriterError(e));
+                break;
+            }
+            good_to_forward = true;
+            out = format!("{}{};", out, statement);
         }
         debug!("output query {}", out);
         *query = out;
