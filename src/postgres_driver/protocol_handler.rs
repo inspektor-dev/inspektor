@@ -223,6 +223,12 @@ impl ProtocolHandler {
                                             return Ok(());
                                         }
                                     },
+                                    BackendMessage::ErrorMsg(..) => {
+                                        // we should reset the error if the backend sends error message. 
+                                        // Cuz current transaction is aborted. it's upto the backend to 
+                                        // send ready for query message.
+                                        self.pending_error = None;
+                                    }
                                     _=> {}
                                 }
                             }
