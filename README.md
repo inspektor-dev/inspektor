@@ -115,5 +115,5 @@ The data plane is deployed along with your data service. Dataplane enforces the 
  - S3
 
 ## Join Us!
-*Inspektor is an open-source project. If you have some more amazing ideas to improve Inspektor or if you find some bugs or critical errors in the current code, then please let us know by joining the [Inspektor Discord](https://discord.gg/VsZbJw5v). You can also visit the Github Discussion.*
+*Inspektor is an open-source project. If you have some more amazing ideas to improve Inspektor or if you find some bugs or critical errors in the current code, then please let us know by joining the [Inspektor Discord](https://discord.gg/j4VYP4yBYU). You can also visit the Github Discussion.*
 
