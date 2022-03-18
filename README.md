@@ -8,9 +8,11 @@
       <a href="https://github.com/poonai/inspektor/blob/main/LICENSE"><img src="https://img.shields.io/github/license/poonai/inspektor" alt="Apache 2 License" height="22"/></a>
 <a href="https://discord.gg/YxZbDJHTxf"><img src="https://img.shields.io/discord/870545680463187989.svg" alt="discord badge" height="22"/></a>
 
-      
 
 </p>
+<div align="center">
+  <a href="https://www.youtube.com/watch?v=E7X5-mGRKro"><img src="https://img.youtube.com/vi/E7X5-mGRKro/0.jpg" alt="inspektor demo video"></a>
+</div>
 
 ## What is Inspektor?
 Inspektor is a tool that helps you manage database access in a much better manner. Inspektor's main purpose is to act as a "man in the middle" proxy between your application and database, making it easy to enforce access policies.
