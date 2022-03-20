@@ -161,3 +161,53 @@ func TestUpdate(t *testing.T) {
 	_, err := db.Exec("update actor set first_name = 'poonai' where first_name = 'PENELOPE'")
 	assert(strings.Contains(err.Error(), "unauthorized update"), "expected unathorized update message", t)
 }
+
+func errPrint(err error) string {
+	if err == nil {
+		return ""
+	}
+	return fmt.Sprintf("expecteed nil but got error: %s", err.Error())
+}
+
+func TestTransaction(t *testing.T) {
+	// do a normal insert.
+	db := getDB("postgres", "dev", t)
+	tx := db.MustBegin()
+	tx.MustExec("INSERT INTO actor (first_name, last_name) VALUES ('poonai2', 'poonai4');")
+	err := tx.Commit()
+	assert(err == nil, "expected nil but got error", t)
+
+	// let's rollback if unauthorized insert comes.
+	tx = db.MustBegin()
+	tx.MustExec("INSERT INTO actor (first_name, last_name) VALUES ('poonai4', 'poonai5');")
+	_, err = tx.Exec("insert into category (name) values ('sirkazhi')")
+	assert(err != nil, "expected error but got nil", t)
+	err = tx.Rollback()
+	assert(err == nil, errPrint(err), t)
+
+	// now we'll commmit and see whether values are retained.
+	tx = db.MustBegin()
+	tx.MustExec("INSERT INTO actor (first_name, last_name) VALUES ('poonai6', 'poonai7');")
+	_, err = tx.Exec("insert into category (name) values ('sirkazhi')")
+	assert(err != nil, "expected error but got nil", t)
+	err = tx.Commit()
+	assert(err == nil, errPrint(err), t)
+	db = getDB("postgres", "admin", t)
+	actor := struct {
+		ActorID    int            `db:"actor_id"`
+		FirstName  sql.NullString `db:"first_name"`
+		LastName   sql.NullString `db:"last_name"`
+		LastUpdate *time.Time     `db:"last_update"`
+	}{}
+	rows, err := db.Queryx("SELECT * FROM actor where first_name = 'poonai6' limit 1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		err := rows.StructScan(&actor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert(actor.LastName.String == "poonai7", "expected last_name to be poonai7", t)
+	}
+}
