@@ -54,6 +54,7 @@ pub struct ProtocolHandler {
     connected_db: String,
     datasource_name: String,
     pending_error: Option<ProtocolHandlerError>,
+    current_transaction_status: TransactionStatus,
 }
 
 #[derive(Default)]
@@ -224,14 +225,16 @@ impl ProtocolHandler {
                                         }
                                     },
                                     BackendMessage::ErrorMsg(..) => {
-                                        // we should reset the error if the backend sends error message. 
-                                        // Cuz current transaction is aborted. it's upto the backend to 
+                                        // we should reset the error if the backend sends error message.
+                                        // Cuz current transaction is aborted. it's upto the backend to
                                         // send ready for query message.
+                                        debug!("resetting error message if exist");
                                         self.pending_error = None;
                                     }
                                     _=> {}
                                 }
                             }
+                            debug!("writing backend mesage to client {:?}", msg);
                             if let Err(e) = self.client_conn.write_all(&msg.encode()).await{
                                 error!("error while writing the rsp message to the client {:?}", e);
                                 return Ok(());
@@ -258,7 +261,8 @@ impl ProtocolHandler {
                                 }
                                 // after sending error message we should send ready for query command
                                 // otherwise client doesn't know that it can send commands.
-                                if let Err(e) = self.client_conn.write_all(&BackendMessage::ReadyForQuery{state: ReadyState::Idle}.encode()).await {
+                                debug!("sending ready for query with transaction status {:?}", self.current_transaction_status);
+                                if let Err(e) = self.client_conn.write_all(&BackendMessage::ReadyForQuery{state: self.current_transaction_status.clone()}.encode()).await {
                                     error!("error while sending ready for query message {:?}", e);
                                     return Ok(())
                                 }
@@ -407,6 +411,7 @@ impl ProtocolHandler {
                         connected_db: client_parms.get("database").unwrap().clone(),
                         datasource_name: datasource_name,
                         pending_error: None,
+                        current_transaction_status: TransactionStatus::Idle,
                     };
                     return Ok(handler);
                 }
@@ -597,8 +602,20 @@ impl ProtocolHandler {
                 if !good_to_forward {
                     return Err(ProtocolHandlerError::RewriterError(e));
                 }
+                debug!("error {:?} is buffered to deliver later", e);
                 self.pending_error = Some(ProtocolHandlerError::RewriterError(e));
                 break;
+            }
+
+            // update the current state of transaction.
+            match statement {
+                Statement::StartTransaction { .. } => {
+                    self.current_transaction_status = TransactionStatus::Transaction
+                }
+                Statement::Rollback { .. } | Statement::Commit { .. }=> {
+                    self.current_transaction_status = TransactionStatus::Idle
+                }
+                _ => {}
             }
             good_to_forward = true;
             out = format!("{}{};", out, statement);

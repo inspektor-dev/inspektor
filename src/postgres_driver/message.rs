@@ -19,27 +19,27 @@ pub enum Value {
     NotNull(Vec<u8>),
 }
 
-#[derive(Debug)]
-pub enum ReadyState {
+#[derive(Debug, Clone)]
+pub enum TransactionStatus {
     Idle,
     Transaction,
     FailedTransaction,
 }
 
-impl ReadyState {
+impl TransactionStatus {
     fn get_state_byte(&self) -> u8 {
         match self {
-            ReadyState::Idle => b'I',
-            ReadyState::Transaction => b'T',
-            ReadyState::FailedTransaction => b'E',
+            TransactionStatus::Idle => b'I',
+            TransactionStatus::Transaction => b'T',
+            TransactionStatus::FailedTransaction => b'E',
         }
     }
 
-    fn from_u8(state: u8) -> ReadyState {
+    fn from_u8(state: u8) -> TransactionStatus {
         match state {
-            b'I' => ReadyState::Idle,
-            b'T' => ReadyState::Transaction,
-            b'E' => ReadyState::FailedTransaction,
+            b'I' => TransactionStatus::Idle,
+            b'T' => TransactionStatus::Transaction,
+            b'E' => TransactionStatus::FailedTransaction,
             _ => unreachable!("invalid ready state"),
         }
     }
@@ -54,7 +54,7 @@ pub enum BackendMessage {
     AuthenticationSASL { mechanisms: Vec<String> },
     AuthenticationSASLContinue { data: Vec<u8> },
     AuthenticationSASLFinal { data: Vec<u8> },
-    ReadyForQuery { state: ReadyState },
+    ReadyForQuery { state: TransactionStatus },
     Message { data: Vec<u8>, meta: u8 },
 }
 
@@ -179,7 +179,7 @@ where
             return Ok(BackendMessage::ErrorMsg(Some(err_msg)));
         }
         b'Z' => {
-            let state = ReadyState::from_u8(buf[0]);
+            let state = TransactionStatus::from_u8(buf[0]);
             return Ok(BackendMessage::ReadyForQuery { state: state });
         }
         _ => {
