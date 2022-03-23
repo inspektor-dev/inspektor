@@ -51,11 +51,11 @@ fn main() {
     let ch = ChannelBuilder::new(env).connect(config.controlplane_addr.as_ref().unwrap());
     let client = InspektorClient::new(ch);
 
-    let token = config.secret_token.as_ref().unwrap();
+    let token = config.secret_token.as_ref().unwrap().clone();
     let get_call_opt = Box::new(move || {
         // create meta which is used for header based authentication.
         let mut meta_builder = grpcio::MetadataBuilder::new();
-        meta_builder.add_str("auth-token", token).unwrap();
+        meta_builder.add_str("auth-token", &token.clone()).unwrap();
         let meta = meta_builder.build();
         return grpcio::CallOption::default().headers(meta);
     });
@@ -75,17 +75,38 @@ fn main() {
     let (policy_broadcaster, policy_watcher) = watch::channel(Vec::<u8>::new());
     // wait for policy in a different thread. we can use the same thread for other common telementry
     // data.
+    let policy_client = client.clone();
     std::thread::spawn(move || {
         info!("strated watching for polices");
         rt.block_on(async {
+        'policy_watcher:
             loop {
-                while let Some(policy) = policy_reciver.try_next().await.unwrap() {
-                    if let Err(e) = policy_broadcaster.send(policy.wasm_byte_code) {
-                        error!(
-                            "error while sending policy to policy watchers. err: {:?}",
-                            e
-                        );
+                let result = match policy_reciver.try_next().await {
+                    Ok(result) => result,
+                    Err(e) => {
+                        error!("error while retriving policies {:?}", e);
+                        'policy_retrier: loop {
+                            policy_reciver =
+                                match policy_client.policy_opt(&Empty::default(), get_call_opt()) {
+                                    Ok(receiver) => receiver,
+                                    Err(e) => {
+                                        error!("error while retriving policy receiver {:?}", e);
+                                        continue 'policy_retrier;
+                                    }
+                                };
+                            continue 'policy_watcher;
+                        }
                     }
+                };
+                let policy = match result {
+                    Some(policy) => policy,
+                    None => continue,
+                };
+                if let Err(e) = policy_broadcaster.send(policy.wasm_byte_code) {
+                    error!(
+                        "error while sending policy to policy watchers. err: {:?}",
+                        e
+                    );
                 }
             }
         });
@@ -95,7 +116,7 @@ fn main() {
         policy_watcher: policy_watcher,
         datasource: source,
         client: client,
-        token: token.clone(),
+        token: config.secret_token.as_ref().unwrap().clone(),
     };
     driver.start();
 }
