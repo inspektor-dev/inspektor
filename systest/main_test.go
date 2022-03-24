@@ -18,6 +18,8 @@ type Cluster struct {
 	dataplaneCmd    *exec.Cmd
 }
 
+var cluster *Cluster
+
 func runCluster() *Cluster {
 	cmd := exec.Command("./controlplane", "--config-path", "./controlplane_config.yaml")
 	err := cmd.Start()
@@ -72,7 +74,7 @@ func (c *Cluster) TearDown() {
 }
 
 func TestMain(t *testing.M) {
-	cluster := runCluster()
+	cluster = runCluster()
 	t.Run()
 	cluster.TearDown()
 }
@@ -210,4 +212,21 @@ func TestTransaction(t *testing.T) {
 		}
 		assert(actor.LastName.String == "poonai7", "expected last_name to be poonai7", t)
 	}
+}
+
+func TestControlplaneOffline(t *testing.T) {
+	db := getDB("postgres", "dev", t)
+	tx := db.MustBegin()
+	cluster.controlplaneCmd.Process.Kill()
+	time.Sleep(time.Second)
+	tx.MustExec("INSERT INTO actor (first_name, last_name) VALUES ('poonai2', 'poonai4');")
+	err := tx.Commit()
+	assert(err == nil, "expected nil but got error", t)
+	cmd := exec.Command("./controlplane", "--config-path", "./controlplane_config.yaml")
+	err = cmd.Start()
+	if err != nil {
+		panic(err.Error())
+	}
+	time.Sleep(time.Second * 3)
+	cluster.controlplaneCmd = cmd
 }
