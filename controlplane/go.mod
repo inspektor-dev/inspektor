@@ -14,6 +14,7 @@ require (
 	github.com/open-policy-agent/opa v0.34.2
 	github.com/shurcooL/githubv4 v0.0.0-20220115235240-a14260e6f8a2
 	github.com/shurcooL/graphql v0.0.0-20200928012149-18c5c3165e3a // indirect
+	github.com/slack-go/slack v0.10.2 // indirect
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/viper v1.8.1
 	go.uber.org/zap v1.19.1

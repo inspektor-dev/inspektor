@@ -19,6 +19,8 @@ type Config struct {
 	IdpClientID       string `mapstructure:"idp_client_id"`
 	IdpClientSecret   string `mapstructure:"idp_client_secret"`
 	IdpServiceAccount string `mapstructure:"idp_service_account"`
+	SlackBotToken     string `mapstructure:"slack_bot_token"`
+	SlackAppToken     string `mapstructure:"slack_app_token"`
 }
 
 func (c *Config) Validate() error {
@@ -48,6 +50,9 @@ func (c *Config) Validate() error {
 	}
 	if c.PolicyPath == "" {
 		c.PolicyPath = "./policy_dir"
+	}
+	if c.SlackBotToken != "" && c.SlackAppToken == "" {
+		return errors.New("slack integration requires slack bot token and slack app token")
 	}
 	return nil
 }

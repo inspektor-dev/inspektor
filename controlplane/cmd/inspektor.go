@@ -10,6 +10,7 @@ import (
 	"inspektor/models"
 	"inspektor/policy"
 	"inspektor/rpcserver"
+	"inspektor/slackbot"
 	"inspektor/store"
 	"inspektor/utils"
 
@@ -56,6 +57,8 @@ var rootCmd = &cobra.Command{
 		if err := policyManager.Init(); err != nil {
 			utils.Logger.Fatal("error while initializing policy manager", zap.String("err_msg", err.Error()))
 		}
+		bot := slackbot.New(config)
+		bot.Start()
 		server := rpcserver.NewServer(store, policyManager)
 		go func(server *rpcserver.RpcServer) {
 			if err := server.Start(config); err != nil {
