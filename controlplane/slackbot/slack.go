@@ -44,12 +44,18 @@ func (s *SlackBot) Start() {
 		for event := range socketClient.Events {
 			switch event.Type {
 			case socketmode.EventTypeEventsAPI:
-				event, ok := event.Data.(*slackevents.EventsAPIEvent)
+				event, ok := event.Data.(slackevents.EventsAPIEvent)
 				if !ok {
 					utils.Logger.Error("unexpected slack event api event")
 					continue
 				}
-				s.handleEventApi(event.Data)
+				s.handleEventApi(event.InnerEvent)
+			case socketmode.EventTypeInteractive:
+				action, ok := event.Data.(slack.InteractionCallback)
+				if !ok {
+					continue
+				}
+				s.handleActionCB(action.ActionCallback, action.TriggerID)
 			default:
 				utils.Logger.Debug("skipping slack event", zap.String("event_name", string(event.Type)))
 			}
@@ -58,30 +64,183 @@ func (s *SlackBot) Start() {
 	socketClient.Run()
 }
 
-func (s *SlackBot) handleEventApi(data interface{}) {
-	switch event := data.(type) {
-	case *slackevents.AppHomeOpenedEvent:
-		fmt.Println("publishing vent")
-		res, err := s.client.PublishView(event.User, slack.HomeTabViewRequest{
-			Type: slack.VTHomeTab,
-			Blocks: slack.Blocks{[]slack.Block{
-				slack.ActionBlock{
-					Elements: &slack.BlockElements{
-						[]slack.BlockElement{
-							slack.ButtonBlockElement{
-								Type: slack.METButton,
-								Text: &slack.TextBlockObject{
-									Type: slack.PlainTextType,
-									Text: "Request Access",
+func (s *SlackBot) handleActionCB(cbs slack.ActionCallbacks, triggerID string) {
+	for _, cb := range cbs.BlockActions {
+		switch cb.ActionID {
+		case "request-access":
+			_, err := s.client.OpenView(triggerID, slack.ModalViewRequest{
+				Type: slack.VTModal,
+				Title: &slack.TextBlockObject{
+					Type: slack.PlainTextType,
+					Text: "Request Temporary Access",
+				},
+				Submit: &slack.TextBlockObject{
+					Type: slack.PlainTextType,
+					Text: "Request Access",
+				},
+				Close: &slack.TextBlockObject{
+					Type: slack.PlainTextType,
+					Text: "Cancel",
+				},
+				Blocks: slack.Blocks{
+					BlockSet: []slack.Block{
+						slack.SectionBlock{
+							Type: slack.MBTSection,
+							Text: &slack.TextBlockObject{
+								Type: slack.PlainTextType,
+								Text: "Select database you wish to access",
+							},
+							Accessory: &slack.Accessory{
+								SelectElement: &slack.SelectBlockElement{
+									Type: slack.OptTypeStatic,
+									Placeholder: &slack.TextBlockObject{
+										Type: slack.PlainTextType,
+										Text: "Select a Database",
+									},
+									Options: []*slack.OptionBlockObject{
+										&slack.OptionBlockObject{
+											Text: &slack.TextBlockObject{
+												Type: slack.PlainTextType,
+												Text: "postgres-prod",
+											},
+											Value: "postgres-prod",
+										},
+										&slack.OptionBlockObject{
+											Text: &slack.TextBlockObject{
+												Type: slack.PlainTextType,
+												Text: "postgres-prod1",
+											},
+											Value: "postgres-prod1",
+										},
+										&slack.OptionBlockObject{
+											Text: &slack.TextBlockObject{
+												Type: slack.PlainTextType,
+												Text: "postgres-prod2",
+											},
+											Value: "postgres-prod2",
+										},
+									},
+								},
+							},
+						},
+						slack.SectionBlock{
+							Type: slack.MBTSection,
+							Text: &slack.TextBlockObject{
+								Type: slack.PlainTextType,
+								Text: "Select roles you wish to obtain",
+							},
+							Accessory: &slack.Accessory{
+								SelectElement: &slack.SelectBlockElement{
+									Type: slack.MultiOptTypeStatic,
+									Placeholder: &slack.TextBlockObject{
+										Type: slack.PlainTextType,
+										Text: "Select roles",
+									},
+									Options: []*slack.OptionBlockObject{
+										&slack.OptionBlockObject{
+											Text: &slack.TextBlockObject{
+												Type: slack.PlainTextType,
+												Text: "admin",
+											},
+											Value: "admin",
+										},
+										&slack.OptionBlockObject{
+											Text: &slack.TextBlockObject{
+												Type: slack.PlainTextType,
+												Text: "support",
+											},
+											Value: "support",
+										},
+										&slack.OptionBlockObject{
+											Text: &slack.TextBlockObject{
+												Type: slack.PlainTextType,
+												Text: "dev",
+											},
+											Value: "dev",
+										},
+									},
 								},
 							},
 						},
 					},
 				},
+			})
+			if err != nil {
+				utils.Logger.Error("error while opening modal view", zap.String("err_msg", err.Error()))
+			}
+			fmt.Println("modal triggered")
+		}
+	}
+}
+
+func (s *SlackBot) handleEventApi(data interface{}) {
+	fmt.Println("event api\n\n\n\n\n\n\n\n\n\n\n\n\n")
+	fmt.Println(string(utils.MarshalJSON(data)))
+	switch event := data.(type) {
+	case slackevents.EventsAPIInnerEvent:
+		innerEvent, ok := event.Data.(*slackevents.AppHomeOpenedEvent)
+		if !ok {
+			return
+		}
+		fmt.Println("publishing vent")
+		// {
+		// 	"blocks": [
+		// 		{
+		// 			"type": "section",
+		// 			"text": {
+		// 				"type": "mrkdwn",
+		// 				"text": "Hi👋, I'm Inspektor bot 🤖. you can request for \n database access through me"
+		// 			},
+		// 			"accessory": {
+		// 				"type": "button",
+		// 				"text": {
+		// 					"type": "plain_text",
+		// 					"text": "Request Access",
+		// 					"emoji": true
+		// 				},
+		// 				"value": "click_me_123",
+		// 				"action_id": "button-action"
+		// 			}
+		// 		}
+		// 	]
+		// }
+		// slack.ActionBlock{
+		// 	Type: slack.MBTAction,
+		// 	Elements: &slack.BlockElements{
+		// 		[]slack.BlockElement{
+		// 			slack.ButtonBlockElement{
+		// 				Type: slack.METButton,
+		// 				Text: &slack.TextBlockObject{
+		// 					Type: slack.PlainTextType,
+		// 					Text: "Request Access",
+		// 				},
+		// 			},
+		// 		},
+		// 	},
+		// },
+		res, err := s.client.PublishView(innerEvent.User, slack.HomeTabViewRequest{
+			Type: slack.VTHomeTab,
+			Blocks: slack.Blocks{[]slack.Block{
+				slack.SectionBlock{
+					Type: slack.MBTSection,
+					Text: &slack.TextBlockObject{
+						Type: slack.MarkdownType,
+						Text: "Hi👋, I'm Inspektor bot 🤖. you can request for database access through me",
+					},
+					Accessory: &slack.Accessory{
+						ButtonElement: &slack.ButtonBlockElement{
+							Type: slack.METButton,
+							Text: &slack.TextBlockObject{
+								Type:  slack.PlainTextType,
+								Text:  "Request Access",
+								Emoji: true,
+							},
+							Value:    "access_requested",
+							ActionID: "request-access",
+						},
+					},
+				},
 			}},
-			PrivateMetadata: "",
-			CallbackID:      "",
-			ExternalID:      "",
 		}, "")
 		if err != nil {
 			utils.Logger.Error("error whule publishing view", zap.String("err_msg", err.Error()))
