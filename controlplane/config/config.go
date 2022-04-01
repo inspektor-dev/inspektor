@@ -3,24 +3,25 @@ package config
 import "errors"
 
 type Config struct {
-	PostgresHost      string `mapstructure:"postgres_host"`
-	PostgresPort      string `mapstructure:"postgres_port"`
-	PostgresSSL       bool   `mapstructure:"postgres_ssl"`
-	DatabaseName      string `mapstructure:"database_name"`
-	PostgresUserName  string `mapstructure:"postgres_username"`
-	PostgresPassword  string `mapstructure:"postgres_password"`
-	ListenPort        string `mapstructure:"listen_port"`
-	JwtKey            string `mapstructure:"jwt_key"`
-	GrpcListenPort    string `mapstructure:"grpc_listen_port"`
-	GithubAccessToken string `mapstructure:"github_access_token"`
-	PolicyRepo        string `mapstructure:"policy_repo"`
-	PolicyPath        string `mapstructure:"policy_path"`
-	IdpProvider       string `mapstructure:"idp_provider"`
-	IdpClientID       string `mapstructure:"idp_client_id"`
-	IdpClientSecret   string `mapstructure:"idp_client_secret"`
-	IdpServiceAccount string `mapstructure:"idp_service_account"`
-	SlackBotToken     string `mapstructure:"slack_bot_token"`
-	SlackAppToken     string `mapstructure:"slack_app_token"`
+	PostgresHost        string `mapstructure:"postgres_host"`
+	PostgresPort        string `mapstructure:"postgres_port"`
+	PostgresSSL         bool   `mapstructure:"postgres_ssl"`
+	DatabaseName        string `mapstructure:"database_name"`
+	PostgresUserName    string `mapstructure:"postgres_username"`
+	PostgresPassword    string `mapstructure:"postgres_password"`
+	ListenPort          string `mapstructure:"listen_port"`
+	JwtKey              string `mapstructure:"jwt_key"`
+	GrpcListenPort      string `mapstructure:"grpc_listen_port"`
+	GithubAccessToken   string `mapstructure:"github_access_token"`
+	PolicyRepo          string `mapstructure:"policy_repo"`
+	PolicyPath          string `mapstructure:"policy_path"`
+	IdpProvider         string `mapstructure:"idp_provider"`
+	IdpClientID         string `mapstructure:"idp_client_id"`
+	IdpClientSecret     string `mapstructure:"idp_client_secret"`
+	IdpServiceAccount   string `mapstructure:"idp_service_account"`
+	SlackBotToken       string `mapstructure:"slack_bot_token"`
+	SlackAppToken       string `mapstructure:"slack_app_token"`
+	SlackAdminChannelID string `mapstructure:"slack_admin_channel_id"`
 }
 
 func (c *Config) Validate() error {
