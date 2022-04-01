@@ -57,7 +57,7 @@ var rootCmd = &cobra.Command{
 		if err := policyManager.Init(); err != nil {
 			utils.Logger.Fatal("error while initializing policy manager", zap.String("err_msg", err.Error()))
 		}
-		bot := slackbot.New(config)
+		bot := slackbot.New(config, store)
 		bot.Start()
 		server := rpcserver.NewServer(store, policyManager)
 		go func(server *rpcserver.RpcServer) {

@@ -157,7 +157,7 @@ func NewHomeTabView() slack.HomeTabViewRequest {
 
 func NewAccessApprovedView() {}
 
-func NewRequestAccessMsg(userName string, db string, roles []string) []slack.Block {
+func NewRequestAccessMsg(userName string, db string, roles []string, callbackID string) []slack.Block {
 	return []slack.Block{
 		slack.SectionBlock{
 			Type: slack.MBTSection,
@@ -180,8 +180,9 @@ func NewRequestAccessMsg(userName string, db string, roles []string) []slack.Blo
 							Type: slack.PlainTextType,
 							Text: "Approve",
 						},
-						Style: "primary",
-						Value: "approved",
+						Style:    "primary",
+						Value:    callbackID,
+						ActionID: "approved",
 					},
 					slack.ButtonBlockElement{
 						Type: slack.METButton,
@@ -189,8 +190,9 @@ func NewRequestAccessMsg(userName string, db string, roles []string) []slack.Blo
 							Type: slack.PlainTextType,
 							Text: "Deny",
 						},
-						Style: "danger",
-						Value: "denied",
+						Style:    "danger",
+						Value:    "denied",
+						ActionID: "denied",
 					},
 				},
 			},
