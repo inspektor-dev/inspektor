@@ -319,6 +319,26 @@ func (s *Store) SyncRoles(objectID uint, objectType string, roles []string) erro
 	return s.WriteRoleForObjectID(objectID, roles, objectType)
 }
 
+// GetRoles return unique name of all the roles.
+func (s *Store) GetRoles() ([]string, error) {
+	results := []*models.Role{}
+	err := s.db.Model(&models.Role{}).Distinct("name").Find(&results).Error
+	if err != nil {
+		return nil, err
+	}
+	roles := []string{}
+	for _, result := range results {
+		roles = append(roles, result.Name)
+	}
+	return roles, nil
+}
+
+func (s *Store) GetDataSource() ([]*models.DataSource, error) {
+	result := []*models.DataSource{}
+	err := s.db.Model(&models.DataSource{}).Find(&result).Error
+	return result, err
+}
+
 func handleGormErr(err error) error {
 	if err == nil {
 		return nil
