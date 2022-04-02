@@ -1,10 +1,12 @@
 package store
 
 import (
+	"encoding/json"
 	"errors"
 	"inspektor/models"
 	"inspektor/types"
 	"inspektor/utils"
+	"net/http"
 	"time"
 
 	"github.com/goombaio/namegenerator"
@@ -337,6 +339,39 @@ func (s *Store) GetDataSource() ([]*models.DataSource, error) {
 	result := []*models.DataSource{}
 	err := s.db.Model(&models.DataSource{}).Find(&result).Error
 	return result, err
+}
+
+func (s *Store) CreateTempSession(datasourceID uint, roles []string, expiryMinute int64, TempCreatedBy string, ctx json.RawMessage) (*models.Session, error) {
+	_, err := s.GetDatasource(datasourceID)
+	if err != nil {
+		utils.Logger.Error("error while retriving datasoruce", zap.String("err_msg", err.Error()))
+		return nil, err
+	}
+	if len(roles) == 0 {
+		utils.WriteErrorMsg("expected atleast one role to create session", http.StatusBadRequest, ctx.Rw)
+		return nil, errors.New("atleast one roles is expected to create temp session")
+	}
+	if expiryMinute == 0 {
+		return nil, errors.New("expiry minute should be greater than 0")
+	}
+	session := &models.Session{
+		ObjectID: datasourceID,
+		SessionMeta: &models.SessionMeta{
+			Type:             "postgres",
+			PostgresPassword: utils.GenerateSecureToken(7),
+			PostgresUsername: namegenerator.NewNameGenerator(time.Now().UnixNano()).Generate(),
+			TempRoles:        roles,
+			ExpiresAt:        time.Now().Add(time.Minute * time.Duration(expiryMinute)).UnixNano(),
+			TempCreatedBy:    TempCreatedBy,
+			Context:          ctx,
+		},
+	}
+	session.MarshalMeta()
+	if err := s.CreateSession(session); err != nil {
+		utils.Logger.Error("error while creating temp session", zap.String("err_msg", err.Error()))
+		return nil, err
+	}
+	return session, nil
 }
 
 func handleGormErr(err error) error {
