@@ -55,5 +55,8 @@ func (c *Config) Validate() error {
 	if c.SlackBotToken != "" && c.SlackAppToken == "" {
 		return errors.New("slack integration requires slack bot token and slack app token")
 	}
+	if c.SlackBotToken != "" && c.SlackAdminChannelID == "" {
+		return errors.New("slack integration requires one channel id for to send approval request")
+	}
 	return nil
 }
