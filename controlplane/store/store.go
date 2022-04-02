@@ -6,7 +6,6 @@ import (
 	"inspektor/models"
 	"inspektor/types"
 	"inspektor/utils"
-	"net/http"
 	"time"
 
 	"github.com/goombaio/namegenerator"
@@ -348,7 +347,6 @@ func (s *Store) CreateTempSession(datasourceID uint, roles []string, expiryMinut
 		return nil, err
 	}
 	if len(roles) == 0 {
-		utils.WriteErrorMsg("expected atleast one role to create session", http.StatusBadRequest, ctx.Rw)
 		return nil, errors.New("atleast one roles is expected to create temp session")
 	}
 	if expiryMinute == 0 {
