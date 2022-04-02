@@ -21,6 +21,7 @@ import (
 	"github.com/slack-go/slack"
 )
 
+// NewRequestAccessModal will return request access modal view.
 func NewRequestAccessModal(requestID string, databases []*slack.OptionBlockObject,
 	roles []*slack.OptionBlockObject) slack.ModalViewRequest {
 	return slack.ModalViewRequest{
@@ -45,7 +46,7 @@ func NewRequestAccessModal(requestID string, databases []*slack.OptionBlockObjec
 					Type:    slack.MBTInput,
 					Element: slack.SelectBlockElement{
 						Type:        slack.OptTypeStatic,
-						Placeholder: slack.NewTextBlockObject(slack.PlainTextType, "slect database", false, false),
+						Placeholder: slack.NewTextBlockObject(slack.PlainTextType, "select database", false, false),
 						Options:     databases,
 						ActionID:    "database",
 					},
@@ -59,7 +60,7 @@ func NewRequestAccessModal(requestID string, databases []*slack.OptionBlockObjec
 					Type:    slack.MBTInput,
 					Element: slack.SelectBlockElement{
 						Type:        slack.MultiOptTypeStatic,
-						Placeholder: slack.NewTextBlockObject(slack.PlainTextType, "slect database", false, false),
+						Placeholder: slack.NewTextBlockObject(slack.PlainTextType, "select roles", false, false),
 						Options:     roles,
 						ActionID:    "roles",
 					},
@@ -73,6 +74,7 @@ func NewRequestAccessModal(requestID string, databases []*slack.OptionBlockObjec
 	}
 }
 
+// NewRequestSentView returns request sent view.
 func NewRequestSentView() slack.HomeTabViewRequest {
 	return slack.HomeTabViewRequest{
 		Type: slack.VTHomeTab,
@@ -87,6 +89,8 @@ func NewRequestSentView() slack.HomeTabViewRequest {
 	}
 }
 
+//NewBlockOptions takes options name and it's respective value as input then it returns
+// slack option block object.
 func NewBlockOptions(options []string, values []string) []*slack.OptionBlockObject {
 	opts := []*slack.OptionBlockObject{}
 	for i, option := range options {
@@ -98,6 +102,7 @@ func NewBlockOptions(options []string, values []string) []*slack.OptionBlockObje
 	return opts
 }
 
+// NewHomeTabView returns slack home tab view.
 func NewHomeTabView() slack.HomeTabViewRequest {
 	return slack.HomeTabViewRequest{
 		Type: slack.VTHomeTab,
@@ -125,38 +130,26 @@ func NewHomeTabView() slack.HomeTabViewRequest {
 	}
 }
 
-// credentials approved block
-// {
-// 	"blocks": [
-// 		{
-// 			"type": "section",
-// 			"text": {
-// 				"type": "mrkdwn",
-// 				"text": "Your access have approved. credentials can be found below"
-// 			}
-// 		},
-// 		{
-// 			"type": "section",
-// 			"fields": [
-// 				{
-// 					"type": "mrkdwn",
-// 					"text": "*Username:*\n postgresprod"
-// 				},
-// 				{
-// 					"type": "mrkdwn",
-// 					"text": "*Password:*\nadmin, deve, support"
-// 				},
-// 				{
-// 					"type": "mrkdwn",
-// 					"text": "*HostName:*\nhttps://github.com"
-// 				}
-// 			]
-// 		}
-// 	]
-// }
+// NewCredentialsBlock returns credentials block. This view is used to show the username and password
+// of the datasource.
+func NewCredentialsBlock(username, password, hostname string) []slack.Block {
+	return []slack.Block{
+		slack.SectionBlock{
+			Type: slack.MBTSection,
+			Text: slack.NewTextBlockObject(slack.PlainTextType, "Your request has been approved", false, false),
+		},
+		slack.SectionBlock{
+			Type: slack.MBTSection,
+			Fields: []*slack.TextBlockObject{
+				slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("*Username:*\n %s", username), false, false),
+				slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("*Password:*\n %s", password), false, false),
+				slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("*Hostname:*\n %s", hostname), false, false),
+			},
+		},
+	}
+}
 
-func NewAccessApprovedView() {}
-
+// NewRequestAccessMsg returns approval modal for the admins.
 func NewRequestAccessMsg(userName string, db string, roles []string, callbackID string) []slack.Block {
 	return []slack.Block{
 		slack.SectionBlock{
