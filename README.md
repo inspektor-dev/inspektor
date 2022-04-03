@@ -23,6 +23,13 @@ Inspektor enables teams to protect, and control their databases, data pipelines,
 
 Here are a few places where Inspektor can act as a good tool to use.
 
+## Slack Integration Demo
+<p align="center">
+  <a href="https://www.loom.com/embed/4b20b55a6b6443eb89a66803fe7ea31d">
+      <img style="max-width:600px;" src="https://cdn.loom.com/sessions/thumbnails/4b20b55a6b6443eb89a66803fe7ea31d-with-play.gif"/>
+  </a>
+</p>
+
 ## Use Cases
 - Create access credentials in no time for your dev team to debug
 - Manage all your data policies in a centralized place and avoid managing data policies in silos
