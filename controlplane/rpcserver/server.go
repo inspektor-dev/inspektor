@@ -45,13 +45,24 @@ func (r *RpcServer) Auth(ctx context.Context, req *apiproto.AuthRequest) (*apipr
 		utils.Logger.Error("error while retriving session for auth", zap.String("err_msg", err.Error()))
 		return nil, err
 	}
-	roles, err := r.store.GetRolesForObjectID(session.UserID, models.UserType)
-	if err != nil {
-		utils.Logger.Error("error while retriving roles", zap.String("err_msg", err.Error()))
-		return nil, err
+	session.UnmarshalMeta()
+	expiresAt := int64(0)
+	roles := []string{}
+	// retrive roles from the meta if the session is temporary session.
+	if session.SessionMeta.ExpiresAt != 0 {
+		expiresAt = session.SessionMeta.ExpiresAt
+		roles = session.SessionMeta.TempRoles
+	} else {
+		var err error
+		roles, err = r.store.GetRolesForObjectID(session.UserID, models.UserType)
+		if err != nil {
+			utils.Logger.Error("error while retriving roles", zap.String("err_msg", err.Error()))
+			return nil, err
+		}
 	}
 	return &apiproto.AuthResponse{
-		Groups: roles,
+		Groups:    roles,
+		ExpiresAt: expiresAt,
 	}, nil
 }
 
