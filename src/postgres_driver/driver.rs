@@ -104,8 +104,8 @@ impl PostgresDriver {
             match msg {
                 FrontendMessage::Startup { params, .. } => {
                     // let's verify the user name and
-                    let groups = match self.verfiy_client_params(&params, &mut client_conn).await {
-                        Ok(groups) => groups,
+                    let (groups, session_expires_at) = match self.verfiy_client_params(&params, &mut client_conn).await {
+                        Ok(result) => result,
                         Err(e) => {
                             error!("error while verifying auth. err msg: {:?}", e);
                             continue;
@@ -166,7 +166,7 @@ impl PostgresDriver {
                             return;
                         }
                     };
-                    handler.serve().await.unwrap();
+                    handler.serve(0).await.unwrap();
                     return;
                 }
                 FrontendMessage::SslRequest => {
@@ -210,7 +210,7 @@ impl PostgresDriver {
         &self,
         params: &HashMap<String, String>,
         client_conn: &mut PostgresConn,
-    ) -> Result<Vec<String>, anyhow::Error> {
+    ) -> Result<(Vec<String>, i64), anyhow::Error> {
         let buf = BackendMessage::AuthenticationCleartextPassword.encode();
         client_conn.write_all(&buf).await.map_err(|e| {
             error!(
@@ -232,7 +232,7 @@ impl PostgresDriver {
         auth_req.password = password;
         auth_req.user_name = params.get("user").unwrap().clone();
         let res = self.client.auth_opt(&auth_req, self.get_call_opt())?;
-        Ok(res.get_groups().into())
+        Ok((res.get_groups().into(), res.expires_at))
     }
 
     fn get_call_opt(&self) -> CallOption {

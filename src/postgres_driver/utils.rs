@@ -5,6 +5,7 @@ use byteorder::{ByteOrder, NetworkEndian};
 use bytes::{Buf, BufMut, BytesMut};
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::time::Interval;
 // Postgres protocol version.
 
 // decode_startup_message decode pg startup message, if ssl request it'll  upgrade the connection to ssl connection and returns the
@@ -150,4 +151,9 @@ where
     let count = count as i16;
     NetworkEndian::write_i16(&mut buf[base..], count);
     Ok(())
+}
+
+pub enum ConnectionCloser {
+    NoExpiry(),
+    ExpiresAt(Interval)
 }

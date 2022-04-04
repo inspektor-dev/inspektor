@@ -27,7 +27,7 @@ use postgres_protocol::authentication::sasl;
 use sqlparser::ast::Statement;
 use std::collections::{HashMap, HashSet};
 use std::pin::Pin;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::watch;
@@ -141,8 +141,18 @@ impl ProtocolHandler {
 
     // serve will listen to client packets and decide whether to process
     // the packet based on the opa policy.
-    pub async fn serve(&mut self) -> Result<(), anyhow::Error> {
+    pub async fn serve(&mut self, expires_at: i64) -> Result<(), anyhow::Error> {
         debug!("started serving");
+        // is_session_expired returns true if session expired
+        let is_session_expired = move || {
+            // session won't expire if there is no expiry time.
+            if expires_at == 0 {
+                return false
+            }
+            let current_epoch = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+            return current_epoch.as_secs() >= expires_at as u64
+        };
+        
         println!(
             "host={} port={} user={} dbname = {} password = {}",
             self.config.target_addr.as_ref().unwrap(),
@@ -204,6 +214,9 @@ impl ProtocolHandler {
                     self.policy_evaluator = evaluator;
                 }
                 n = decode_backend_message(&mut self.target_conn) => {
+                    if is_session_expired() {
+                        return Ok(())
+                    }
                     match n {
                         Err(e) =>{
                                 println!("failed to read from socket; err = {:?}", e);
@@ -244,6 +257,9 @@ impl ProtocolHandler {
                     }
                 }
                 n = FrontendMessage::decode(&mut self.client_conn) => {
+                    if is_session_expired() {
+                        return Ok(())
+                    }
                     match n {
                         Err(e) =>{
                                 println!("failed to read from socket; err = {:?}", e);
@@ -277,6 +293,9 @@ impl ProtocolHandler {
                 }
                 _ = table_info_refresh_ticker.tick() => {
                     debug!("refreshing table meta");
+                    if is_session_expired() {
+                        return Ok(())
+                    }
                     table_info = match  self.get_table_info(&client).await {
                         Ok(info) => info,
                         Err(e) => {
