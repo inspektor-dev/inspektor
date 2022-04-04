@@ -344,6 +344,7 @@ impl ::protobuf::reflect::ProtobufValue for Empty {
 pub struct AuthResponse {
     // message fields
     pub groups: ::protobuf::RepeatedField<::std::string::String>,
+    pub expires_at: i64,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -384,6 +385,21 @@ impl AuthResponse {
     pub fn take_groups(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
         ::std::mem::replace(&mut self.groups, ::protobuf::RepeatedField::new())
     }
+
+    // int64 expires_at = 2;
+
+
+    pub fn get_expires_at(&self) -> i64 {
+        self.expires_at
+    }
+    pub fn clear_expires_at(&mut self) {
+        self.expires_at = 0;
+    }
+
+    // Param is passed by value, moved
+    pub fn set_expires_at(&mut self, v: i64) {
+        self.expires_at = v;
+    }
 }
 
 impl ::protobuf::Message for AuthResponse {
@@ -397,6 +413,13 @@ impl ::protobuf::Message for AuthResponse {
             match field_number {
                 1 => {
                     ::protobuf::rt::read_repeated_string_into(wire_type, is, &mut self.groups)?;
+                },
+                2 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_int64()?;
+                    self.expires_at = tmp;
                 },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
@@ -413,6 +436,9 @@ impl ::protobuf::Message for AuthResponse {
         for value in &self.groups {
             my_size += ::protobuf::rt::string_size(1, &value);
         };
+        if self.expires_at != 0 {
+            my_size += ::protobuf::rt::value_size(2, self.expires_at, ::protobuf::wire_format::WireTypeVarint);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -422,6 +448,9 @@ impl ::protobuf::Message for AuthResponse {
         for v in &self.groups {
             os.write_string(1, &v)?;
         };
+        if self.expires_at != 0 {
+            os.write_int64(2, self.expires_at)?;
+        }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -465,6 +494,11 @@ impl ::protobuf::Message for AuthResponse {
                 |m: &AuthResponse| { &m.groups },
                 |m: &mut AuthResponse| { &mut m.groups },
             ));
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeInt64>(
+                "expires_at",
+                |m: &AuthResponse| { &m.expires_at },
+                |m: &mut AuthResponse| { &mut m.expires_at },
+            ));
             ::protobuf::reflect::MessageDescriptor::new_pb_name::<AuthResponse>(
                 "AuthResponse",
                 fields,
@@ -482,6 +516,7 @@ impl ::protobuf::Message for AuthResponse {
 impl ::protobuf::Clear for AuthResponse {
     fn clear(&mut self) {
         self.groups.clear();
+        self.expires_at = 0;
         self.unknown_fields.clear();
     }
 }
@@ -819,14 +854,15 @@ impl ::protobuf::reflect::ProtobufValue for InspektorPolicy {
 static file_descriptor_proto_data: &'static [u8] = b"\
     \n\tapi.proto\x12\x03api\"F\n\x0bAuthRequest\x12\x1a\n\x08password\x18\
     \x01\x20\x01(\tR\x08password\x12\x1b\n\tuser_name\x18\x02\x20\x01(\tR\
-    \x08userName\"\x07\n\x05Empty\"&\n\x0cAuthResponse\x12\x16\n\x06groups\
-    \x18\x01\x20\x03(\tR\x06groups\">\n\x12DataSourceResponse\x12(\n\x10data\
-    _source_name\x18\x01\x20\x01(\tR\x0edataSourceName\"7\n\x0fInspektorPoli\
-    cy\x12$\n\x0ewasm_byte_code\x18\x01\x20\x01(\x0cR\x0cwasmByteCode2\xa2\
-    \x01\n\tInspektor\x12-\n\x04Auth\x12\x10.api.AuthRequest\x1a\x11.api.Aut\
-    hResponse\"\0\x12.\n\x06Policy\x12\n.api.Empty\x1a\x14.api.InspektorPoli\
-    cy\"\00\x01\x126\n\rGetDataSource\x12\n.api.Empty\x1a\x17.api.DataSource\
-    Response\"\0B\x17Z\x15controlplane/apiprotob\x06proto3\
+    \x08userName\"\x07\n\x05Empty\"E\n\x0cAuthResponse\x12\x16\n\x06groups\
+    \x18\x01\x20\x03(\tR\x06groups\x12\x1d\n\nexpires_at\x18\x02\x20\x01(\
+    \x03R\texpiresAt\">\n\x12DataSourceResponse\x12(\n\x10data_source_name\
+    \x18\x01\x20\x01(\tR\x0edataSourceName\"7\n\x0fInspektorPolicy\x12$\n\
+    \x0ewasm_byte_code\x18\x01\x20\x01(\x0cR\x0cwasmByteCode2\xa2\x01\n\tIns\
+    pektor\x12-\n\x04Auth\x12\x10.api.AuthRequest\x1a\x11.api.AuthResponse\"\
+    \0\x12.\n\x06Policy\x12\n.api.Empty\x1a\x14.api.InspektorPolicy\"\00\x01\
+    \x126\n\rGetDataSource\x12\n.api.Empty\x1a\x17.api.DataSourceResponse\"\
+    \0B\x17Z\x15controlplane/apiprotob\x06proto3\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;
