@@ -152,8 +152,3 @@ where
     NetworkEndian::write_i16(&mut buf[base..], count);
     Ok(())
 }
-
-pub enum ConnectionCloser {
-    NoExpiry(),
-    ExpiresAt(Interval)
-}
