@@ -851,6 +851,413 @@ impl ::protobuf::reflect::ProtobufValue for InspektorPolicy {
     }
 }
 
+#[derive(PartialEq,Clone,Default)]
+pub struct MetricsRequest {
+    // message fields
+    pub metrics: ::protobuf::RepeatedField<Metric>,
+    pub groups: ::protobuf::RepeatedField<::std::string::String>,
+    // special fields
+    pub unknown_fields: ::protobuf::UnknownFields,
+    pub cached_size: ::protobuf::CachedSize,
+}
+
+impl<'a> ::std::default::Default for &'a MetricsRequest {
+    fn default() -> &'a MetricsRequest {
+        <MetricsRequest as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl MetricsRequest {
+    pub fn new() -> MetricsRequest {
+        ::std::default::Default::default()
+    }
+
+    // repeated .api.Metric metrics = 1;
+
+
+    pub fn get_metrics(&self) -> &[Metric] {
+        &self.metrics
+    }
+    pub fn clear_metrics(&mut self) {
+        self.metrics.clear();
+    }
+
+    // Param is passed by value, moved
+    pub fn set_metrics(&mut self, v: ::protobuf::RepeatedField<Metric>) {
+        self.metrics = v;
+    }
+
+    // Mutable pointer to the field.
+    pub fn mut_metrics(&mut self) -> &mut ::protobuf::RepeatedField<Metric> {
+        &mut self.metrics
+    }
+
+    // Take field
+    pub fn take_metrics(&mut self) -> ::protobuf::RepeatedField<Metric> {
+        ::std::mem::replace(&mut self.metrics, ::protobuf::RepeatedField::new())
+    }
+
+    // repeated string groups = 2;
+
+
+    pub fn get_groups(&self) -> &[::std::string::String] {
+        &self.groups
+    }
+    pub fn clear_groups(&mut self) {
+        self.groups.clear();
+    }
+
+    // Param is passed by value, moved
+    pub fn set_groups(&mut self, v: ::protobuf::RepeatedField<::std::string::String>) {
+        self.groups = v;
+    }
+
+    // Mutable pointer to the field.
+    pub fn mut_groups(&mut self) -> &mut ::protobuf::RepeatedField<::std::string::String> {
+        &mut self.groups
+    }
+
+    // Take field
+    pub fn take_groups(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
+        ::std::mem::replace(&mut self.groups, ::protobuf::RepeatedField::new())
+    }
+}
+
+impl ::protobuf::Message for MetricsRequest {
+    fn is_initialized(&self) -> bool {
+        for v in &self.metrics {
+            if !v.is_initialized() {
+                return false;
+            }
+        };
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+            match field_number {
+                1 => {
+                    ::protobuf::rt::read_repeated_message_into(wire_type, is, &mut self.metrics)?;
+                },
+                2 => {
+                    ::protobuf::rt::read_repeated_string_into(wire_type, is, &mut self.groups)?;
+                },
+                _ => {
+                    ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u32 {
+        let mut my_size = 0;
+        for value in &self.metrics {
+            let len = value.compute_size();
+            my_size += 1 + ::protobuf::rt::compute_raw_varint32_size(len) + len;
+        };
+        for value in &self.groups {
+            my_size += ::protobuf::rt::string_size(2, &value);
+        };
+        my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
+        self.cached_size.set(my_size);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        for v in &self.metrics {
+            os.write_tag(1, ::protobuf::wire_format::WireTypeLengthDelimited)?;
+            os.write_raw_varint32(v.get_cached_size())?;
+            v.write_to_with_cached_sizes(os)?;
+        };
+        for v in &self.groups {
+            os.write_string(2, &v)?;
+        };
+        os.write_unknown_fields(self.get_unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn get_cached_size(&self) -> u32 {
+        self.cached_size.get()
+    }
+
+    fn get_unknown_fields(&self) -> &::protobuf::UnknownFields {
+        &self.unknown_fields
+    }
+
+    fn mut_unknown_fields(&mut self) -> &mut ::protobuf::UnknownFields {
+        &mut self.unknown_fields
+    }
+
+    fn as_any(&self) -> &dyn (::std::any::Any) {
+        self as &dyn (::std::any::Any)
+    }
+    fn as_any_mut(&mut self) -> &mut dyn (::std::any::Any) {
+        self as &mut dyn (::std::any::Any)
+    }
+    fn into_any(self: ::std::boxed::Box<Self>) -> ::std::boxed::Box<dyn (::std::any::Any)> {
+        self
+    }
+
+    fn descriptor(&self) -> &'static ::protobuf::reflect::MessageDescriptor {
+        Self::descriptor_static()
+    }
+
+    fn new() -> MetricsRequest {
+        MetricsRequest::new()
+    }
+
+    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
+        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
+        descriptor.get(|| {
+            let mut fields = ::std::vec::Vec::new();
+            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<Metric>>(
+                "metrics",
+                |m: &MetricsRequest| { &m.metrics },
+                |m: &mut MetricsRequest| { &mut m.metrics },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
+                "groups",
+                |m: &MetricsRequest| { &m.groups },
+                |m: &mut MetricsRequest| { &mut m.groups },
+            ));
+            ::protobuf::reflect::MessageDescriptor::new_pb_name::<MetricsRequest>(
+                "MetricsRequest",
+                fields,
+                file_descriptor_proto()
+            )
+        })
+    }
+
+    fn default_instance() -> &'static MetricsRequest {
+        static instance: ::protobuf::rt::LazyV2<MetricsRequest> = ::protobuf::rt::LazyV2::INIT;
+        instance.get(MetricsRequest::new)
+    }
+}
+
+impl ::protobuf::Clear for MetricsRequest {
+    fn clear(&mut self) {
+        self.metrics.clear();
+        self.groups.clear();
+        self.unknown_fields.clear();
+    }
+}
+
+impl ::std::fmt::Debug for MetricsRequest {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        ::protobuf::text_format::fmt(self, f)
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for MetricsRequest {
+    fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
+        ::protobuf::reflect::ReflectValueRef::Message(self)
+    }
+}
+
+#[derive(PartialEq,Clone,Default)]
+pub struct Metric {
+    // message fields
+    pub collection_name: ::std::string::String,
+    pub property_name: ::protobuf::RepeatedField<::std::string::String>,
+    // special fields
+    pub unknown_fields: ::protobuf::UnknownFields,
+    pub cached_size: ::protobuf::CachedSize,
+}
+
+impl<'a> ::std::default::Default for &'a Metric {
+    fn default() -> &'a Metric {
+        <Metric as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl Metric {
+    pub fn new() -> Metric {
+        ::std::default::Default::default()
+    }
+
+    // string collection_name = 1;
+
+
+    pub fn get_collection_name(&self) -> &str {
+        &self.collection_name
+    }
+    pub fn clear_collection_name(&mut self) {
+        self.collection_name.clear();
+    }
+
+    // Param is passed by value, moved
+    pub fn set_collection_name(&mut self, v: ::std::string::String) {
+        self.collection_name = v;
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_collection_name(&mut self) -> &mut ::std::string::String {
+        &mut self.collection_name
+    }
+
+    // Take field
+    pub fn take_collection_name(&mut self) -> ::std::string::String {
+        ::std::mem::replace(&mut self.collection_name, ::std::string::String::new())
+    }
+
+    // repeated string property_name = 2;
+
+
+    pub fn get_property_name(&self) -> &[::std::string::String] {
+        &self.property_name
+    }
+    pub fn clear_property_name(&mut self) {
+        self.property_name.clear();
+    }
+
+    // Param is passed by value, moved
+    pub fn set_property_name(&mut self, v: ::protobuf::RepeatedField<::std::string::String>) {
+        self.property_name = v;
+    }
+
+    // Mutable pointer to the field.
+    pub fn mut_property_name(&mut self) -> &mut ::protobuf::RepeatedField<::std::string::String> {
+        &mut self.property_name
+    }
+
+    // Take field
+    pub fn take_property_name(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
+        ::std::mem::replace(&mut self.property_name, ::protobuf::RepeatedField::new())
+    }
+}
+
+impl ::protobuf::Message for Metric {
+    fn is_initialized(&self) -> bool {
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+            match field_number {
+                1 => {
+                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.collection_name)?;
+                },
+                2 => {
+                    ::protobuf::rt::read_repeated_string_into(wire_type, is, &mut self.property_name)?;
+                },
+                _ => {
+                    ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u32 {
+        let mut my_size = 0;
+        if !self.collection_name.is_empty() {
+            my_size += ::protobuf::rt::string_size(1, &self.collection_name);
+        }
+        for value in &self.property_name {
+            my_size += ::protobuf::rt::string_size(2, &value);
+        };
+        my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
+        self.cached_size.set(my_size);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        if !self.collection_name.is_empty() {
+            os.write_string(1, &self.collection_name)?;
+        }
+        for v in &self.property_name {
+            os.write_string(2, &v)?;
+        };
+        os.write_unknown_fields(self.get_unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn get_cached_size(&self) -> u32 {
+        self.cached_size.get()
+    }
+
+    fn get_unknown_fields(&self) -> &::protobuf::UnknownFields {
+        &self.unknown_fields
+    }
+
+    fn mut_unknown_fields(&mut self) -> &mut ::protobuf::UnknownFields {
+        &mut self.unknown_fields
+    }
+
+    fn as_any(&self) -> &dyn (::std::any::Any) {
+        self as &dyn (::std::any::Any)
+    }
+    fn as_any_mut(&mut self) -> &mut dyn (::std::any::Any) {
+        self as &mut dyn (::std::any::Any)
+    }
+    fn into_any(self: ::std::boxed::Box<Self>) -> ::std::boxed::Box<dyn (::std::any::Any)> {
+        self
+    }
+
+    fn descriptor(&self) -> &'static ::protobuf::reflect::MessageDescriptor {
+        Self::descriptor_static()
+    }
+
+    fn new() -> Metric {
+        Metric::new()
+    }
+
+    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
+        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
+        descriptor.get(|| {
+            let mut fields = ::std::vec::Vec::new();
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
+                "collection_name",
+                |m: &Metric| { &m.collection_name },
+                |m: &mut Metric| { &mut m.collection_name },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
+                "property_name",
+                |m: &Metric| { &m.property_name },
+                |m: &mut Metric| { &mut m.property_name },
+            ));
+            ::protobuf::reflect::MessageDescriptor::new_pb_name::<Metric>(
+                "Metric",
+                fields,
+                file_descriptor_proto()
+            )
+        })
+    }
+
+    fn default_instance() -> &'static Metric {
+        static instance: ::protobuf::rt::LazyV2<Metric> = ::protobuf::rt::LazyV2::INIT;
+        instance.get(Metric::new)
+    }
+}
+
+impl ::protobuf::Clear for Metric {
+    fn clear(&mut self) {
+        self.collection_name.clear();
+        self.property_name.clear();
+        self.unknown_fields.clear();
+    }
+}
+
+impl ::std::fmt::Debug for Metric {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        ::protobuf::text_format::fmt(self, f)
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for Metric {
+    fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
+        ::protobuf::reflect::ReflectValueRef::Message(self)
+    }
+}
+
 static file_descriptor_proto_data: &'static [u8] = b"\
     \n\tapi.proto\x12\x03api\"F\n\x0bAuthRequest\x12\x1a\n\x08password\x18\
     \x01\x20\x01(\tR\x08password\x12\x1b\n\tuser_name\x18\x02\x20\x01(\tR\
@@ -858,11 +1265,16 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     \x18\x01\x20\x03(\tR\x06groups\x12\x1d\n\nexpires_at\x18\x02\x20\x01(\
     \x03R\texpiresAt\">\n\x12DataSourceResponse\x12(\n\x10data_source_name\
     \x18\x01\x20\x01(\tR\x0edataSourceName\"7\n\x0fInspektorPolicy\x12$\n\
-    \x0ewasm_byte_code\x18\x01\x20\x01(\x0cR\x0cwasmByteCode2\xa2\x01\n\tIns\
-    pektor\x12-\n\x04Auth\x12\x10.api.AuthRequest\x1a\x11.api.AuthResponse\"\
-    \0\x12.\n\x06Policy\x12\n.api.Empty\x1a\x14.api.InspektorPolicy\"\00\x01\
-    \x126\n\rGetDataSource\x12\n.api.Empty\x1a\x17.api.DataSourceResponse\"\
-    \0B\x17Z\x15controlplane/apiprotob\x06proto3\
+    \x0ewasm_byte_code\x18\x01\x20\x01(\x0cR\x0cwasmByteCode\"O\n\x0eMetrics\
+    Request\x12%\n\x07metrics\x18\x01\x20\x03(\x0b2\x0b.api.MetricR\x07metri\
+    cs\x12\x16\n\x06groups\x18\x02\x20\x03(\tR\x06groups\"V\n\x06Metric\x12'\
+    \n\x0fcollection_name\x18\x01\x20\x01(\tR\x0ecollectionName\x12#\n\rprop\
+    erty_name\x18\x02\x20\x03(\tR\x0cpropertyName2\xd4\x01\n\tInspektor\x12-\
+    \n\x04Auth\x12\x10.api.AuthRequest\x1a\x11.api.AuthResponse\"\0\x12.\n\
+    \x06Policy\x12\n.api.Empty\x1a\x14.api.InspektorPolicy\"\00\x01\x126\n\r\
+    GetDataSource\x12\n.api.Empty\x1a\x17.api.DataSourceResponse\"\0\x120\n\
+    \x0bSendMetrics\x12\x13.api.MetricsRequest\x1a\n.api.Empty\"\0B\x17Z\x15\
+    controlplane/apiprotob\x06proto3\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;
