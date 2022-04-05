@@ -54,7 +54,7 @@ const config = {
           src: 'img/inspektor/inspektor-logo.svg',
         },
         items: [
-          {to: '/', label: 'Home', position: 'right', className: 'navbar-item'},
+          // {to: '/', label: 'Home', position: 'right', className: 'navbar-item'},
           {
             type: 'doc',
             docId: 'intro',

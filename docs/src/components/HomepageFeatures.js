@@ -2,11 +2,12 @@ import React, {Fragment} from 'react';
 import clsx from 'clsx';
 import Link from '@docusaurus/Link';
 import styles from './HomepageFeatures.module.css';
+import GITOPS from "../../static/img/inspektor/gitops.png"
 
 
 const FeatureList = [
   {
-    title: 'EASY TO USE',
+    title: 'OPEN POLICY AGENT LOG',
     Svg: require('@site/static/img/inspektor/policy_agent.svg').default,
     description: "Search-as-you-type returns answers in less than 50 milliseconds. That's faster than the blink of an eye!",
   },
@@ -32,16 +33,17 @@ const FeatureList = [
   },
   {
     title: 'GITOPS',
-    Svg: require('@site/static/img/inspektor/git.svg').default,
+    // Svg: require('@site/static/img/inspektor/gitops.svg').default,
+    imageSrc: GITOPS,
     description: "Search-as-you-type returns answers in less than 50 milliseconds. That's faster than the blink of an eye!",
   },
 ];
 
-function Feature({ Svg, title, description, gridName }) {
+function Feature({ Svg, title, description, imageSrc }) {
   return (
     <div className={styles.feature}>
       <div className="text--center">
-        <Svg className={styles.featureSvg} role="img" />
+        {Svg ? <Svg className={styles.featureSvg} role="img" /> : <img className={styles.featureSvg} src={imageSrc}/>}
       </div>
       <div className="text--center padding-horiz--md">
         <h3 className={styles.titleStyles}>{title}</h3>
