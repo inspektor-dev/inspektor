@@ -1,65 +1,100 @@
-import React from 'react';
+import React, {Fragment} from 'react';
 import clsx from 'clsx';
+import Link from '@docusaurus/Link';
 import styles from './HomepageFeatures.module.css';
+
 
 const FeatureList = [
   {
-    title: 'Policy as Code',
-    Svg: require('../../static/img/openpolicyagent-icon.svg').default,
-    description: (
-      <>
-        Inspektor let's the user to define the access policy as code. It use 
-        CNCF open policy agent as it's default policy language. 
-      </>
-    ),
+    title: 'EASY TO USE',
+    Svg: require('@site/static/img/inspektor/policy_agent.svg').default,
+    description: "Search-as-you-type returns answers in less than 50 milliseconds. That's faster than the blink of an eye!",
   },
   {
-    title: 'GitOps',
-    Svg: require('../../static/img/Octocat.svg').default,
-    description: (
-      <>
-        Inspektor has a first class integration with github. As soon as policy author,
-        pushes the policy to github, inspektor magically fetches the updated
-        policy and configure all the dataplane dynamically.
-      </>
-    ),
+    title: 'SSO LOGIN',
+    Svg: require('@site/static/img/inspektor/sso_login.svg').default,
+    description: "Search-as-you-type returns answers in less than 50 milliseconds. That's faster than the blink of an eye!",
   },
   {
-    title: 'Centralized Access Control',
-    Svg: require('../../static/img/pairprogramming.svg').default,
-    description: (
-      <>
-        Inspektor allows users to enforce access policy across all the data source.
-        Currently, Inspektor supports postgres, more integration will be added soon.
-      </>
-    ),
+    title: 'GRANULAR ACCESS LEVEL',
+    Svg: require('@site/static/img/inspektor/granular_access.svg').default,
+    description: "Search-as-you-type returns answers in less than 50 milliseconds. That's faster than the blink of an eye!",
+  },
+  {
+    title: 'ENRICHED ACCESS LOG',
+    Svg: require('@site/static/img/inspektor/access_log.svg').default,
+    description: "Search-as-you-type returns answers in less than 50 milliseconds. That's faster than the blink of an eye!",
+  },
+  {
+    title: 'ANAMOLY DETECTION',
+    Svg: require('@site/static/img/inspektor/anamoly_detection.svg').default,
+    description: "Search-as-you-type returns answers in less than 50 milliseconds. That's faster than the blink of an eye!",
+  },
+  {
+    title: 'GITOPS',
+    Svg: require('@site/static/img/inspektor/git.svg').default,
+    description: "Search-as-you-type returns answers in less than 50 milliseconds. That's faster than the blink of an eye!",
   },
 ];
 
-function Feature({Svg, title, description}) {
+function Feature({ Svg, title, description, gridName }) {
   return (
-    <div className={clsx('col col--4')}>
+    <div className={styles.feature}>
       <div className="text--center">
-        <Svg className={styles.featureSvg} alt={title} />
+        <Svg className={styles.featureSvg} role="img" />
       </div>
       <div className="text--center padding-horiz--md">
-        <h3>{title}</h3>
+        <h3 className={styles.titleStyles}>{title}</h3>
         <p>{description}</p>
       </div>
     </div>
   );
 }
 
+function VideoSection({ }) {
+  return (
+    <div className={styles.videoSection}>
+      <div className={styles.videoCol1}>
+        <h3 style={{ fontSize: "2rem" }}>Data Access Simplified</h3>
+        <p>Database administrators can manage their access to their sql or no sql database from a centralized tool. Inspektor also helps teams audit database access using its enriched access log. So, admins never miss on who queried what.</p>
+      </div>
+      <div className={styles.videoCol2}>
+        <iframe width="100%" height="400" src="https://www.youtube.com/embed/E7X5-mGRKro" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+      </div>
+    </div>
+  )
+}
+
+function BottomHero() {
+  return (
+    <div className={styles.bottomHero}>
+      <div className={styles.bottomHeroContainer}>
+        <h1 style={{ color: "white"}}>Get Ready to Started. It's Fast & Easy.</h1>
+        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et olore magna aliqua. Risus commodo viverra.</p>
+        <Link className='button button--secondary' style={{color: "#7230FF", width: "10rem"}} to="https://discord.com/invite/YxZbDJHTxf">
+         <div className='hero-button-text'> <img src="img/inspektor/discord_icon_blue.svg"/>&nbsp;Discord</div>
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 export default function HomepageFeatures() {
   return (
-    <section className={styles.features}>
-      <div className="container">
-        <div className="row">
-          {FeatureList.map((props, idx) => (
-            <Feature key={idx} {...props} />
-          ))}
+    <Fragment>
+      <section className={styles.features}>
+        <div className="container">
+          <h1 className={styles.featureHeading}>Why Inspektor</h1>
+          <div className={styles.featureRow}>
+            {FeatureList.map((props, idx) => (
+              <Feature key={idx} {...props} />
+            ))}
+          </div>
+          <VideoSection />
         </div>
-      </div>
-    </section>
+      </section>
+      <BottomHero />
+    </Fragment>
+
   );
 }

@@ -48,10 +48,11 @@ const config = {
       },
       navbar: {
         title: 'Inspektor',
-       // logo: {
-       //   alt: 'My Site Logo',
-       //   src: 'img/logo.svg',
-       // },
+        hideOnScroll: true,
+        logo: {
+          alt: 'Inspektor logo',
+          src: 'img/inspektor/inspektor-logo.svg',
+        },
         items: [
           {to: '/', label: 'Home', position: 'right', className: 'navbar-item'},
           {
