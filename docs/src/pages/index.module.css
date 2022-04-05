@@ -3,21 +3,57 @@
  * and scoped locally.
  */
 
-.heroBanner {
+ .heroBanner {
   padding: 4rem 0;
   text-align: center;
   position: relative;
   overflow: hidden;
-}
-
-@media screen and (max-width: 966px) {
-  .heroBanner {
-    padding: 2rem;
-  }
+  background-image: url('/img/inspektor/hero-bg.png');
+  background-size: cover;
 }
 
 .buttons {
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-bottom: 2%;
 }
+
+
+@media (max-width: 575px){
+  .heroBanner {
+    padding: 2rem;
+  }
+  .buttons{
+    flex-direction: column;
+  }
+}
+
+@media (min-width: 576px) and (max-width: 767px){
+  .heroBanner {
+    padding: 2rem;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 991px){
+  .heroBanner {
+    padding: 2rem;
+  }
+}
+
+@media (min-width: 992px) {
+  .navbar{
+    padding-left: 10%;
+    padding-right: 10%;
+  }
+  .hero-title{
+    padding-left: 15%;
+    padding-right: 15%;
+  }
+}
+
+
+
+
+
+

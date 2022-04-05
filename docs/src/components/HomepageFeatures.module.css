@@ -68,14 +68,9 @@
 }
 
 
-@media (min-width: 600px) {
-  .featureRow { grid-template-columns: repeat(2, 1fr); }
-  .bottomHeroContainer{
-    width: 70%;
-  }
-}
 
-@media (max-width: 620px) {
+
+@media (max-width: 575px){
   .videoSection{
     flex-direction: column;
   }
@@ -97,8 +92,37 @@
   }
 }
 
-/* Screen larger than 900px? 3 columns */
-@media (min-width: 900px) {
+@media (min-width: 576px) and (max-width: 767px){
+  .featureRow { grid-template-columns: repeat(2, 1fr); }
+  .videoSection{
+    flex-direction: column;
+  }
+  .bottomHeroContainer{
+    width: 70%;
+  }
+  .videoCol1{
+    flex-basis: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .videoCol1 > p{
+    text-align: center;
+  }
+  .videoCol2{
+    flex-basis: 100%;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 991px){
+  .featureRow { grid-template-columns: repeat(2, 1fr); }
+  .bottomHeroContainer{
+    width: 70%;
+  }
+}
+
+@media (min-width: 992px) {
   .featureRow { grid-template-columns: repeat(3, 1fr); }
   .bottomHeroContainer{
     width: 55%;
