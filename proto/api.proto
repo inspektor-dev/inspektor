@@ -24,8 +24,19 @@ message InspektorPolicy {
     bytes wasm_byte_code = 1;
 }
 
+message MetricsRequest {
+    repeated Metric metrics = 1;
+    repeated string groups = 2;
+}
+
+message Metric {
+    string collection_name = 1;
+    repeated string property_name = 2;
+}
+
 service Inspektor {
     rpc Auth(AuthRequest) returns (AuthResponse) {}
     rpc Policy(Empty) returns (stream InspektorPolicy){}
     rpc GetDataSource(Empty) returns (DataSourceResponse) {}
+    rpc SendMetrics(MetricsRequest) returns (Empty) {}
 }

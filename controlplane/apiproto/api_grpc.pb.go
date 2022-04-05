@@ -21,6 +21,7 @@ type InspektorClient interface {
 	Auth(ctx context.Context, in *AuthRequest, opts ...grpc.CallOption) (*AuthResponse, error)
 	Policy(ctx context.Context, in *Empty, opts ...grpc.CallOption) (Inspektor_PolicyClient, error)
 	GetDataSource(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*DataSourceResponse, error)
+	SendMetrics(ctx context.Context, in *MetricsRequest, opts ...grpc.CallOption) (*Empty, error)
 }
 
 type inspektorClient struct {
@@ -81,6 +82,15 @@ func (c *inspektorClient) GetDataSource(ctx context.Context, in *Empty, opts ...
 	return out, nil
 }
 
+func (c *inspektorClient) SendMetrics(ctx context.Context, in *MetricsRequest, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, "/api.Inspektor/SendMetrics", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // InspektorServer is the server API for Inspektor service.
 // All implementations must embed UnimplementedInspektorServer
 // for forward compatibility
@@ -88,6 +98,7 @@ type InspektorServer interface {
 	Auth(context.Context, *AuthRequest) (*AuthResponse, error)
 	Policy(*Empty, Inspektor_PolicyServer) error
 	GetDataSource(context.Context, *Empty) (*DataSourceResponse, error)
+	SendMetrics(context.Context, *MetricsRequest) (*Empty, error)
 	mustEmbedUnimplementedInspektorServer()
 }
 
@@ -103,6 +114,9 @@ func (UnimplementedInspektorServer) Policy(*Empty, Inspektor_PolicyServer) error
 }
 func (UnimplementedInspektorServer) GetDataSource(context.Context, *Empty) (*DataSourceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDataSource not implemented")
+}
+func (UnimplementedInspektorServer) SendMetrics(context.Context, *MetricsRequest) (*Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendMetrics not implemented")
 }
 func (UnimplementedInspektorServer) mustEmbedUnimplementedInspektorServer() {}
 
@@ -174,6 +188,24 @@ func _Inspektor_GetDataSource_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Inspektor_SendMetrics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MetricsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InspektorServer).SendMetrics(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.Inspektor/SendMetrics",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InspektorServer).SendMetrics(ctx, req.(*MetricsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Inspektor_ServiceDesc is the grpc.ServiceDesc for Inspektor service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -188,6 +220,10 @@ var Inspektor_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetDataSource",
 			Handler:    _Inspektor_GetDataSource_Handler,
+		},
+		{
+			MethodName: "SendMetrics",
+			Handler:    _Inspektor_SendMetrics_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
