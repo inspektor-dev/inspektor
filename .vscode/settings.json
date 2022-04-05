@@ -3,5 +3,10 @@
         "unresolved-proc-macro",
         "unresolved_import"
     ],
-   "rust-analyzer.diagnostics.enable": false,
+"rust-analyzer.diagnostics.enable": false,
+"workbench.colorCustomizations": {
+    "activityBar.background": "#08323E",
+    "titleBar.activeBackground": "#0C4557",
+    "titleBar.activeForeground": "#F4FBFE"
+},
 }
