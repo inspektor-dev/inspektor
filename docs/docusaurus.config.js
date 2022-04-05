@@ -42,6 +42,10 @@ const config = {
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
+      colorMode:{
+        defaultMode: 'light',
+        disableSwitch: true,
+      },
       navbar: {
         title: 'Inspektor',
        // logo: {
@@ -49,22 +53,25 @@ const config = {
        //   src: 'img/logo.svg',
        // },
         items: [
+          {to: '/', label: 'Home', position: 'right', className: 'navbar-item'},
           {
             type: 'doc',
             docId: 'intro',
-            position: 'left',
-            label: 'Docs',
-          },
-          // {to: '/blog', label: 'Blog', position: 'left'},
-          {
-            href: 'https://github.com/poonai/inspektor',
-            label: 'GitHub',
             position: 'right',
+            label: 'Docs',
+            className: 'navbar-item'
           },
+          {to: '/about', label: 'About', position: 'right', className: 'navbar-item'},
+          {to: '/joinus', label: 'Join us', position: 'right', className: 'navbar-item'},
+          // {
+          //   href: 'https://github.com/facebook/docusaurus',
+          //   label: 'GitHub',
+          //   position: 'right',
+          // },
         ],
       },
       footer: {
-        style: 'dark',
+        style: 'light',
         links: [
           {
             title: 'Docs',
@@ -106,7 +113,7 @@ const config = {
           //   ],
           // },
         ],
-        copyright: `Copyright © ${new Date().getFullYear()} Inspektor Authors.`,
+        copyright: `Copyright © ${new Date().getFullYear()} Inspektor. All Rights Reserved`,
       },
       prism: {
         theme: lightCodeTheme,
