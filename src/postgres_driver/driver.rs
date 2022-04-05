@@ -157,6 +157,7 @@ impl PostgresDriver {
                         groups,
                         evaluator,
                         self.datasource.data_source_name.clone(),
+                        self.client.clone()
                     )
                     .await
                     {
