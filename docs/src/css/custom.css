@@ -5,16 +5,219 @@
  */
 
 /* You can override the default Infima variables here. */
+@font-face {
+  font-family: 'Gordita';
+  font-style: normal;
+  font-weight: normal;
+  src: url('/src/fonts/Gordita\ Regular.woff') format('woff');
+  }
+  
+
+  @font-face {
+  font-family: 'Gordita';
+  font-style: italic;
+  font-weight: normal;
+  src: url('/src/fonts/Gordita\ Regular\ Italic.woff') format('woff');
+  }
+  
+
+  @font-face {
+    font-family: 'Gordita';
+    font-style: oblique;
+    font-weight: normal;
+    src: url('/src/fonts/Gordita\ Regular\ Italic.woff') format('woff');
+    }
+  
+
+  @font-face {
+  font-family: 'Gordita';
+  font-style: normal;
+  font-weight: bold;
+  src: url('/src/fonts/Gordita\ Bold.woff') format('woff');
+  }
+
+  @font-face {
+    font-family: 'Gordita';
+    font-style: italic;
+    font-weight: bold;
+    src: url('/src/fonts/Gordita\ Bold\ Italic.woff') format('woff');
+    }
+
+  @font-face {
+    font-family: 'Gordita';
+    font-style: oblique;
+    font-weight: bold;
+    src: url('/src/fonts/Gordita\ Bold\ Italic.woff') format('woff');
+    }
+  
+    
+
+  @font-face {
+  font-family: 'Gordita';
+  font-style: normal;
+  font-weight: lighter;
+  src:url('/src/fonts/Gordita\ Light.woff') format('woff');
+  }
+
+  @font-face {
+    font-family: 'Gordita';
+    font-style: italic;
+    font-weight: lighter;
+    src:url('/src/fonts/Gordita\ Light\ Italic.woff') format('woff');
+    }
+
+  @font-face {
+    font-family: 'Gordita';
+    font-style: oblique;
+    font-weight: lighter;
+    src:url('/src/fonts/Gordita\ Light\ Italic.woff') format('woff');
+    }
+
+  /* @font-face {
+    font-family: 'Gordita';
+    font-style: normal;
+    font-weight: medium;
+    src:url('/src/fonts/Gordita\ Medium.woff') format('woff');
+    }
+  
+    @font-face {
+      font-family: 'Gordita';
+      font-style: italic;
+      font-weight: medium;
+      src:url('/src/fonts/Gordita\ Medium\ Italic.woff') format('woff');
+      }
+  
+    @font-face {
+      font-family: 'Gordita';
+      font-style: oblique;
+      font-weight: medium;
+      src:url('/src/fonts/Gordita\ Medium\ Italic.woff') format('woff');
+      } */
+  
+
+ 
 :root {
-  --ifm-color-primary: #6920c9;
-  --ifm-color-primary-dark: #6920c9;
-  --ifm-color-primary-darker: rgb(31, 165, 136);
-  --ifm-color-primary-darkest: rgb(26, 136, 112);
-  --ifm-color-primary-light: rgb(70, 203, 174);
-  --ifm-color-primary-lighter: rgb(102, 212, 189);
-  --ifm-color-primary-lightest: rgb(146, 224, 208);
+  --ifm-color-primary: #7230ff	;
+  --ifm-color-primary-dark: #5d12ff;
+  --ifm-color-primary-darker: #5303ff;
+  --ifm-color-primary-darkest: #4400d4;
+  --ifm-color-primary-light: #874eff;
+  --ifm-color-primary-lighter: #915dff;
+  --ifm-color-primary-lightest: #b08bff;
   --ifm-code-font-size: 95%;
+
+  --ifm-font-color-base: #393939;
+  --ifm-font-family-base: 'Gordita', sans-serif;
+
+  --ifm-color-warning: #FF7A00;
+  --ifm-color-warning-darkest: #B35500 ;
+  --ifm-color-warning-lighter: #FF8E26 ;
+
+  --ifm-color-secondary: #FFFFFF;
+  --ifm-color-secondary-darkest: #B3B3B3;
+  --ifm-color-secondary-lighter: #FFFFFF;
+
 }
+
+h1,h2,h3,h4,h5,h6{
+  color: #05001A;
+}
+
+.navbar-item{
+  font-weight: bold;
+}
+
+.light-button{
+  border: none;
+  background-color: white;
+  color: #7230FF;
+  border-radius: 10px;
+}
+
+
+.hero-button-text{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.github-button-styles{
+  width: 200px;
+  margin-right: 1%;
+  font-weight: medium ;
+  font-size: 18px;
+  text-align: center;
+  border-radius: 5px;
+}
+
+.discord-button-styles{
+  color: #FF7A00 !important;
+  width: 200px;
+  font-weight: medium ;
+  font-size: 18px;
+  text-align: center;
+  border-radius: 5px;
+}
+
+
+@media (max-width: 575px){
+  .github-button-styles{
+    margin-right: 0%;
+    margin-bottom: 2%;
+  }
+  /* .hero-title{
+    padding-left: 10%;
+    padding-right: 10%;
+  } */
+  .hero__subtitle{
+    font-size: medium;
+    font-weight: medium;
+  }
+}
+
+@media (min-width: 576px) and (max-width: 767px){
+  .hero-title{
+    padding-left: 15%;
+    padding-right: 15%;
+  }
+  .hero-header{
+    font-size: 2.0rem;
+  }
+  .hero__subtitle{
+    font-size: large;
+    font-weight: medium;
+
+  }
+}
+
+@media (min-width: 768px) and (max-width: 991px){
+  .hero-title{
+    padding-left: 15%;
+    padding-right: 15%;
+  }
+  .hero-header{
+    font-size: 2.4rem;
+  }
+  .hero__subtitle{
+    font-size: larger;
+    font-weight: medium;
+  }
+}
+
+@media (min-width: 992px) {
+  .navbar{
+    padding-left: 10%;
+    padding-right: 10%;
+  }
+  .hero-title{
+    padding-left: 15%;
+    padding-right: 15%;
+  }
+  .hero-header{
+    font-size: 2.8rem;
+  }
+}
+
 
 .docusaurus-highlight-code-line {
   background-color: rgba(0, 0, 0, 0.1);
