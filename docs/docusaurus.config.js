@@ -42,6 +42,13 @@ const config = {
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
+      announcementBar: {
+        id: "support",
+        backgroundColor: "#7230FF",
+        textColor: "#fff",
+        isCloseable: false,
+        content: `⭐️ If you like Inspektor, give it a star on <a target="_blank" rel="noopener noreferrer" href="https://github.com/poonai/inspektor">GitHub</a>`,
+    },
       colorMode:{
         defaultMode: 'light',
         disableSwitch: true,
@@ -54,7 +61,7 @@ const config = {
           src: 'img/inspektor/inspektor-logo.svg',
         },
         items: [
-          // {to: '/', label: 'Home', position: 'right', className: 'navbar-item'},
+          {to: '/', label: 'Home', position: 'right', className: 'navbar-item'},
           {
             type: 'doc',
             docId: 'intro',
@@ -62,8 +69,8 @@ const config = {
             label: 'Docs',
             className: 'navbar-item'
           },
-          {to: '/about', label: 'About', position: 'right', className: 'navbar-item'},
-          {to: '/joinus', label: 'Join us', position: 'right', className: 'navbar-item'},
+          // {to: '/about', label: 'About', position: 'right', className: 'navbar-item'},
+          // {to: '/joinus', label: 'Join us', position: 'right', className: 'navbar-item'},
           // {
           //   href: 'https://github.com/facebook/docusaurus',
           //   label: 'GitHub',
