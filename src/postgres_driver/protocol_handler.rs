@@ -1,3 +1,4 @@
+use crate::apiproto::api_grpc::InspektorClient;
 // Copyright 2021 Balaji (rbalajis25@gmail.com)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -55,6 +56,7 @@ pub struct ProtocolHandler {
     datasource_name: String,
     pending_error: Option<ProtocolHandlerError>,
     current_transaction_status: TransactionStatus,
+    client: InspektorClient,
 }
 
 #[derive(Default)]
@@ -317,6 +319,7 @@ impl ProtocolHandler {
         groups: Vec<String>,
         evaluator: PolicyEvaluator,
         datasource_name: String,
+        controlplane_client: InspektorClient
     ) -> Result<ProtocolHandler, anyhow::Error> {
         debug!("intializing protocol handler");
         let mut target_conn = ProtocolHandler::connect_target(&config).await?;
@@ -431,6 +434,7 @@ impl ProtocolHandler {
                         datasource_name: datasource_name,
                         pending_error: None,
                         current_transaction_status: TransactionStatus::Idle,
+                        client: controlplane_client,
                     };
                     return Ok(handler);
                 }
