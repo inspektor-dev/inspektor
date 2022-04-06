@@ -8,7 +8,7 @@ const About = () => {
 
     return (
         <Layout
-            title={`Hello from ${siteConfig.title}`}
+            title={`Inspektor`}
             description="Description will go into a meta tag in <head />">
             <main>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "50vh" }}>

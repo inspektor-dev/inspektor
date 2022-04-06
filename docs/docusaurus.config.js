@@ -30,7 +30,7 @@ const config = {
           showReadingTime: true,
           // Please change this to your repo.
           editUrl:
-            'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
+            'https://github.com/poonai/inspektor/tree/main/blog',
         },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
@@ -70,12 +70,12 @@ const config = {
             className: 'navbar-item'
           },
           // {to: '/about', label: 'About', position: 'right', className: 'navbar-item'},
-          // {to: '/joinus', label: 'Join us', position: 'right', className: 'navbar-item'},
-          // {
-          //   href: 'https://github.com/facebook/docusaurus',
-          //   label: 'GitHub',
-          //   position: 'right',
-          // },
+          {to: 'blog', label: 'Blog', position: 'right', className: 'navbar-item'},
+          {
+            href: 'https://github.com/poonai/inspektor',
+            label: 'GitHub',
+            position: 'right',
+          },
         ],
       },
       footer: {
@@ -107,19 +107,19 @@ const config = {
               },
             ],
           },
-          // {
-          //   title: 'More',
-          //   items: [
-          //     {
-          //       label: 'Blog',
-          //       to: '/blog',
-          //     },
-          //     {
-          //       label: 'GitHub',
-          //       href: 'https://github.com/poonai/inspektor',
-          //     },
-          //   ],
-          // },
+          {
+            title: 'More',
+            items: [
+              {
+                label: 'Blog',
+                to: '/blog',
+              },
+              {
+                label: 'GitHub',
+                href: 'https://github.com/poonai/inspektor',
+              },
+            ],
+          },
         ],
         copyright: `Copyright © ${new Date().getFullYear()} Inspektor. All Rights Reserved`,
       },
