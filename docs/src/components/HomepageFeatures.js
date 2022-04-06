@@ -7,35 +7,35 @@ import GITOPS from "../../static/img/inspektor/gitops.png"
 
 const FeatureList = [
   {
-    title: 'OPEN POLICY AGENT LOG',
+    title: 'OPEN POLICY AGENT',
     Svg: require('@site/static/img/inspektor/policy_agent.svg').default,
-    description: "Search-as-you-type returns answers in less than 50 milliseconds. That's faster than the blink of an eye!",
+    description: "Inspektor by default support rego language by open policy agent. So, you can write polices as code",
   },
   {
     title: 'SSO LOGIN',
     Svg: require('@site/static/img/inspektor/sso_login.svg').default,
-    description: "Search-as-you-type returns answers in less than 50 milliseconds. That's faster than the blink of an eye!",
+    description: "Use your existing SSO logins to access your databases. Credentials automatically created and deleted as person join or leaves the organization",
   },
   {
-    title: 'GRANULAR ACCESS LEVEL',
+    title: 'GRANULAR ACCESS CONTROL',
     Svg: require('@site/static/img/inspektor/granular_access.svg').default,
-    description: "Search-as-you-type returns answers in less than 50 milliseconds. That's faster than the blink of an eye!",
+    description: "Use column level access level to protect your customers PII data such as SSN, date of birth and address",
   },
   {
     title: 'ENRICHED ACCESS LOG',
     Svg: require('@site/static/img/inspektor/access_log.svg').default,
-    description: "Search-as-you-type returns answers in less than 50 milliseconds. That's faster than the blink of an eye!",
+    description: "Inspektor gives enriched access log to figure out who did what and when. This helps security team to investigate database access pattern",
   },
   {
-    title: 'ANAMOLY DETECTION',
+    title: 'ANOMALY DETECTION',
     Svg: require('@site/static/img/inspektor/anamoly_detection.svg').default,
-    description: "Search-as-you-type returns answers in less than 50 milliseconds. That's faster than the blink of an eye!",
+    description: "Inspektor continously monitor database access and alerts if it find any anolmaly",
   },
   {
     title: 'GITOPS',
     // Svg: require('@site/static/img/inspektor/gitops.svg').default,
     imageSrc: GITOPS,
-    description: "Search-as-you-type returns answers in less than 50 milliseconds. That's faster than the blink of an eye!",
+    description: "Inspektor syncs policies from github. So you can use your existing workflow to review and approve PR. As soon as code merges, the polices will be updated",
   },
 ];
 
@@ -58,7 +58,7 @@ function VideoSection({ }) {
     <div className={styles.videoSection}>
       <div className={styles.videoCol1}>
         <h3 style={{ fontSize: "2rem" }}>Data Access Simplified</h3>
-        <p>Database administrators can manage their access to their sql or no sql database from a centralized tool. Inspektor also helps teams audit database access using its enriched access log. So, admins never miss on who queried what.</p>
+        <p>Database administrators can manage their access to their sql or no sql database from a centralized tool. Inspektor also helps teams to audit their database access using enriched access log. So, admins never miss on who queried what.</p>
       </div>
       <div className={styles.videoCol2}>
         <iframe width="100%" height="400" src="https://www.youtube.com/embed/E7X5-mGRKro" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
@@ -71,8 +71,7 @@ function BottomHero() {
   return (
     <div className={styles.bottomHero}>
       <div className={styles.bottomHeroContainer}>
-        <h1 style={{ color: "white"}}>Get Ready to Started. It's Fast & Easy.</h1>
-        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et olore magna aliqua. Risus commodo viverra.</p>
+        <h1 style={{ color: "white"}}>Inspektor helps to secure your databases. Join the community</h1>
         <Link className='button button--secondary' style={{color: "#7230FF", width: "10rem"}} to="https://discord.com/invite/YxZbDJHTxf">
          <div className='hero-button-text'> <img src="img/inspektor/discord_icon_blue.svg"/>&nbsp;Discord</div>
         </Link>
