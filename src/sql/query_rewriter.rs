@@ -15,7 +15,7 @@
 use crate::sql::ctx::Ctx;
 use crate::sql::error::QueryRewriterError;
 use crate::sql::rule_engine::RuleEngine;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use anyhow::Result;
 use log::*;
@@ -29,6 +29,8 @@ pub struct QueryRewriter<T: RuleEngine + Clone> {
     // the end user.
     namespaces: Vec<String>,
     rule_engine: T,
+    // metrics store all the tables and it's columns name it has accesssed.
+    metrics: HashMap<String, HashSet<String>>,
 }
 
 impl<T: RuleEngine + Clone> QueryRewriter<T> {
@@ -37,14 +39,15 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
         return QueryRewriter {
             rule_engine: rule_engine,
             namespaces: ns,
+            metrics: Default::default(),
         };
     }
 
     pub fn rewrite(
-        &self,
+        &mut self,
         statement: &mut Statement,
         state: &Ctx,
-    ) -> Result<(), QueryRewriterError> {
+    ) -> Result<HashMap<String, HashSet<String>>, QueryRewriterError> {
         match statement {
             Statement::Query(query) => {
                 self.handle_query(query, state)?;
@@ -85,7 +88,8 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
             }
             _ => {}
         }
-        Ok(())
+        let metrics = std::mem::replace(&mut self.metrics, HashMap::default());
+        Ok(metrics)
     }
 
     pub fn is_operation_allowed(
@@ -188,7 +192,11 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
     // handle_query will validate the query with the rule engine. it's not valid
     // it's throw an error or it' try to rewrite to make the query to match
     // the rule.
-    pub fn handle_query(&self, query: &mut Query, state: &Ctx) -> Result<Ctx, QueryRewriterError> {
+    pub fn handle_query(
+        &mut self,
+        query: &mut Query,
+        state: &Ctx,
+    ) -> Result<Ctx, QueryRewriterError> {
         let local_state = state.clone();
         // cte table are user created temp table passed down to the subsequent query.
         // so it's is mandatory to validate cte first and build the state
@@ -207,7 +215,11 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
 
     // handle_set_expr handles set exprs which are basically query, insert,
     // select.. all the core block of the ANSI SQL.
-    fn handle_set_expr(&self, expr: &mut SetExpr, state: &Ctx) -> Result<Ctx, QueryRewriterError> {
+    fn handle_set_expr(
+        &mut self,
+        expr: &mut SetExpr,
+        state: &Ctx,
+    ) -> Result<Ctx, QueryRewriterError> {
         match expr {
             SetExpr::Query(query) => return self.handle_query(query, state),
             SetExpr::Select(select) => return self.handle_select(select, state),
@@ -233,7 +245,11 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
 
     // handle_select handles select statement. select statement data are the one which are
     // returned to the user.
-    fn handle_select(&self, select: &mut Select, state: &Ctx) -> Result<Ctx, QueryRewriterError> {
+    fn handle_select(
+        &mut self,
+        select: &mut Select,
+        state: &Ctx,
+    ) -> Result<Ctx, QueryRewriterError> {
         let mut local_state = state.clone();
         // select projection are not from a table so we don't need to do anythings here.
         // TODO: I'm not convinced about the fast path.
@@ -262,7 +278,7 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
     // handle_table_factor handles (FROM table). here all the possible columns allowed for the
     // given table is decided.
     fn handle_table_factor(
-        &self,
+        &mut self,
         state: &Ctx,
         table_factor: &mut TableFactor,
     ) -> Result<Ctx, QueryRewriterError> {
@@ -355,7 +371,7 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
     // unauthorized error. But, query rewriter always tries to rewrite it's possible to
     // adhere the rule.
     fn handle_selection(
-        &self,
+        &mut self,
         state: &Ctx,
         selection: &mut SelectItem,
     ) -> Result<Vec<SelectItem>, QueryRewriterError> {
@@ -408,11 +424,11 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
     }
     // handle_expr will handle all the selection expr. eg:
     // SUM(balance) or balance...
-    fn handle_expr(&self, state: &Ctx, expr: &mut Expr) -> Result<(), QueryRewriterError> {
+    fn handle_expr(&mut self, state: &Ctx, expr: &mut Expr) -> Result<(), QueryRewriterError> {
         match expr {
             Expr::Identifier(object_name) => {
                 // it's a single expression. if we have one table the we pick that.
-                if !state.is_allowed_column_ident(&object_name.value) {
+                if !state.is_allowed_column_ident(&object_name.value, &mut self.metrics) {
                     // column is not allowed but it's a valid column.
                     // so, rewriting the query to return NULL for the given column.
                     // the main reason to do this is that, folks who uses postgres
@@ -614,6 +630,8 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
         }
         Ok(())
     }
+
+    
 }
 
 /// join_indents will join the indent with dotted operation.
@@ -662,7 +680,7 @@ mod tests {
     }
 
     fn assert_rewriter<T: RuleEngine + Clone>(
-        rewriter: &QueryRewriter<T>,
+        rewriter: &mut QueryRewriter<T>,
         state: Ctx,
         input: &'static str,
         output: &'static str,
@@ -676,7 +694,7 @@ mod tests {
     }
 
     fn assert_error<T: RuleEngine + Clone>(
-        rewriter: &QueryRewriter<T>,
+        rewriter: &mut QueryRewriter<T>,
         state: Ctx,
         input: &'static str,
         err: QueryRewriterError,
@@ -723,16 +741,16 @@ mod tests {
             ],
         )]));
 
-        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
+        let mut rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state.clone(),
             "select * from kids",
             "SELECT NULL AS \"phone\", id, name, address FROM kids",
         );
 
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state,
             "SELECT * FROM public.kids",
             "SELECT NULL AS \"public.kids.phone\", public.kids.id, public.kids.name, public.kids.address FROM public.kids",
@@ -756,8 +774,8 @@ mod tests {
             (String::from("cities"), cowvec!("name", "location")),
         ]));
 
-        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
-        assert_rewriter(&rewriter, state, "SELECT w.city, w.temp_lo, w.temp_hi,
+        let mut rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
+        assert_rewriter(&mut rewriter, state, "SELECT w.city, w.temp_lo, w.temp_hi,
         w.prcp, w.date, cities.location
         FROM weather as w, cities
         WHERE cities.name = w.city;", "SELECT w.city, w.temp_lo, w.temp_hi, w.prcp, w.date, cities.location FROM weather AS w, cities WHERE cities.name = w.city");
@@ -785,9 +803,9 @@ mod tests {
             ],
         )]));
 
-        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
+        let mut rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state,
             "WITH DUMMY AS (SELECT * FROM kids LIMIT 1)
             SELECT * FROM DUMMY",
@@ -817,15 +835,15 @@ mod tests {
             ],
         )]));
 
-        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
+        let mut rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state.clone(),
             "select * from (select * from public.kids) as nested",
             "SELECT * FROM (SELECT NULL AS \"public.kids.phone\", public.kids.id, public.kids.name, public.kids.address FROM public.kids) AS nested",
         );
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state,
             "select * from (with dummy as (select * from kids) select * from dummy)as nested limit 1;",
             "SELECT * FROM (WITH dummy AS (SELECT NULL AS \"phone\", id, name, address FROM kids) SELECT * FROM dummy) AS nested LIMIT 1",
@@ -864,16 +882,16 @@ mod tests {
                 ],
             ),
         ]));
-        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
+        let mut rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state.clone(),
             "select * from kids UNION select * from public.kids2",
             "SELECT NULL AS \"phone\", id, name, address FROM kids UNION SELECT * FROM public.kids2",
         );
 
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state.clone(),
             "SELECT 49179 AS oid , 1 AS attnum UNION ALL SELECT 49179, 7;",
             "SELECT 49179 AS oid, 1 AS attnum UNION ALL SELECT 49179, 7",
@@ -921,16 +939,16 @@ mod tests {
                 ],
             ),
         ]));
-        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
+        let mut rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state.clone(),
             "SELECT *
             FROM weather INNER JOIN public.cities ON (weather.city = public.cities.name);",
             "SELECT * FROM weather JOIN public.cities ON (weather.city = public.cities.name)",
         );
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state.clone(),
             "SELECT w.city, w.temp_lo, w.temp_hi,
                          w.prcp, cities.location
@@ -940,7 +958,7 @@ mod tests {
         );
 
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state.clone(),
             "select * from transactions join kids on transactions.kid_id = kids.id limit 10;",
             r#"SELECT NULL AS "phone", id, name, address, transactions.* FROM transactions JOIN kids ON transactions.kid_id = kids.id LIMIT 10"#,
@@ -979,9 +997,9 @@ mod tests {
                 ],
             ),
         ]));
-        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
+        let mut rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state.clone(),
             "SELECT *, (select sum(temp_hi) from weather) as temp_hi
             FROM cities",
@@ -1008,9 +1026,9 @@ mod tests {
             ],
         )]));
 
-        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
+        let mut rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state,
             "select kids.* from kids",
             "SELECT NULL AS \"kids.phone\", kids.id, kids.name, kids.address FROM kids",
@@ -1036,32 +1054,32 @@ mod tests {
             ],
         )]));
 
-        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
-        assert_rewriter(&rewriter, state.clone(), "SELECT 1", "SELECT 1");
+        let mut rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
+        assert_rewriter(&mut rewriter, state.clone(), "SELECT 1", "SELECT 1");
 
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state.clone(),
             "SELECT count(*) from kids",
             "SELECT count(*) FROM kids",
         );
 
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state.clone(),
             "SELECT CASE when address > 10 then address else 0 end from kids",
             "SELECT CASE WHEN address > 10 THEN address ELSE 0 END FROM kids",
         );
 
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state.clone(),
             r#"SELECT name < address COLLATE "de_DE" FROM kids"#,
             r#"SELECT name < address COLLATE "de_DE" FROM kids"#,
         );
 
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state.clone(),
             r#"SELECT name < address COLLATE "de_DE" FROM kids"#,
             r#"SELECT name < address COLLATE "de_DE" FROM kids"#,
@@ -1076,19 +1094,19 @@ mod tests {
         // );
 
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state.clone(),
             r#"SELECT CAST(name as INTEGER), EXTRACT(month from id) FROM kids"#,
             r#"SELECT CAST(name AS INT), EXTRACT(MONTH FROM id) FROM kids"#,
         );
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state.clone(),
             r#"SELECT CAST(name as INTEGER), EXTRACT(month from phone) FROM kids"#,
             r#"SELECT CAST(name AS INT), NULL AS "date_part" FROM kids"#,
         );
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state.clone(),
             r#"SELECT CAST(phone as INTEGER), EXTRACT(month from id) FROM kids"#,
             r#"SELECT NULL AS "phone", EXTRACT(MONTH FROM id) FROM kids"#,
@@ -1117,39 +1135,39 @@ mod tests {
             ],
         )]));
 
-        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
+        let mut rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state.clone(),
             "SELECT id, phone from kids",
             "SELECT id, NULL AS \"phone\" FROM kids",
         );
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state.clone(),
             "SELECT id, phone AS demophone from kids",
             "SELECT id, NULL AS demophone FROM kids",
         );
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state.clone(),
             "SELECT SUM(phone) from kids",
             "SELECT SUM(NULL) FROM kids",
         );
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state.clone(),
             r#"SELECT case phone when 10 then "hello" end from kids"#,
             "SELECT NULL AS \"phone\" FROM kids",
         );
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state.clone(),
             r#"SELECT SUM(case phone when 10 then 1 end) from kids"#,
             "SELECT SUM(NULL) FROM kids",
         );
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state.clone(),
             r#"SELECT substring(phone from 10) from kids"#,
             "SELECT NULL AS \"substring\" FROM kids",
@@ -1191,11 +1209,11 @@ mod tests {
 
         let state = Ctx::new(get_table_info());
 
-        let rewriter = QueryRewriter::new(
+        let mut rewriter = QueryRewriter::new(
             rule_engine,
             vec!["public".to_string(), "pg_catalog".to_string()],
         );
-        assert_rewriter(&rewriter, state.clone(), "SELECT DISTINCT t.typname FROM pg_enum e LEFT JOIN pg_type t ON t.oid = e.enumtypid", "SELECT DISTINCT t.typname FROM pg_enum AS e LEFT JOIN pg_type AS t ON t.oid = e.enumtypid");
+        assert_rewriter(&mut rewriter, state.clone(), "SELECT DISTINCT t.typname FROM pg_enum e LEFT JOIN pg_type t ON t.oid = e.enumtypid", "SELECT DISTINCT t.typname FROM pg_enum AS e LEFT JOIN pg_type AS t ON t.oid = e.enumtypid");
     }
 
     #[test]
@@ -1210,10 +1228,10 @@ mod tests {
             update_allowed: false,
             ..Default::default()
         };
-        let rewriter = QueryRewriter::new(rule_engine, vec![]);
+        let mut rewriter = QueryRewriter::new(rule_engine, vec![]);
         let state = Ctx::new(get_table_info());
         assert_error(
-            &rewriter,
+            &mut rewriter,
             state,
             "INSERT INTO KIDS(phone) values('9843421696')",
             QueryRewriterError::UnAuthorizedInsert,
@@ -1228,10 +1246,10 @@ mod tests {
             )]),
             ..Default::default()
         };
-        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
+        let mut rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         let state = Ctx::new(get_table_info());
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state,
             "INSERT INTO kids(phone) values('9843421696')",
             "INSERT INTO kids (phone) VALUES ('9843421696')",
@@ -1246,10 +1264,10 @@ mod tests {
             update_allowed: false,
             ..Default::default()
         };
-        let rewriter = QueryRewriter::new(rule_engine, vec![]);
+        let mut rewriter = QueryRewriter::new(rule_engine, vec![]);
         let state = Ctx::new(get_table_info());
         assert_error(
-            &rewriter,
+            &mut rewriter,
             state,
             "UPDATE kids SET id = 'Dramatic' WHERE phone = '9843421696';",
             QueryRewriterError::UnAuthorizedUpdate,
@@ -1261,10 +1279,10 @@ mod tests {
             update_allowed: true,
             ..Default::default()
         };
-        let rewriter = QueryRewriter::new(rule_engine, vec![]);
+        let mut rewriter = QueryRewriter::new(rule_engine, vec![]);
         let state = Ctx::new(get_table_info());
         assert_error(
-            &rewriter,
+            &mut rewriter,
             state,
             "UPDATE kids SET id = 'Dramatic' WHERE phone = '9843421696';",
             QueryRewriterError::UnAuthorizedUpdate,
@@ -1280,10 +1298,10 @@ mod tests {
             )]),
             ..Default::default()
         };
-        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
+        let mut rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         let state = Ctx::new(get_table_info());
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state,
             "UPDATE public.kids SET mobile_number = 'Dramatic' WHERE mobile_number = '9843421696';",
             "UPDATE public.kids SET mobile_number = 'Dramatic' WHERE mobile_number = '9843421696'",
@@ -1320,17 +1338,17 @@ mod tests {
             ),
         ]));
 
-        let rewriter = QueryRewriter::new(rule_engine.clone(), vec!["public".to_string()]);
+        let mut rewriter = QueryRewriter::new(rule_engine.clone(), vec!["public".to_string()]);
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state.clone(),
             "select * from kids",
             "SELECT NULL AS \"phone\", NULL AS \"id\", NULL AS \"name\", NULL AS \"address\" FROM kids",
         );
 
-        let rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
+        let mut rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
         assert_rewriter(
-            &rewriter,
+            &mut rewriter,
             state,
             "select * from kids join transactions on transactions.kid_id = kids.id",
             "SELECT NULL AS \"phone\", NULL AS \"id\", NULL AS \"name\", NULL AS \"address\", transactions.* FROM kids JOIN transactions ON transactions.kid_id = kids.id",

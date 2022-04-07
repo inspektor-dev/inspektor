@@ -34,6 +34,7 @@ use tokio::net::TcpStream;
 use tokio::sync::watch;
 use tokio::time as tokio_time;
 use tokio_openssl::SslStream;
+use crate::apiproto::api::Metric;
 
 fn md5_password(username: &String, password: &String, salt: Vec<u8>) -> String {
     let mut md5 = Md5::new();
@@ -57,6 +58,7 @@ pub struct ProtocolHandler {
     pending_error: Option<ProtocolHandlerError>,
     current_transaction_status: TransactionStatus,
     client: InspektorClient,
+    pending_metrics: Vec<Metric>,
 }
 
 #[derive(Default)]
@@ -435,6 +437,7 @@ impl ProtocolHandler {
                         pending_error: None,
                         current_transaction_status: TransactionStatus::Idle,
                         client: controlplane_client,
+                        pending_metrics: Vec::default(),
                     };
                     return Ok(handler);
                 }
@@ -617,19 +620,25 @@ impl ProtocolHandler {
         };
         let rule = self.get_rule_engine()?;
         debug!("rewriting with schema {:?}", schemas);
-        let rewriter = QueryRewriter::new(rule, schemas);
+        let mut rewriter = QueryRewriter::new(rule, schemas);
         let mut out = String::from("");
         let mut good_to_forward = false;
         for statement in &mut statements {
-            if let Err(e) = rewriter.rewrite(statement, &ctx) {
-                if !good_to_forward {
-                    return Err(ProtocolHandlerError::RewriterError(e));
-                }
-                debug!("error {:?} is buffered to deliver later", e);
-                self.pending_error = Some(ProtocolHandlerError::RewriterError(e));
-                break;
-            }
+            match rewriter.rewrite(statement, &ctx){
+                Ok(metrics) => {
 
+                    continue;
+                },
+                Err(e) => {
+                    if !good_to_forward {
+                        return Err(ProtocolHandlerError::RewriterError(e));
+                    }
+                    debug!("error {:?} is buffered to deliver later", e);
+                    self.pending_error = Some(ProtocolHandlerError::RewriterError(e));
+                    break;
+                }
+            }
+            
             // update the current state of transaction.
             match statement {
                 Statement::StartTransaction { .. } => {
@@ -687,6 +696,8 @@ impl ProtocolHandler {
         debug!("evaluating policy with rule {:?}", rule_engine);
         Ok(rule_engine)
     }
+
+    fn push_metrics(&self, )
 
     fn filter_attributes_for_db(&self, attributes: Vec<String>) -> HashMap<String, Vec<String>> {
         let mut filtered_attributes: HashMap<String, Vec<String>> = HashMap::new();

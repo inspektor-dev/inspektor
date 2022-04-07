@@ -33,7 +33,7 @@ impl Ctx {
     }
 
     // is_allowed_column_ident will tell the given column is allowed or not.
-    pub fn is_allowed_column_ident(&self, column: &String) -> bool {
+    pub fn is_allowed_column_ident(&self, column: &String, metrics: &mut HashMap<String, HashSet<String>>) -> bool {
         let froms = self.from.clone().into_iter().collect::<Vec<String>>();
         for from in &froms {
             if let Some(protected_columns) = self.protected_columns.get(from) {
