@@ -12,6 +12,7 @@ use crate::apiproto::api_grpc::InspektorClient;
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+use crate::apiproto::api::Metric;
 use crate::config::PostgresConfig;
 use crate::policy_evaluator::evaluator::PolicyEvaluator;
 use crate::postgres_driver::conn::PostgresConn;
@@ -25,8 +26,10 @@ use log::*;
 use md5::{Digest, Md5};
 use openssl::ssl::{Ssl, SslConnector, SslMethod};
 use postgres_protocol::authentication::sasl;
+use protobuf::RepeatedField;
 use sqlparser::ast::Statement;
 use std::collections::{HashMap, HashSet};
+use std::iter::FromIterator;
 use std::pin::Pin;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -34,7 +37,6 @@ use tokio::net::TcpStream;
 use tokio::sync::watch;
 use tokio::time as tokio_time;
 use tokio_openssl::SslStream;
-use crate::apiproto::api::Metric;
 
 fn md5_password(username: &String, password: &String, salt: Vec<u8>) -> String {
     let mut md5 = Md5::new();
@@ -151,12 +153,12 @@ impl ProtocolHandler {
         let is_session_expired = move || {
             // session won't expire if there is no expiry time.
             if expires_at == 0 {
-                return false
+                return false;
             }
             let current_epoch = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-            return current_epoch.as_secs() >= expires_at as u64
+            return current_epoch.as_secs() >= expires_at as u64;
         };
-        
+
         println!(
             "host={} port={} user={} dbname = {} password = {}",
             self.config.target_addr.as_ref().unwrap(),
@@ -321,7 +323,7 @@ impl ProtocolHandler {
         groups: Vec<String>,
         evaluator: PolicyEvaluator,
         datasource_name: String,
-        controlplane_client: InspektorClient
+        controlplane_client: InspektorClient,
     ) -> Result<ProtocolHandler, anyhow::Error> {
         debug!("intializing protocol handler");
         let mut target_conn = ProtocolHandler::connect_target(&config).await?;
@@ -528,6 +530,15 @@ impl ProtocolHandler {
         Ok(())
     }
 
+    pub fn push_metrics(&mut self, query_metrics: HashMap<String, HashSet<String>>) {
+        for (table_name, columns) in query_metrics {
+            let mut metric = Metric::new();
+            metric.set_collection_name(table_name);
+            metric.set_property_name(RepeatedField::from_vec(Vec::from_iter(columns)));
+            self.pending_metrics.push(metric);
+        }
+    }
+
     // try_ssl_upgrade will try to upgrade the unsecured postgres connection to ssl connection
     // if the server supports. Otherwise, unsercured connection is retured back.
     async fn try_ssl_upgrade(
@@ -624,11 +635,10 @@ impl ProtocolHandler {
         let mut out = String::from("");
         let mut good_to_forward = false;
         for statement in &mut statements {
-            match rewriter.rewrite(statement, &ctx){
+            match rewriter.rewrite(statement, &ctx) {
                 Ok(metrics) => {
-
-                    continue;
-                },
+                    self.push_metrics(metrics);
+                }
                 Err(e) => {
                     if !good_to_forward {
                         return Err(ProtocolHandlerError::RewriterError(e));
@@ -638,13 +648,13 @@ impl ProtocolHandler {
                     break;
                 }
             }
-            
+
             // update the current state of transaction.
             match statement {
                 Statement::StartTransaction { .. } => {
                     self.current_transaction_status = TransactionStatus::Transaction
                 }
-                Statement::Rollback { .. } | Statement::Commit { .. }=> {
+                Statement::Rollback { .. } | Statement::Commit { .. } => {
                     self.current_transaction_status = TransactionStatus::Idle
                 }
                 _ => {}
@@ -696,8 +706,6 @@ impl ProtocolHandler {
         debug!("evaluating policy with rule {:?}", rule_engine);
         Ok(rule_engine)
     }
-
-    fn push_metrics(&self, )
 
     fn filter_attributes_for_db(&self, attributes: Vec<String>) -> HashMap<String, Vec<String>> {
         let mut filtered_attributes: HashMap<String, Vec<String>> = HashMap::new();

@@ -104,13 +104,14 @@ impl PostgresDriver {
             match msg {
                 FrontendMessage::Startup { params, .. } => {
                     // let's verify the user name and
-                    let (groups, session_expires_at) = match self.verfiy_client_params(&params, &mut client_conn).await {
-                        Ok(result) => result,
-                        Err(e) => {
-                            error!("error while verifying auth. err msg: {:?}", e);
-                            continue;
-                        }
-                    };
+                    let (groups, session_expires_at) =
+                        match self.verfiy_client_params(&params, &mut client_conn).await {
+                            Ok(result) => result,
+                            Err(e) => {
+                                error!("error while verifying auth. err msg: {:?}", e);
+                                continue;
+                            }
+                        };
                     // check whether user can access the db.
                     let mut evaluator = match PolicyEvaluator::new(&self.policy_watcher.borrow()) {
                         Ok(evaluator) => evaluator,
@@ -157,7 +158,7 @@ impl PostgresDriver {
                         groups,
                         evaluator,
                         self.datasource.data_source_name.clone(),
-                        self.client.clone()
+                        self.client.clone(),
                     )
                     .await
                     {
