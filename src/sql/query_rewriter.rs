@@ -630,8 +630,6 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
         }
         Ok(())
     }
-
-    
 }
 
 /// join_indents will join the indent with dotted operation.

@@ -79,8 +79,7 @@ fn main() {
     std::thread::spawn(move || {
         info!("strated watching for polices");
         rt.block_on(async {
-        'policy_watcher:
-            loop {
+            'policy_watcher: loop {
                 let result = match policy_reciver.try_next().await {
                     Ok(result) => result,
                     Err(e) => {
