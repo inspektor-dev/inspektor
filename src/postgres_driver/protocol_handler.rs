@@ -12,7 +12,7 @@ use crate::apiproto::api_grpc::InspektorClient;
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use crate::apiproto::api::Metric;
+use crate::apiproto::api::{Metric, MetricsRequest};
 use crate::config::PostgresConfig;
 use crate::policy_evaluator::evaluator::PolicyEvaluator;
 use crate::postgres_driver::conn::PostgresConn;
@@ -30,6 +30,7 @@ use protobuf::RepeatedField;
 use sqlparser::ast::Statement;
 use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
+use std::mem;
 use std::pin::Pin;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -60,7 +61,7 @@ pub struct ProtocolHandler {
     pending_error: Option<ProtocolHandlerError>,
     current_transaction_status: TransactionStatus,
     client: InspektorClient,
-    pending_metrics: Vec<Metric>,
+    pending_metrics: RepeatedField<Metric>,
 }
 
 #[derive(Default)]
@@ -439,7 +440,7 @@ impl ProtocolHandler {
                         pending_error: None,
                         current_transaction_status: TransactionStatus::Idle,
                         client: controlplane_client,
-                        pending_metrics: Vec::default(),
+                        pending_metrics: RepeatedField::default(),
                     };
                     return Ok(handler);
                 }
@@ -536,6 +537,19 @@ impl ProtocolHandler {
             metric.set_collection_name(table_name);
             metric.set_property_name(RepeatedField::from_vec(Vec::from_iter(columns)));
             self.pending_metrics.push(metric);
+        }
+    }
+
+    pub fn flush_metrics(&mut self) {
+        if self.pending_metrics.len() == 0 {
+            return;
+        }
+        let mut req = MetricsRequest::new();
+        let metrics = mem::replace(&mut self.pending_metrics, RepeatedField::new());
+        req.set_metrics(metrics);
+        req.set_groups(RepeatedField::from_vec(self.groups.clone()));
+        if let Err(e) = self.client.send_metrics(&req) {
+            error!("error while sending metrics to the controlplane {:?}", e);
         }
     }
 
@@ -732,5 +746,11 @@ impl ProtocolHandler {
             filtered_attributes.insert(table_name, cols);
         }
         return filtered_attributes;
+    }
+}
+
+impl Drop for ProtocolHandler {
+    fn drop(&mut self) {
+        self.flush_metrics();
     }
 }
