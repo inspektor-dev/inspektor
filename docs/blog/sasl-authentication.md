@@ -24,11 +24,11 @@ This has been solved using [SASL](https://en.wikipedia.org/wiki/Simple_Authentic
 
 I got to know about SASL, while creating postgres support in inspektor.
 
-In this blog, I'll explain how SASL works and how it can be used to authenticate users on an insecure connection.
+In this blog, I'll explain how SCRAM(Salted Challenge Response Authentication Mechanism) works, which is part of SASL family.
 
-## Working of SASL
+## Working of SCRAM
   
-#### SASL establishes an authenticated connection through a four-step handshake:
+#### SCRAM establishes an authenticated connection through a four-step handshake:
 
 **Step 1**: 
 
