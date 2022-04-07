@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"inspektor/apiproto"
 	"inspektor/config"
+	"inspektor/metrics"
 	"inspektor/models"
 	"inspektor/policy"
 	"inspektor/store"
@@ -25,6 +26,7 @@ type RpcServer struct {
 	store  *store.Store
 	policy *policy.PolicyManager
 	apiproto.UnimplementedInspektorServer
+	metrics *metrics.MetricsHandler
 }
 
 func NewServer(store *store.Store, policy *policy.PolicyManager) *RpcServer {
@@ -151,6 +153,11 @@ func (r *RpcServer) getAuthStreamInterceptor() grpc.StreamServerInterceptor {
 		}
 		return handler(srv, ss)
 	}
+}
+
+func (r *RpcServer) SendMetrics(ctx context.Context, req *apiproto.MetricsRequest) (*apiproto.Empty, error) {
+	r.metrics.AggregateMetrics(req.Groups, req.Metrics)
+	return nil, nil
 }
 
 func (r *RpcServer) Start(cfg *config.Config) error {
