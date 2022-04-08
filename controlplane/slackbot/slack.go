@@ -235,3 +235,8 @@ func (s *SlackBot) postMessage(channelID string, msg string) {
 		utils.Logger.Error("error while approval message to the admin", zap.String("err_msg", err.Error()))
 	}
 }
+
+func (s *SlackBot) PostMarkdownMsg(msg string) error {
+	_, _, err := s.client.PostMessage(s.adminChannelID, slack.MsgOptionBlocks(slack.NewTextBlockObject(slack.MarkdownType, msg, false, false)))
+	return err
+}
