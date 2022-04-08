@@ -15,9 +15,16 @@
 package metrics
 
 import (
+	"bytes"
+	"html/template"
 	"inspektor/apiproto"
 	"inspektor/slackbot"
+	"inspektor/utils"
+	"strings"
 	"sync"
+	"time"
+
+	"go.uber.org/zap"
 )
 
 // MetricsHandler is responsible for sending daily query statics to the
@@ -37,7 +44,7 @@ func NewMetricsHandler(bot *slackbot.SlackBot) *MetricsHandler {
 
 // aggregatedMetrics holds the aggregated metrics for each group.
 type aggregatedMetrics struct {
-	queryMetrics map[string]*Collection
+	QueryMetrics map[string]*Collection
 }
 
 // Collection holds all the metrics related to the collection.
@@ -55,11 +62,11 @@ func (m *MetricsHandler) AggregateMetrics(groups []string, metrics []*apiproto.M
 		groupAggregation, ok := m.groupMetrics[group]
 		if !ok {
 			groupAggregation = &aggregatedMetrics{
-				queryMetrics: make(map[string]*Collection),
+				QueryMetrics: make(map[string]*Collection),
 			}
 		}
 		for _, metric := range metrics {
-			collection, ok := groupAggregation.queryMetrics[metric.CollectionName]
+			collection, ok := groupAggregation.QueryMetrics[metric.CollectionName]
 			if !ok {
 				collection = &Collection{
 					Properties: map[string]struct{}{},
@@ -70,8 +77,72 @@ func (m *MetricsHandler) AggregateMetrics(groups []string, metrics []*apiproto.M
 			for _, property := range metric.PropertyName {
 				collection.Properties[property] = struct{}{}
 			}
-			groupAggregation.queryMetrics[metric.CollectionName] = collection
+			groupAggregation.QueryMetrics[metric.CollectionName] = collection
 		}
 		m.groupMetrics[group] = groupAggregation
 	}
+}
+
+var Report = `
+## Daily Database Activity Report 😎
+{{ range $key, $value := .}}
+**group: {{$key}}**
+### query analytics
+| Table Name   | Columns  | Processed Queries   | 
+|---|---|---|
+{{ range $dbName, $metrics := $value.QueryMetrics}}
+|{{$dbName}}|{{join $metrics.Properties }}|{{$metrics.Count}}|
+{{end}}
+{{end}}
+`
+
+func (m *MetricsHandler) Start() {
+	timer := m.getReportTicker()
+	for {
+		<-timer.C
+		// reset the timer for the next day
+		timer = m.getReportTicker()
+		// prepare the report and post it on slack.
+		report, err := m.generateReport()
+		if err != nil {
+			utils.Logger.Error("error while generating analytucs report", zap.String("err", err.Error()))
+			continue
+		}
+		err = m.slackbot.PostMarkdownMsg(report)
+		if err != nil {
+			utils.Logger.Error("error while publishing daily report", zap.String("err_msg", err.Error()))
+		}
+	}
+}
+
+// generateReport will generate report for the aggregated metrics.
+func (m *MetricsHandler) generateReport() (string, error) {
+	// add join function since columns name needs to concated with ,
+	tmpl, err := template.New("report").Funcs(template.FuncMap{
+		"join": func(val map[string]struct{}) string {
+			arr := []string{}
+			for key := range val {
+				arr = append(arr, key)
+			}
+			return strings.Join(arr, ",")
+		},
+	}).Parse(Report)
+	if err != nil {
+		return "", err
+	}
+	buf := &bytes.Buffer{}
+	err = tmpl.Execute(buf, m.groupMetrics)
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+// getReportTicker return the ticker when the report supposed to published
+func (m *MetricsHandler) getReportTicker() *time.Timer {
+	// calculate the timer for tomorrow 10'o clock
+	y, mo, d := time.Now().Date()
+	today := time.Date(y, mo, d, 10, 0, 0, 0, time.Now().Location())
+	tommorow := today.Add(14 * time.Hour)
+	return time.NewTimer(time.Until(tommorow))
 }
