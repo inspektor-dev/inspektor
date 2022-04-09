@@ -29,10 +29,11 @@ type RpcServer struct {
 	metrics *metrics.MetricsHandler
 }
 
-func NewServer(store *store.Store, policy *policy.PolicyManager) *RpcServer {
+func NewServer(store *store.Store, policy *policy.PolicyManager, metrics *metrics.MetricsHandler) *RpcServer {
 	return &RpcServer{
-		store:  store,
-		policy: policy,
+		store:   store,
+		policy:  policy,
+		metrics: metrics,
 	}
 }
 
@@ -156,7 +157,9 @@ func (r *RpcServer) getAuthStreamInterceptor() grpc.StreamServerInterceptor {
 }
 
 func (r *RpcServer) SendMetrics(ctx context.Context, req *apiproto.MetricsRequest) (*apiproto.Empty, error) {
-	r.metrics.AggregateMetrics(req.Groups, req.Metrics)
+	if r.metrics != nil {
+		r.metrics.AggregateMetrics(req.Groups, req.Metrics)
+	}
 	return nil, nil
 }
 
