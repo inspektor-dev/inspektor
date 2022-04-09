@@ -112,6 +112,8 @@ func (m *MetricsHandler) Start() {
 		if err != nil {
 			utils.Logger.Error("error while publishing daily report", zap.String("err_msg", err.Error()))
 		}
+		// clean up the existing metrics.
+		m.groupMetrics = make(map[string]*aggregatedMetrics)
 	}
 }
 
