@@ -143,8 +143,8 @@ func (m *MetricsHandler) generateReport() (string, error) {
 // getReportTicker return the ticker when the report supposed to published
 func (m *MetricsHandler) getReportTicker() *time.Timer {
 	// calculate the timer for tomorrow 10'o clock
-	// y, mo, d := time.Now().Date()
-	// today := time.Date(y, mo, d, 10, 0, 0, 0, time.Now().Location())
-	// tommorow := today.Add(14 * time.Hour)
-	return time.NewTimer(time.Second * 5)
+	y, mo, d := time.Now().Date()
+	today := time.Date(y, mo, d, 10, 0, 0, 0, time.Now().Location())
+	tommorow := today.Add(14 * time.Hour)
+	return time.NewTimer(time.Until(tommorow))
 }
