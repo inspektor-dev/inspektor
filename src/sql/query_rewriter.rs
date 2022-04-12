@@ -395,7 +395,7 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
             }
             SelectItem::Wildcard => {
                 // for wildcard we just rewrite with all the allowed columns.
-                return Ok(state.build_allowed_column_expr());
+                return Ok(state.build_allowed_column_expr(&mut self.metrics));
             }
             SelectItem::ExprWithAlias { expr, alias } => {
                 if let Err(e) = self.handle_expr(state, expr) {
@@ -414,9 +414,16 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
             SelectItem::QualifiedWildcard(object_name) => {
                 // first ident must be table.
                 let table_name = &object_name.0[0].value;
-                let selections = state.column_expr_for_table(table_name, true);
+                let selections = state.column_expr_for_table(table_name, true, &mut self.metrics);
                 if selections.len() != 0 {
                     return Ok(selections);
+                }
+                if let Some(properties)  = self.metrics.get_mut(table_name) {
+                    properties.insert(format!("{}.*", table_name));
+                } else { 
+                    let mut properties = HashSet::new();
+                    properties.insert(format!("{}.*", table_name));
+                    self.metrics.insert(table_name.clone(), properties);
                 }
                 return Ok(vec![SelectItem::QualifiedWildcard(object_name.clone())]);
             }
@@ -1351,5 +1358,37 @@ mod tests {
             "select * from kids join transactions on transactions.kid_id = kids.id",
             "SELECT NULL AS \"phone\", NULL AS \"id\", NULL AS \"name\", NULL AS \"address\", transactions.* FROM kids JOIN transactions ON transactions.kid_id = kids.id",
         );
+    }
+
+    #[test]
+    fn test_metrics(){
+        let rule_engine = HardRuleEngine {
+            protected_columns: HashMap::from([(
+                String::from("public.kids"),
+                vec![String::from("phone")],
+            )]),
+            insert_allowed: false,
+            update_allowed: false,
+            ..Default::default()
+        };
+
+        let state = Ctx::new(HashMap::from([(
+            String::from("public.kids"),
+            vec![
+                String::from("phone"),
+                String::from("id"),
+                String::from("name"),
+                String::from("address"),
+            ],
+        )]));
+
+        let mut rewriter = QueryRewriter::new(rule_engine, vec!["public".to_string()]);
+        let dialect = PostgreSqlDialect {};
+        let mut statements = Parser::parse_sql(&dialect, "SELECT id, phone from kids").unwrap();
+        let metrics = rewriter.rewrite(&mut statements[0], &state).unwrap();
+        assert!(metrics.len() == 1);
+        let mut set = HashSet::new();
+        set.insert("id".to_string());
+        assert_eq!(metrics.get("kids").unwrap(), &set);
     }
 }

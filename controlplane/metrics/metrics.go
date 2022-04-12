@@ -16,14 +16,14 @@ package metrics
 
 import (
 	"bytes"
-	"html/template"
+	"fmt"
 	"inspektor/apiproto"
 	"inspektor/slackbot"
 	"inspektor/utils"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/olekukonko/tablewriter"
 	"go.uber.org/zap"
 )
 
@@ -83,25 +83,30 @@ func (m *MetricsHandler) AggregateMetrics(groups []string, metrics []*apiproto.M
 	}
 }
 
-var Report = `
-## Daily Database Activity Report 😎
-{{ range $key, $value := .}}
-**group: {{$key}}**
-### query analytics
-| Table Name   | Columns  | Processed Queries   | 
-|---|---|---|
-{{ range $dbName, $metrics := $value.QueryMetrics}}
-|{{$dbName}}|{{join $metrics.Properties }}|{{$metrics.Count}}|
-{{end}}
-{{end}}
-`
+var Report = "*Daily Database Activity Report* 😎\n"
+
+// {{ range $key, $value := .}}
+// **group: {{$key}}**
+// ### query analytics
+// | Table Name   | Columns  | Processed Queries   |
+// |---|---|---|
+// {{ range $dbName, $metrics := $value.QueryMetrics}}
+// |{{$dbName}}|{{join $metrics.Properties }}|{{$metrics.Count}}|
+// {{end}}
+// {{end}}
+// "
 
 func (m *MetricsHandler) Start() {
+	utils.Logger.Info("starting metrics handler")
 	timer := m.getReportTicker()
 	for {
 		<-timer.C
 		// reset the timer for the next day
 		timer = m.getReportTicker()
+		if len(m.groupMetrics) == 0 {
+			// skop sending report if there are no metrics to send.
+			continue
+		}
 		// prepare the report and post it on slack.
 		report, err := m.generateReport()
 		if err != nil {
@@ -119,32 +124,27 @@ func (m *MetricsHandler) Start() {
 
 // generateReport will generate report for the aggregated metrics.
 func (m *MetricsHandler) generateReport() (string, error) {
-	// add join function since columns name needs to concated with ,
-	tmpl, err := template.New("report").Funcs(template.FuncMap{
-		"join": func(val map[string]struct{}) string {
-			arr := []string{}
-			for key := range val {
-				arr = append(arr, key)
-			}
-			return strings.Join(arr, ",")
-		},
-	}).Parse(Report)
-	if err != nil {
-		return "", err
+	report := "*Daily Database Activity Report* 😎\n"
+	for group, groupMetrics := range m.groupMetrics {
+		report += "*group: " + group + "*\n"
+		report += "*Query Analytics*\n"
+		tableBuf := &bytes.Buffer{}
+		table := tablewriter.NewWriter(tableBuf)
+		table.SetHeader([]string{"Table Name", "Columns", "Processed Queries"})
+		for _, metrics := range groupMetrics.QueryMetrics {
+			table.Append([]string{metrics.Name, utils.JoinSet(metrics.Properties, ","), fmt.Sprintf("%d", metrics.Count)})
+		}
+		table.Render()
+		report += tableBuf.String()
 	}
-	buf := &bytes.Buffer{}
-	err = tmpl.Execute(buf, m.groupMetrics)
-	if err != nil {
-		return "", err
-	}
-	return buf.String(), nil
+	return report, nil
 }
 
 // getReportTicker return the ticker when the report supposed to published
 func (m *MetricsHandler) getReportTicker() *time.Timer {
 	// calculate the timer for tomorrow 10'o clock
-	y, mo, d := time.Now().Date()
-	today := time.Date(y, mo, d, 10, 0, 0, 0, time.Now().Location())
-	tommorow := today.Add(14 * time.Hour)
-	return time.NewTimer(time.Until(tommorow))
+	// y, mo, d := time.Now().Date()
+	// today := time.Date(y, mo, d, 10, 0, 0, 0, time.Now().Location())
+	// tommorow := today.Add(14 * time.Hour)
+	return time.NewTimer(time.Second * 5)
 }

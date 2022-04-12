@@ -89,6 +89,15 @@ func NewRequestSentView() slack.HomeTabViewRequest {
 	}
 }
 
+func NewMarkdownBlock(text string) []slack.Block {
+	return []slack.Block{
+		slack.SectionBlock{
+			Type: slack.MBTSection,
+			Text: slack.NewTextBlockObject(slack.MarkdownType, text, false, false),
+		},
+	}
+}
+
 //NewBlockOptions takes options name and it's respective value as input then it returns
 // slack option block object.
 func NewBlockOptions(options []string, values []string) []*slack.OptionBlockObject {

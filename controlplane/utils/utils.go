@@ -8,6 +8,7 @@ import (
 	"inspektor/config"
 	"net/http"
 	"os"
+	"strings"
 
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
@@ -164,4 +165,12 @@ func String(in *string) string {
 		return ""
 	}
 	return *in
+}
+
+func JoinSet(in map[string]struct{}, sep string) string {
+	arr := []string{}
+	for key := range in {
+		arr = append(arr, key)
+	}
+	return strings.Join(arr, sep)
 }

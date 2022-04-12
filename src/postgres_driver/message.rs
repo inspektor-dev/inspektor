@@ -102,7 +102,6 @@ impl BackendMessage {
                 buf
             }
             BackendMessage::Message { meta, data } => {
-                debug!("encoding emeta {:?}", *meta as char);
                 buf.put_u8(*meta);
                 write_message(&mut buf, |buf| {
                     buf.extend_from_slice(&data[..]);

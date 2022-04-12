@@ -157,10 +157,12 @@ func (r *RpcServer) getAuthStreamInterceptor() grpc.StreamServerInterceptor {
 }
 
 func (r *RpcServer) SendMetrics(ctx context.Context, req *apiproto.MetricsRequest) (*apiproto.Empty, error) {
+	utils.Logger.Info("metrics are pushed")
+	fmt.Println("rewq", req)
 	if r.metrics != nil {
 		r.metrics.AggregateMetrics(req.Groups, req.Metrics)
 	}
-	return nil, nil
+	return &apiproto.Empty{}, nil
 }
 
 func (r *RpcServer) Start(cfg *config.Config) error {
