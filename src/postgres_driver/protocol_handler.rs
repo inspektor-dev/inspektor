@@ -22,6 +22,7 @@ use crate::sql::ctx::Ctx;
 use crate::sql::query_rewriter::QueryRewriter;
 use crate::sql::rule_engine::HardRuleEngine;
 use anyhow::*;
+use grpcio::CallOption;
 use log::*;
 use md5::{Digest, Md5};
 use openssl::ssl::{Ssl, SslConnector, SslMethod};
@@ -62,6 +63,7 @@ pub struct ProtocolHandler {
     current_transaction_status: TransactionStatus,
     client: InspektorClient,
     pending_metrics: RepeatedField<Metric>,
+    token: String,
 }
 
 #[derive(Default)]
@@ -254,7 +256,7 @@ impl ProtocolHandler {
                                     _=> {}
                                 }
                             }
-                            debug!("writing backend mesage to client {:?}", msg);
+                            //debug!("writing backend mesage to client {:?}", msg);
                             if let Err(e) = self.client_conn.write_all(&msg.encode()).await{
                                 error!("error while writing the rsp message to the client {:?}", e);
                                 return Ok(());
@@ -325,6 +327,7 @@ impl ProtocolHandler {
         evaluator: PolicyEvaluator,
         datasource_name: String,
         controlplane_client: InspektorClient,
+        token: String,
     ) -> Result<ProtocolHandler, anyhow::Error> {
         debug!("intializing protocol handler");
         let mut target_conn = ProtocolHandler::connect_target(&config).await?;
@@ -441,6 +444,7 @@ impl ProtocolHandler {
                         current_transaction_status: TransactionStatus::Idle,
                         client: controlplane_client,
                         pending_metrics: RepeatedField::default(),
+                        token: token,
                     };
                     return Ok(handler);
                 }
@@ -548,7 +552,7 @@ impl ProtocolHandler {
         let metrics = mem::replace(&mut self.pending_metrics, RepeatedField::new());
         req.set_metrics(metrics);
         req.set_groups(RepeatedField::from_vec(self.groups.clone()));
-        if let Err(e) = self.client.send_metrics(&req) {
+        if let Err(e) = self.client.send_metrics_opt(&req, self.get_call_opt()) {
             error!("error while sending metrics to the controlplane {:?}", e);
         }
     }
@@ -651,6 +655,7 @@ impl ProtocolHandler {
         for statement in &mut statements {
             match rewriter.rewrite(statement, &ctx) {
                 Ok(metrics) => {
+                    debug!("pushing metrics {:?}", metrics);
                     self.push_metrics(metrics);
                 }
                 Err(e) => {
@@ -747,10 +752,21 @@ impl ProtocolHandler {
         }
         return filtered_attributes;
     }
+
+    
+    fn get_call_opt(&self) -> CallOption {
+        let mut meta_builder = grpcio::MetadataBuilder::new();
+        meta_builder
+            .add_str("auth-token", self.token.as_ref())
+            .unwrap();
+        let meta = meta_builder.build();
+        return grpcio::CallOption::default().headers(meta);
+    }
 }
 
 impl Drop for ProtocolHandler {
     fn drop(&mut self) {
+        debug!("connection is being dropped. flushing metrics");
         self.flush_metrics();
     }
 }

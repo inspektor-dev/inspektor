@@ -237,6 +237,6 @@ func (s *SlackBot) postMessage(channelID string, msg string) {
 }
 
 func (s *SlackBot) PostMarkdownMsg(msg string) error {
-	_, _, err := s.client.PostMessage(s.adminChannelID, slack.MsgOptionBlocks(slack.NewTextBlockObject(slack.MarkdownType, msg, false, false)))
+	_, _, err := s.client.PostMessage(s.adminChannelID, slack.MsgOptionBlocks(NewMarkdownBlock(msg)...))
 	return err
 }

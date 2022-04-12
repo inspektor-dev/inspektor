@@ -65,6 +65,7 @@ var rootCmd = &cobra.Command{
 			bot := slackbot.New(config, store)
 			go bot.Start()
 			metricsHandler = metrics.NewMetricsHandler(bot)
+			go metricsHandler.Start()
 		}
 		server := rpcserver.NewServer(store, policyManager, metricsHandler)
 		go func(server *rpcserver.RpcServer) {
