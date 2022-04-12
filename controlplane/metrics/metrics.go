@@ -127,7 +127,7 @@ func (m *MetricsHandler) generateReport() (string, error) {
 	report := "*Daily Database Activity Report* 😎\n"
 	for group, groupMetrics := range m.groupMetrics {
 		report += "*group: " + group + "*\n"
-		report += "*Query Analytics*\n"
+		report += "*Query Analytics*\n\n"
 		tableBuf := &bytes.Buffer{}
 		table := tablewriter.NewWriter(tableBuf)
 		table.SetHeader([]string{"Table Name", "Columns", "Processed Queries"})
@@ -135,7 +135,7 @@ func (m *MetricsHandler) generateReport() (string, error) {
 			table.Append([]string{metrics.Name, utils.JoinSet(metrics.Properties, ","), fmt.Sprintf("%d", metrics.Count)})
 		}
 		table.Render()
-		report += tableBuf.String()
+		report += "```" + tableBuf.String() + "```"
 	}
 	return report, nil
 }
