@@ -80,7 +80,7 @@ func (h *Handlers) CreateSession() InspectorHandler {
 			utils.WriteErrorMsg("unauthorized access", http.StatusBadRequest, ctx.Rw)
 			return
 		}
-		err = h.Store.CreateSessionForUser(ctx.Claim.ObjectID, req.DatasourceID)
+		err = h.Store.CreateSessionForUser(ctx.Claim.ObjectID, req.DatasourceID, req.Passthrough)
 		if err != nil {
 			handleErr(err, ctx)
 			return

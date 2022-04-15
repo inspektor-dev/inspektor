@@ -217,7 +217,7 @@ func (s *Store) GetSessionForAuth(objectID uint, username string, password strin
 	return session, err
 }
 
-func (s *Store) CreateSessionForUser(userID uint, datasourceID uint) error {
+func (s *Store) CreateSessionForUser(userID uint, datasourceID uint, passthrough bool) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		var count int64
 		err := tx.Model(&models.Session{}).Where("user_id = ? AND object_id = ?", userID, datasourceID).Count(&count).Error
@@ -236,6 +236,7 @@ func (s *Store) CreateSessionForUser(userID uint, datasourceID uint) error {
 				Type:             "postgres",
 				PostgresPassword: utils.GenerateSecureToken(7),
 				PostgresUsername: namegenerator.NewNameGenerator(time.Now().UnixNano()).Generate(),
+				Passthrough:      passthrough,
 			},
 		}
 		session.MarshalMeta()
