@@ -345,6 +345,7 @@ pub struct AuthResponse {
     // message fields
     pub groups: ::protobuf::RepeatedField<::std::string::String>,
     pub expires_at: i64,
+    pub passthrough: bool,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -400,6 +401,21 @@ impl AuthResponse {
     pub fn set_expires_at(&mut self, v: i64) {
         self.expires_at = v;
     }
+
+    // bool passthrough = 3;
+
+
+    pub fn get_passthrough(&self) -> bool {
+        self.passthrough
+    }
+    pub fn clear_passthrough(&mut self) {
+        self.passthrough = false;
+    }
+
+    // Param is passed by value, moved
+    pub fn set_passthrough(&mut self, v: bool) {
+        self.passthrough = v;
+    }
 }
 
 impl ::protobuf::Message for AuthResponse {
@@ -421,6 +437,13 @@ impl ::protobuf::Message for AuthResponse {
                     let tmp = is.read_int64()?;
                     self.expires_at = tmp;
                 },
+                3 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_bool()?;
+                    self.passthrough = tmp;
+                },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
                 },
@@ -439,6 +462,9 @@ impl ::protobuf::Message for AuthResponse {
         if self.expires_at != 0 {
             my_size += ::protobuf::rt::value_size(2, self.expires_at, ::protobuf::wire_format::WireTypeVarint);
         }
+        if self.passthrough != false {
+            my_size += 2;
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -450,6 +476,9 @@ impl ::protobuf::Message for AuthResponse {
         };
         if self.expires_at != 0 {
             os.write_int64(2, self.expires_at)?;
+        }
+        if self.passthrough != false {
+            os.write_bool(3, self.passthrough)?;
         }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -499,6 +528,11 @@ impl ::protobuf::Message for AuthResponse {
                 |m: &AuthResponse| { &m.expires_at },
                 |m: &mut AuthResponse| { &mut m.expires_at },
             ));
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeBool>(
+                "passthrough",
+                |m: &AuthResponse| { &m.passthrough },
+                |m: &mut AuthResponse| { &mut m.passthrough },
+            ));
             ::protobuf::reflect::MessageDescriptor::new_pb_name::<AuthResponse>(
                 "AuthResponse",
                 fields,
@@ -517,6 +551,7 @@ impl ::protobuf::Clear for AuthResponse {
     fn clear(&mut self) {
         self.groups.clear();
         self.expires_at = 0;
+        self.passthrough = false;
         self.unknown_fields.clear();
     }
 }
@@ -1261,20 +1296,21 @@ impl ::protobuf::reflect::ProtobufValue for Metric {
 static file_descriptor_proto_data: &'static [u8] = b"\
     \n\tapi.proto\x12\x03api\"F\n\x0bAuthRequest\x12\x1a\n\x08password\x18\
     \x01\x20\x01(\tR\x08password\x12\x1b\n\tuser_name\x18\x02\x20\x01(\tR\
-    \x08userName\"\x07\n\x05Empty\"E\n\x0cAuthResponse\x12\x16\n\x06groups\
+    \x08userName\"\x07\n\x05Empty\"g\n\x0cAuthResponse\x12\x16\n\x06groups\
     \x18\x01\x20\x03(\tR\x06groups\x12\x1d\n\nexpires_at\x18\x02\x20\x01(\
-    \x03R\texpiresAt\">\n\x12DataSourceResponse\x12(\n\x10data_source_name\
-    \x18\x01\x20\x01(\tR\x0edataSourceName\"7\n\x0fInspektorPolicy\x12$\n\
-    \x0ewasm_byte_code\x18\x01\x20\x01(\x0cR\x0cwasmByteCode\"O\n\x0eMetrics\
-    Request\x12%\n\x07metrics\x18\x01\x20\x03(\x0b2\x0b.api.MetricR\x07metri\
-    cs\x12\x16\n\x06groups\x18\x02\x20\x03(\tR\x06groups\"V\n\x06Metric\x12'\
-    \n\x0fcollection_name\x18\x01\x20\x01(\tR\x0ecollectionName\x12#\n\rprop\
-    erty_name\x18\x02\x20\x03(\tR\x0cpropertyName2\xd4\x01\n\tInspektor\x12-\
-    \n\x04Auth\x12\x10.api.AuthRequest\x1a\x11.api.AuthResponse\"\0\x12.\n\
-    \x06Policy\x12\n.api.Empty\x1a\x14.api.InspektorPolicy\"\00\x01\x126\n\r\
-    GetDataSource\x12\n.api.Empty\x1a\x17.api.DataSourceResponse\"\0\x120\n\
-    \x0bSendMetrics\x12\x13.api.MetricsRequest\x1a\n.api.Empty\"\0B\x17Z\x15\
-    controlplane/apiprotob\x06proto3\
+    \x03R\texpiresAt\x12\x20\n\x0bpassthrough\x18\x03\x20\x01(\x08R\x0bpasst\
+    hrough\">\n\x12DataSourceResponse\x12(\n\x10data_source_name\x18\x01\x20\
+    \x01(\tR\x0edataSourceName\"7\n\x0fInspektorPolicy\x12$\n\x0ewasm_byte_c\
+    ode\x18\x01\x20\x01(\x0cR\x0cwasmByteCode\"O\n\x0eMetricsRequest\x12%\n\
+    \x07metrics\x18\x01\x20\x03(\x0b2\x0b.api.MetricR\x07metrics\x12\x16\n\
+    \x06groups\x18\x02\x20\x03(\tR\x06groups\"V\n\x06Metric\x12'\n\x0fcollec\
+    tion_name\x18\x01\x20\x01(\tR\x0ecollectionName\x12#\n\rproperty_name\
+    \x18\x02\x20\x03(\tR\x0cpropertyName2\xd4\x01\n\tInspektor\x12-\n\x04Aut\
+    h\x12\x10.api.AuthRequest\x1a\x11.api.AuthResponse\"\0\x12.\n\x06Policy\
+    \x12\n.api.Empty\x1a\x14.api.InspektorPolicy\"\00\x01\x126\n\rGetDataSou\
+    rce\x12\n.api.Empty\x1a\x17.api.DataSourceResponse\"\0\x120\n\x0bSendMet\
+    rics\x12\x13.api.MetricsRequest\x1a\n.api.Empty\"\0B\x17Z\x15controlplan\
+    e/apiprotob\x06proto3\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;

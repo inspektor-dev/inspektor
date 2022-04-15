@@ -64,8 +64,9 @@ func (r *RpcServer) Auth(ctx context.Context, req *apiproto.AuthRequest) (*apipr
 		}
 	}
 	return &apiproto.AuthResponse{
-		Groups:    roles,
-		ExpiresAt: expiresAt,
+		Groups:      roles,
+		ExpiresAt:   expiresAt,
+		Passthrough: session.SessionMeta.Passthrough,
 	}, nil
 }
 
