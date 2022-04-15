@@ -169,7 +169,7 @@ impl PostgresDriver {
                             return;
                         }
                     };
-                    handler.serve(0).await.unwrap();
+                    handler.serve(session_expires_at).await.unwrap();
                     return;
                 }
                 FrontendMessage::SslRequest => {
