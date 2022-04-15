@@ -74,6 +74,7 @@ func (c *CreateDataSourceRequest) Validate() error {
 
 type CreateSessionRequest struct {
 	DatasourceID uint `json:"datasourceId"`
+	Passthrough  bool `json:"passthrough"`
 }
 
 type ConfigResponse struct {
