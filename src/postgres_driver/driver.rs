@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::apiproto::api::{AuthRequest, DataSourceResponse};
+use crate::apiproto::api::{AuthRequest, DataSourceResponse, AuthResponse};
 use crate::apiproto::api_grpc::*;
 use crate::config::PostgresConfig;
 use crate::policy_evaluator::evaluator::PolicyEvaluator;
@@ -104,7 +104,7 @@ impl PostgresDriver {
             match msg {
                 FrontendMessage::Startup { params, .. } => {
                     // let's verify the user name and
-                    let (groups, session_expires_at) =
+                    let auth_res =
                         match self.verfiy_client_params(&params, &mut client_conn).await {
                             Ok(result) => result,
                             Err(e) => {
@@ -121,6 +121,7 @@ impl PostgresDriver {
                         }
                     };
 
+                    let groups: Vec<String> = auth_res.get_groups().into();
                     let result = match evaluator.evaluate(
                         &self.datasource.data_source_name,
                         &"view".to_string(),
@@ -160,6 +161,7 @@ impl PostgresDriver {
                         self.datasource.data_source_name.clone(),
                         self.client.clone(),
                         self.token.clone(),
+                        auth_res.passthrough
                     )
                     .await
                     {
@@ -169,7 +171,7 @@ impl PostgresDriver {
                             return;
                         }
                     };
-                    handler.serve(session_expires_at).await.unwrap();
+                    handler.serve(auth_res.expires_at).await.unwrap();
                     return;
                 }
                 FrontendMessage::SslRequest => {
@@ -213,7 +215,7 @@ impl PostgresDriver {
         &self,
         params: &HashMap<String, String>,
         client_conn: &mut PostgresConn,
-    ) -> Result<(Vec<String>, i64), anyhow::Error> {
+    ) -> Result<AuthResponse, anyhow::Error> {
         let buf = BackendMessage::AuthenticationCleartextPassword.encode();
         client_conn.write_all(&buf).await.map_err(|e| {
             error!(
@@ -235,7 +237,7 @@ impl PostgresDriver {
         auth_req.password = password;
         auth_req.user_name = params.get("user").unwrap().clone();
         let res = self.client.auth_opt(&auth_req, self.get_call_opt())?;
-        Ok((res.get_groups().into(), res.expires_at))
+        Ok(res)
     }
 
     fn get_call_opt(&self) -> CallOption {

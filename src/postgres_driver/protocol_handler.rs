@@ -64,6 +64,7 @@ pub struct ProtocolHandler {
     client: InspektorClient,
     pending_metrics: RepeatedField<Metric>,
     token: String,
+    passthrough: bool
 }
 
 #[derive(Default)]
@@ -328,6 +329,7 @@ impl ProtocolHandler {
         datasource_name: String,
         controlplane_client: InspektorClient,
         token: String,
+        passthrough: bool
     ) -> Result<ProtocolHandler, anyhow::Error> {
         debug!("intializing protocol handler");
         let mut target_conn = ProtocolHandler::connect_target(&config).await?;
@@ -445,6 +447,7 @@ impl ProtocolHandler {
                         client: controlplane_client,
                         pending_metrics: RepeatedField::default(),
                         token: token,
+                        passthrough: passthrough,
                     };
                     return Ok(handler);
                 }
@@ -644,6 +647,9 @@ impl ProtocolHandler {
                     "error while parsing user query error: {} query string: {}",
                     e, query
                 );
+                if self.passthrough {
+                    return Ok(())
+                }
                 return Err(ProtocolHandlerError::ErrParsingQuery);
             }
         };
