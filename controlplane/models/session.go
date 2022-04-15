@@ -25,6 +25,7 @@ type SessionMeta struct {
 	ExpiresAt        int64           `json:"expiresAt"`
 	Context          json.RawMessage `json:"context"`
 	TempCreatedBy    string          `json:"tempCreatedBy"`
+	Passthrough      bool            `json:"passthrough"`
 }
 
 func (s *Session) UnmarshalMeta() {
