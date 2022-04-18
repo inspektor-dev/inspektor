@@ -56,7 +56,7 @@ export default function Home() {
   return (
     <Layout
       title={`Inspektor`}
-      description="Access control for your database simplified">
+      description="Centralised access control for all your databases">
       <HomepageHeader />
       <main>
         <HomepageFeatures />

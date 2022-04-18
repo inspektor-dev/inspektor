@@ -7,8 +7,8 @@ const darkCodeTheme = require('prism-react-renderer/themes/dracula');
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: 'Inspektor',
-  tagline: 'Open Policy for your data layer',
-  url: 'https://your-docusaurus-test-site.com',
+  tagline: 'Centralised access control for all your databases',
+  url: 'https://inspektor.cloud',
   baseUrl: '/',
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
@@ -42,6 +42,7 @@ const config = {
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
+      metadata: [{property:"og:image", content:"/img/inspektorcover.png"}],
       announcementBar: {
         id: "support",
         backgroundColor: "#7230FF",
