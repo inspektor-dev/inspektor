@@ -1,5 +1,5 @@
 ---
-title: What is raw indentifier in rust?
+title: What is raw identifier in rust?
 description: This blog post explains about raw identifier and why it used.
 slug: raw-identifier-in-rust
 authors:
@@ -13,7 +13,7 @@ hide_table_of_contents: false
 
 Every programming language has a set of keywords that are only used for certain things. In rust, for example, the keyword `for` is used to represent looping.
 
-Because keywords have meaning in programming languages, they cannot be used to name a function or variable. for example, the words `for` or `in` cannot be used as variable names.
+Because keywords have meaning in programming languages, they cannot be used to name a function or variable. for example, the keywords `for` or `in` cannot be used as variable names.
 
 Although keywords are not intended to be used to name variables, you can do so in rust by using a raw identifier.
 
@@ -62,7 +62,7 @@ help: you can escape reserved keywords to use them as identifiers
 ```
 However, we can make the program work by prefixing the keyword with `r#`.
 
-`r#` tells the compiler that the incoming token is an indentifier rather than a keyword.
+`r#` tells the compiler that the incoming token is an identifier rather than a keyword.
 
 ```
 
