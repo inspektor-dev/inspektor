@@ -6,7 +6,7 @@ authors:
   - name: Poonai
     title: Maintainer of inspektor
     url: https://twitter.com/poonai_
-    image_url: https://pbs.twimg.com/profile_images/1505559015660564480/1e6oJKEV_400x400.jpg
+    image_url: https://i.imgur.com/RNM7R6Q.jpg
 tags: [postgres, sasl, authentication]
 hide_table_of_contents: false
 ---
