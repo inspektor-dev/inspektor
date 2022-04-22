@@ -15,13 +15,11 @@
 </div>
 
 ## What is Inspektor?
-Inspektor is a tool that helps you manage database access in a much better manner. Inspektor's main purpose is to act as a "man in the middle" proxy between your application and database, making it easy to enforce access policies.
+Inspektor is a protocol-aware proxy that is used to enforce access policies. It helps organizations in securing their data assets and obtaining data compliance.
 
-Inspektor enables you to define access policy as code. This is a big deal for operations and development. Using OPA (the open policy agent), you can express policies that are trusted, human-readable, and easy to understand.
+Inspektor is designed to work with all databases such as Postgres, MySQL, and MongoDB. 
 
-Inspektor enables teams to protect, and control their databases, data pipelines, and data warehouses by intercepting requests in real-time, without impact on performance or scalability. 
-
-Here are a few places where Inspektor can act as a good tool to use.
+The access policies are defined using OPA (open policy agent). Since policies are written in OPA, you can write policies such as granting access to the support engineer only if a support ticket is assigned.Go to the [official documentation](https://www.openpolicyagent.org/docs/latest/) to learn more about OPA.
 
 ## Slack Integration Demo
 <p align="center">
@@ -31,6 +29,7 @@ Here are a few places where Inspektor can act as a good tool to use.
 </p>
 
 ## Use Cases
+- standardise your ad hoc data access
 - Create access credentials in no time for your dev team to debug
 - Manage all your data policies in a centralized place and avoid managing data policies in silos
 - Protect PPI data of your customers while collaborating

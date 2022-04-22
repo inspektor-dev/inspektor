@@ -15,7 +15,15 @@ const config = {
   favicon: 'img/favicon.ico',
   organizationName: 'poonai', // Usually your GitHub org/user name.
   projectName: 'inspektor', // Usually your repo name.
-
+  plugins: [
+    [
+      '@docusaurus/plugin-google-gtag',
+      {
+        trackingID: 'G-5H72H5D4R5',
+        anonymizeIP: true,
+      },
+    ],
+  ],
   presets: [
     [
       'classic',
@@ -43,6 +51,14 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       metadata: [{property:"og:image", content:"/img/inspektorcover.png"}],
+      // googleAnalytics: {
+      //   trackingID: 'G-5H72H5D4R5',
+      //   anonymizeIP: true,
+      // },
+      // gtag: {
+      //   trackingID: 'G-5H72H5D4R5',
+      //   anonymizeIP: true,
+      // },
       announcementBar: {
         id: "support",
         backgroundColor: "#7230FF",
