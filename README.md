@@ -1,8 +1,9 @@
+
+<h1 align="center">Inspektor</h1>
+<p align="center">Inspektor is a protocol-aware proxy that is used to enforce access policies👮</p>
 <p align="center">
   <img src="docs/static/img/inspektorbanner.png" alt="Inspektor" width="700" height="400" />
 </p>
-
-<h1 align="center">Inspektor</h1>
 <p align="center">
   <a href="https://github.com/poonai/inspektor/actions/workflows/rust.yml"><img src="https://github.com/poonai/inspektor/actions/workflows/rust.yml/badge.svg" alt="Build Status"></a>
       <a href="https://github.com/poonai/inspektor/blob/main/LICENSE"><img src="https://img.shields.io/github/license/poonai/inspektor" alt="Apache 2 License" height="22"/></a>
@@ -10,9 +11,7 @@
 
 
 </p>
-<div align="center">
-  <a href="https://www.youtube.com/watch?v=E7X5-mGRKro"><img src="https://img.youtube.com/vi/E7X5-mGRKro/0.jpg" alt="inspektor demo video"></a>
-</div>
+
 
 ## What is Inspektor?
 Inspektor is a protocol-aware proxy that is used to enforce access policies. It helps organizations in securing their data assets and obtaining data compliance.
