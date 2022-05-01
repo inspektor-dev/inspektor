@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/inspektor.png" alt="Inspektor" width="600" height="200" />
+  <img src="docs/static/img/inspektorbanner.png" alt="Inspektor" width="700" height="400" />
 </p>
 
 <h1 align="center">Inspektor</h1>
