@@ -25,7 +25,21 @@
       <session-modal :session="currentSessionMeta" />
     </n-card>
   </n-modal>
-
+  <n-modal v-model:show="showTempCredModal">
+    <n-card
+      style="width: 600px"
+      title="Add Temp Credentials"
+      :bordered="false"
+      size="huge"
+    >
+      <add-temp-credentials @onAdd="tempCredAdded"> </add-temp-credentials>
+    </n-card>
+  </n-modal>
+  <div v-if="isAdmin" class="temp-button-pos">
+    <n-button type="success" @click="showTempCredModal = true"
+      >Create Temp Credentials</n-button
+    >
+  </div>
   <div style="padding-top: 2%">
     <n-data-table :columns="columns" :data="data" :row-key="rowKey" />
   </div>
@@ -35,7 +49,7 @@ import { ref, h, computed } from "vue";
 import { NButton, NTag, NDynamicTags } from "naive-ui";
 import { useStore } from "vuex";
 import { useMessage } from "naive-ui";
-
+import AddTempCredentials from "@/components/AddTempCredentials.vue";
 import api from "@/api/api";
 import SessionModal from "./SessionModal.vue";
 
@@ -101,13 +115,14 @@ const createColumn = (message, showSessionModal, currentSessionMeta, store) => {
   ];
 };
 export default {
-  components: {  SessionModal },
+  components: { SessionModal,AddTempCredentials },
   async setup() {
     let store = useStore();
     let showModal = ref(false);
     let showSessionModal = ref(false);
     let currentSessionMeta = ref({});
     let message = useMessage();
+    let showTempCredModal = ref(false);
     return {
       currentSessionMeta: currentSessionMeta,
       showModal: showModal,
@@ -119,6 +134,11 @@ export default {
         currentSessionMeta,
         store
       ),
+      showTempCredModal: showTempCredModal,
+      tempCredAdded: async () => {
+        showTempCredModal.value = false;
+         await store.dispatch("updateDatasource");
+      },
       count: computed(() => {
         return store.state.count;
       }),
@@ -129,5 +149,6 @@ export default {
     };
   },
   name: "TempSessions",
+  
 };
 </script>

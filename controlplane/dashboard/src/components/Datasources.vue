@@ -128,7 +128,7 @@ const createColumn = (message, showSessionModal, currentSessionMeta, store) => {
         return h(
           NButton,
           {
-            type: "success",
+            type: "info",
             onClick: () => {
               navigator.clipboard.writeText(row.sidecarToken);
               message.success("Token Copied!!");

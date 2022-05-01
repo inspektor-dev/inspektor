@@ -6,29 +6,12 @@
           <h1>Inspektor dashboard</h1>
         </n-gi>
         <n-gi>
-          <n-modal v-model:show="showTempCredModal">
-            <n-card
-              style="width: 600px"
-              title="Add Temp Credentials"
-              :bordered="false"
-              size="huge"
-            >
-              <add-temp-credentials @onAdd="tempCredAdded">
-              </add-temp-credentials>
-            </n-card>
-          </n-modal>
-          <div v-if="isAdmin" class="temp-button-pos">
-            <n-button type="success" @click="showTempCredModal = true"
-              >Create Temp Credentials</n-button
-            >
-          </div>
-        </n-gi>
-        <n-gi>
           <div class="refresh-button-pos" v-if="policyExist">
-            <p>Policy hash: {{ policyHash }}</p>
+    
             <n-button type="success" @click="refreshPolicy"
               >Refresh Policy</n-button
             >
+                    <p>Policy hash: {{ policyHash }}</p>
           </div>
         </n-gi>
         <n-gi class="button-pos">
@@ -40,13 +23,12 @@
         <n-tab-pane name="oasis" tab="Datasource"
           ><datasources></datasources
         ></n-tab-pane>
-        <n-tab-pane name="the beatles" tab="Admin" v-if="isAdmin"
-          ><admin
-        /></n-tab-pane>
-          <n-tab-pane name="temp sessions" tab="Temp Sessions" 
+        <n-tab-pane name="temp sessions" tab="Temp Sessions"
           ><temp-sessions
         /></n-tab-pane>
-      </n-tabs
+        <n-tab-pane name="the beatles" tab="Admin" v-if="isAdmin"
+          ><admin
+        /></n-tab-pane> </n-tabs
     ></n-card>
   </div>
 </template>
@@ -64,7 +46,7 @@
 }
 .refresh-button-pos {
   position: absolute;
-  top: 3.5%;
+  top: 12%;
   right: 8%;
 }
 </style>
@@ -87,7 +69,6 @@ export default {
     let store = useStore();
     const loadingBar = useLoadingBar();
     const message = useMessage();
-    let showTempCredModal = ref(false);
     await store.dispatch("init");
     await store.dispatch("updateDatasource");
     return {
@@ -113,17 +94,12 @@ export default {
       policyHash: computed(() => {
         return store.state.config.policyHash;
       }),
-      showTempCredModal: showTempCredModal,
-      tempCredAdded: () => {
-        showTempCredModal.value = false;
-      },
     };
   },
   components: {
     Datasources,
     Admin,
-    AddTempCredentials,
-    TempSessions
+    TempSessions,
   },
 };
 </script>
