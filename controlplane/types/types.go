@@ -18,6 +18,10 @@ const (
 	ErrInvalidAccess = iota
 )
 
+var (
+	IntegrationConfigKey = "external-integration"
+)
+
 type Claim struct {
 	UserName string
 	Roles    []string
@@ -98,4 +102,28 @@ type CreateTempSession struct {
 	DatasourceID uint     `json:"datasourceId"`
 	ExpiryMinute int64    `json:"expiryMinute"`
 	Roles        []string `json:"roles"`
+}
+
+type IntegrationConfig struct {
+	CloudWatchConfig *CloudWatchConfig `json:"cloudWatchConfig"`
+}
+
+type CloudWatchConfig struct {
+	CredType   string `json:"credType"`
+	RegionName string `json:"regionName"`
+	AccessKey  string `json:"accessKey"`
+	SecretKey  string `json:"secretKey"`
+}
+
+func (s *CloudWatchConfig) Validate() error {
+	if utils.IndexOf([]string{"env", "cred"}, s.CredType) == -1 {
+		return errors.New("env and cred type is accepted as credential type")
+	}
+	if s.RegionName == "" {
+		return errors.New("region name is mandatory field")
+	}
+	if s.CredType == "cred" && (s.AccessKey == "" || s.SecretKey == "") {
+		return errors.New("access key and secret key is mandatory for the cred type")
+	}
+	return nil
 }

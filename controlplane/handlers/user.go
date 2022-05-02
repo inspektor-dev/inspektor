@@ -388,6 +388,7 @@ func (h *Handlers) Init(router *mux.Router) {
 	router.HandleFunc("/api/roles", h.AuthMiddleWare(h.AddRoles())).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/config", h.AuthMiddleWare(h.Config())).Methods("GET")
 	router.HandleFunc("/api/oauth", h.OAuthUrl()).Methods("GET")
+	router.HandleFunc("/api/configure/cloudwatch", h.AuthMiddleWare(h.ConfigureCloudWatch())).Methods("POST")
 	router.HandleFunc("/api/auth/callback/", h.OAuthCallBack()).Methods("GET")
 	router.HandleFunc("/api/auth/callback", h.OAuthCallBack()).Methods("GET")
 	router.HandleFunc("/readiness", func(rw http.ResponseWriter, r *http.Request) {

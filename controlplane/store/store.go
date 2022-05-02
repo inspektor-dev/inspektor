@@ -27,9 +27,20 @@ func NewStore(db *gorm.DB) (*Store, error) {
 
 // init will seed the admin user if the admin account doesn't exist.
 func (s *Store) init() error {
+	// check config exist or not.
+	_, err := s.Get(types.IntegrationConfigKey)
+	if err != nil && err != gorm.ErrRecordNotFound {
+		utils.Check(err)
+	}
+	if err == gorm.ErrRecordNotFound {
+		config := &types.IntegrationConfig{}
+		val := string(utils.MarshalJSON(config))
+		err := s.Set(types.IntegrationConfigKey, val)
+		utils.Check(err)
+	}
 	// check whether admin account exist.
 	var count int64
-	err := s.db.Model(&models.User{}).Where("name = ?", "admin").Count(&count).Error
+	err = s.db.Model(&models.User{}).Where("name = ?", "admin").Count(&count).Error
 	if err != nil {
 		utils.Logger.Error("error while retirving admin account", zap.String("err_msg", err.Error()))
 		return err
@@ -371,6 +382,26 @@ func (s *Store) CreateTempSession(datasourceID uint, roles []string, expiryMinut
 		return nil, err
 	}
 	return session, nil
+}
+
+func (s *Store) Set(key string, value string) error {
+	d := &models.KV{
+		Key:   key,
+		Value: value,
+	}
+	return s.db.Model(&models.KV{}).Create(d).Error
+}
+
+func (s *Store) Get(key string) (string, error) {
+	d := &models.KV{}
+	err := s.db.Model(&models.KV{}).Where("key = ?", key).First(d).Error
+	return d.Value, err
+}
+
+func (s *Store) Update(key string, value string) error {
+	return s.db.Model(&models.KV{}).
+		Where("key = ?", key).
+		Updates(map[string]interface{}{"value": value}).Error
 }
 
 func handleGormErr(err error) error {
