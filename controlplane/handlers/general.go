@@ -15,9 +15,12 @@
 package handlers
 
 import (
+	"encoding/json"
 	"inspektor/types"
 	"inspektor/utils"
 	"net/http"
+
+	"go.uber.org/zap"
 )
 
 func (h *Handlers) Config() InspectorHandler {
@@ -31,5 +34,44 @@ func (h *Handlers) Config() InspectorHandler {
 			PolicyHash:    h.Policy.GetPolicyHash()[:7],
 		}
 		utils.WriteSuccesMsgWithData("ok", http.StatusOK, res, ctx.Rw)
+	}
+}
+
+func (h *Handlers) ConfigureCloudWatch() InspectorHandler {
+	return func(ctx *types.Ctx) {
+		if utils.IndexOf(ctx.Claim.Roles, "admin") == -1 {
+			utils.WriteErrorMsg("invalid access", http.StatusBadRequest, ctx.Rw)
+			return
+		}
+		config := &types.CloudWatchConfig{}
+		if err := json.NewDecoder(ctx.R.Body).Decode(config); err != nil {
+			utils.WriteErrorMsg("invalid json", http.StatusBadRequest, ctx.Rw)
+			return
+		}
+		if err := config.Validate(); err != nil {
+			utils.WriteErrorMsg(err.Error(), http.StatusBadRequest, ctx.Rw)
+			return
+		}
+		val, err := h.Store.Get(types.IntegrationConfigKey)
+		if err != nil {
+			utils.Logger.Error("error while retriving integration config", zap.String("err_msg", err.Error()))
+			utils.WriteErrorMsg("error while retriving integration config", http.StatusInternalServerError, ctx.Rw)
+			return
+		}
+		integrationConfig := &types.IntegrationConfig{}
+		err = json.Unmarshal([]byte(val), integrationConfig)
+		if err != nil {
+			utils.Logger.Error("error while unmarshaling integration config", zap.String("err_msg", err.Error()))
+			utils.WriteErrorMsg("server down", http.StatusInternalServerError, ctx.Rw)
+			return
+		}
+		integrationConfig.CloudWatchConfig = config
+		err = h.Store.Update(types.IntegrationConfigKey, string(utils.MarshalJSON(integrationConfig)))
+		if err != nil {
+			utils.Logger.Error("error while updating config", zap.String("err_msg", err.Error()))
+			utils.WriteErrorMsg("server down", http.StatusInternalServerError, ctx.Rw)
+			return
+		}
+		utils.WriteSuccesMsg("ok", http.StatusOK, ctx.Rw)
 	}
 }
