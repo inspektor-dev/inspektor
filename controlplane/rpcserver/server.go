@@ -2,6 +2,7 @@ package rpcserver
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"inspektor/apiproto"
@@ -10,6 +11,7 @@ import (
 	"inspektor/models"
 	"inspektor/policy"
 	"inspektor/store"
+	"inspektor/types"
 	"inspektor/utils"
 	"net"
 
@@ -164,6 +166,31 @@ func (r *RpcServer) SendMetrics(ctx context.Context, req *apiproto.MetricsReques
 		r.metrics.AggregateMetrics(req.Groups, req.Metrics)
 	}
 	return &apiproto.Empty{}, nil
+}
+
+func (r *RpcServer) GetIntegrationConfig(ctx context.Context, in *apiproto.Empty) (*apiproto.IntegrationConfigResponse, error) {
+	val, err := r.store.Get(types.IntegrationConfigKey)
+	if err != nil {
+		utils.Logger.Error("error while fetching integraton config", zap.String("err_msg", err.Error()))
+		return nil, err
+	}
+	config := &types.IntegrationConfig{}
+	err = json.Unmarshal([]byte(val), config)
+	if err != nil {
+		utils.Logger.Error("error while unmarshaling integration config", zap.String("err_msg", err.Error()))
+		return nil, err
+	}
+	res := &apiproto.IntegrationConfigResponse{}
+	// send cloud watch config if it present.
+	if config.CloudWatchConfig != nil {
+		res.CloudWatchConfig = &apiproto.CloudWatchConfig{
+			CredType:   config.CloudWatchConfig.CredType,
+			AccessKey:  config.CloudWatchConfig.AccessKey,
+			SecretKey:  config.CloudWatchConfig.SecretKey,
+			RegionName: config.CloudWatchConfig.RegionName,
+		}
+	}
+	return res, nil
 }
 
 func (r *RpcServer) Start(cfg *config.Config) error {

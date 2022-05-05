@@ -35,9 +35,21 @@ message Metric {
     repeated string property_name = 2;
 }
 
+message IntegrationConfigResponse {
+    CloudWatchConfig cloud_watch_config = 1;
+}
+
+message CloudWatchConfig {
+    string cred_type = 1;
+    string region_name = 2;
+    string access_key = 3;
+    string secret_key = 4;
+}
+
 service Inspektor {
     rpc Auth(AuthRequest) returns (AuthResponse) {}
     rpc Policy(Empty) returns (stream InspektorPolicy){}
     rpc GetDataSource(Empty) returns (DataSourceResponse) {}
     rpc SendMetrics(MetricsRequest) returns (Empty) {}
+    rpc GetIntegrationConfig(Empty) returns (IntegrationConfigResponse) {}
 }
