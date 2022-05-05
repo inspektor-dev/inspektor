@@ -109,10 +109,12 @@ type IntegrationConfig struct {
 }
 
 type CloudWatchConfig struct {
-	CredType   string `json:"credType"`
-	RegionName string `json:"regionName"`
-	AccessKey  string `json:"accessKey"`
-	SecretKey  string `json:"secretKey"`
+	CredType      string `json:"credType"`
+	RegionName    string `json:"regionName"`
+	AccessKey     string `json:"accessKey"`
+	SecretKey     string `json:"secretKey"`
+	LogGroupName  string `json:"logGroupName"`
+	LogStreamName string `json:"logStreamName"`
 }
 
 func (s *CloudWatchConfig) Validate() error {
@@ -124,6 +126,9 @@ func (s *CloudWatchConfig) Validate() error {
 	}
 	if s.CredType == "cred" && (s.AccessKey == "" || s.SecretKey == "") {
 		return errors.New("access key and secret key is mandatory for the cred type")
+	}
+	if s.LogGroupName == "" || s.LogStreamName == "" {
+		return errors.New("log group name and log stream name are required field")
 	}
 	return nil
 }
