@@ -22,6 +22,7 @@ type InspektorClient interface {
 	Policy(ctx context.Context, in *Empty, opts ...grpc.CallOption) (Inspektor_PolicyClient, error)
 	GetDataSource(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*DataSourceResponse, error)
 	SendMetrics(ctx context.Context, in *MetricsRequest, opts ...grpc.CallOption) (*Empty, error)
+	GetIntegrationConfig(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*IntegrationConfigResponse, error)
 }
 
 type inspektorClient struct {
@@ -91,6 +92,15 @@ func (c *inspektorClient) SendMetrics(ctx context.Context, in *MetricsRequest, o
 	return out, nil
 }
 
+func (c *inspektorClient) GetIntegrationConfig(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*IntegrationConfigResponse, error) {
+	out := new(IntegrationConfigResponse)
+	err := c.cc.Invoke(ctx, "/api.Inspektor/GetIntegrationConfig", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // InspektorServer is the server API for Inspektor service.
 // All implementations must embed UnimplementedInspektorServer
 // for forward compatibility
@@ -99,6 +109,7 @@ type InspektorServer interface {
 	Policy(*Empty, Inspektor_PolicyServer) error
 	GetDataSource(context.Context, *Empty) (*DataSourceResponse, error)
 	SendMetrics(context.Context, *MetricsRequest) (*Empty, error)
+	GetIntegrationConfig(context.Context, *Empty) (*IntegrationConfigResponse, error)
 	mustEmbedUnimplementedInspektorServer()
 }
 
@@ -117,6 +128,9 @@ func (UnimplementedInspektorServer) GetDataSource(context.Context, *Empty) (*Dat
 }
 func (UnimplementedInspektorServer) SendMetrics(context.Context, *MetricsRequest) (*Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendMetrics not implemented")
+}
+func (UnimplementedInspektorServer) GetIntegrationConfig(context.Context, *Empty) (*IntegrationConfigResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetIntegrationConfig not implemented")
 }
 func (UnimplementedInspektorServer) mustEmbedUnimplementedInspektorServer() {}
 
@@ -206,6 +220,24 @@ func _Inspektor_SendMetrics_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Inspektor_GetIntegrationConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InspektorServer).GetIntegrationConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.Inspektor/GetIntegrationConfig",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InspektorServer).GetIntegrationConfig(ctx, req.(*Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Inspektor_ServiceDesc is the grpc.ServiceDesc for Inspektor service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -224,6 +256,10 @@ var Inspektor_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendMetrics",
 			Handler:    _Inspektor_SendMetrics_Handler,
+		},
+		{
+			MethodName: "GetIntegrationConfig",
+			Handler:    _Inspektor_GetIntegrationConfig_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
