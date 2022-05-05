@@ -184,10 +184,12 @@ func (r *RpcServer) GetIntegrationConfig(ctx context.Context, in *apiproto.Empty
 	// send cloud watch config if it present.
 	if config.CloudWatchConfig != nil {
 		res.CloudWatchConfig = &apiproto.CloudWatchConfig{
-			CredType:   config.CloudWatchConfig.CredType,
-			AccessKey:  config.CloudWatchConfig.AccessKey,
-			SecretKey:  config.CloudWatchConfig.SecretKey,
-			RegionName: config.CloudWatchConfig.RegionName,
+			CredType:      config.CloudWatchConfig.CredType,
+			AccessKey:     config.CloudWatchConfig.AccessKey,
+			SecretKey:     config.CloudWatchConfig.SecretKey,
+			RegionName:    config.CloudWatchConfig.RegionName,
+			LogGroupName:  config.CloudWatchConfig.LogGroupName,
+			LogStreamName: config.CloudWatchConfig.LogStreamName,
 		}
 	}
 	return res, nil

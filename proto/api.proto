@@ -44,6 +44,8 @@ message CloudWatchConfig {
     string region_name = 2;
     string access_key = 3;
     string secret_key = 4;
+    string log_group_name = 5;
+    string log_stream_name = 6;
 }
 
 service Inspektor {
