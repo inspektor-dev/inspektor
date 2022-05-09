@@ -21,7 +21,7 @@ use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
 use tokio::sync::watch;
 use tokio_openssl::SslStream;
-
+use tokio::sync::mpsc::Sender;
 #[derive(Clone)]
 pub struct PostgresDriver {
     pub postgres_config: PostgresConfig,
@@ -29,6 +29,7 @@ pub struct PostgresDriver {
     pub client: InspektorClient,
     pub token: String,
     pub datasource: DataSourceResponse,
+    pub audit_sender: Sender<String>
 }
 
 impl PostgresDriver {
@@ -43,7 +44,7 @@ impl PostgresDriver {
             ))
             .await
             .map_err(|_| anyhow!("unable to listern on the given port"))
-            .unwrap();
+            .unwrap();        
             info!(
                 "postgres driver listeneing at 0.0.0.0:{}",
                 self.postgres_config.proxy_listen_port.as_ref().unwrap()

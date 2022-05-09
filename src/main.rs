@@ -14,6 +14,7 @@
 // limitations under the License.
 
 mod apiproto;
+mod auditlog;
 mod config;
 mod policy_evaluator;
 mod postgres_driver;
@@ -66,7 +67,11 @@ fn main() {
     let source = client
         .get_data_source_opt(&Empty::default(), get_call_opt())
         .expect("check whether given secret token is valid or check control plane");
-
+    // retrive all the integration config.
+    let mut integration_config = client
+        .get_integration_config_opt(&Empty::new(), get_call_opt())
+        .expect("error while retriving integration config");
+    let audit_sender = auditlog::start_audit_worker(integration_config.take_cloud_watch_config());
     // prepare for wathcing polices.
     let mut policy_reciver = client
         .policy_opt(&Empty::default(), get_call_opt())
@@ -110,12 +115,14 @@ fn main() {
             }
         });
     });
+
     let driver = postgres_driver::driver::PostgresDriver {
         postgres_config: config.postgres_config.unwrap(),
         policy_watcher: policy_watcher,
         datasource: source,
         client: client,
         token: config.secret_token.as_ref().unwrap().clone(),
+        audit_sender: audit_sender,
     };
     driver.start();
 }
