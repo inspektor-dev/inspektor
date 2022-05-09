@@ -44,6 +44,13 @@ const METHOD_INSPEKTOR_SEND_METRICS: ::grpcio::Method<super::api::MetricsRequest
     resp_mar: ::grpcio::Marshaller { ser: ::grpcio::pb_ser, de: ::grpcio::pb_de },
 };
 
+const METHOD_INSPEKTOR_GET_INTEGRATION_CONFIG: ::grpcio::Method<super::api::Empty, super::api::IntegrationConfigResponse> = ::grpcio::Method {
+    ty: ::grpcio::MethodType::Unary,
+    name: "/api.Inspektor/GetIntegrationConfig",
+    req_mar: ::grpcio::Marshaller { ser: ::grpcio::pb_ser, de: ::grpcio::pb_de },
+    resp_mar: ::grpcio::Marshaller { ser: ::grpcio::pb_ser, de: ::grpcio::pb_de },
+};
+
 #[derive(Clone)]
 pub struct InspektorClient {
     client: ::grpcio::Client,
@@ -111,6 +118,22 @@ impl InspektorClient {
     pub fn send_metrics_async(&self, req: &super::api::MetricsRequest) -> ::grpcio::Result<::grpcio::ClientUnaryReceiver<super::api::Empty>> {
         self.send_metrics_async_opt(req, ::grpcio::CallOption::default())
     }
+
+    pub fn get_integration_config_opt(&self, req: &super::api::Empty, opt: ::grpcio::CallOption) -> ::grpcio::Result<super::api::IntegrationConfigResponse> {
+        self.client.unary_call(&METHOD_INSPEKTOR_GET_INTEGRATION_CONFIG, req, opt)
+    }
+
+    pub fn get_integration_config(&self, req: &super::api::Empty) -> ::grpcio::Result<super::api::IntegrationConfigResponse> {
+        self.get_integration_config_opt(req, ::grpcio::CallOption::default())
+    }
+
+    pub fn get_integration_config_async_opt(&self, req: &super::api::Empty, opt: ::grpcio::CallOption) -> ::grpcio::Result<::grpcio::ClientUnaryReceiver<super::api::IntegrationConfigResponse>> {
+        self.client.unary_call_async(&METHOD_INSPEKTOR_GET_INTEGRATION_CONFIG, req, opt)
+    }
+
+    pub fn get_integration_config_async(&self, req: &super::api::Empty) -> ::grpcio::Result<::grpcio::ClientUnaryReceiver<super::api::IntegrationConfigResponse>> {
+        self.get_integration_config_async_opt(req, ::grpcio::CallOption::default())
+    }
     pub fn spawn<F>(&self, f: F) where F: ::futures::Future<Output = ()> + Send + 'static {
         self.client.spawn(f)
     }
@@ -121,6 +144,7 @@ pub trait Inspektor {
     fn policy(&mut self, ctx: ::grpcio::RpcContext, req: super::api::Empty, sink: ::grpcio::ServerStreamingSink<super::api::InspektorPolicy>);
     fn get_data_source(&mut self, ctx: ::grpcio::RpcContext, req: super::api::Empty, sink: ::grpcio::UnarySink<super::api::DataSourceResponse>);
     fn send_metrics(&mut self, ctx: ::grpcio::RpcContext, req: super::api::MetricsRequest, sink: ::grpcio::UnarySink<super::api::Empty>);
+    fn get_integration_config(&mut self, ctx: ::grpcio::RpcContext, req: super::api::Empty, sink: ::grpcio::UnarySink<super::api::IntegrationConfigResponse>);
 }
 
 pub fn create_inspektor<S: Inspektor + Send + Clone + 'static>(s: S) -> ::grpcio::Service {
@@ -137,9 +161,13 @@ pub fn create_inspektor<S: Inspektor + Send + Clone + 'static>(s: S) -> ::grpcio
     builder = builder.add_unary_handler(&METHOD_INSPEKTOR_GET_DATA_SOURCE, move |ctx, req, resp| {
         instance.get_data_source(ctx, req, resp)
     });
-    let mut instance = s;
+    let mut instance = s.clone();
     builder = builder.add_unary_handler(&METHOD_INSPEKTOR_SEND_METRICS, move |ctx, req, resp| {
         instance.send_metrics(ctx, req, resp)
+    });
+    let mut instance = s;
+    builder = builder.add_unary_handler(&METHOD_INSPEKTOR_GET_INTEGRATION_CONFIG, move |ctx, req, resp| {
+        instance.get_integration_config(ctx, req, resp)
     });
     builder.build()
 }
