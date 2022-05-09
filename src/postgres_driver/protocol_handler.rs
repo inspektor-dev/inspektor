@@ -13,6 +13,7 @@ use crate::apiproto::api_grpc::InspektorClient;
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use crate::apiproto::api::{Metric, MetricsRequest};
+use crate::auditlog::build_audit_msg;
 use crate::config::PostgresConfig;
 use crate::policy_evaluator::evaluator::PolicyEvaluator;
 use crate::postgres_driver::conn::PostgresConn;
@@ -36,6 +37,7 @@ use std::pin::Pin;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
+use tokio::sync::mpsc::Sender;
 use tokio::sync::watch;
 use tokio::time as tokio_time;
 use tokio_openssl::SslStream;
@@ -64,7 +66,8 @@ pub struct ProtocolHandler {
     client: InspektorClient,
     pending_metrics: RepeatedField<Metric>,
     token: String,
-    passthrough: bool
+    passthrough: bool,
+    audit_sender: Sender<String>,
 }
 
 #[derive(Default)]
@@ -278,7 +281,7 @@ impl ProtocolHandler {
                         Ok(mut msg) =>{
                             debug!("got frontend message {:?}", msg);
                             let ctx =  Ctx::new(table_info.column_relation.clone());
-                            if let Err(e) = self.handle_frontend_message(&mut msg, ctx, table_info.schemas.clone()){
+                            if let Err(e) = self.handle_frontend_message(&mut msg, ctx, table_info.schemas.clone()).await{
                                 error!("error while handling frontend message {:?}", e);
                                 let rsp = BackendMessage::ErrorMsg(Some(format!("{}", e)));
                                 if let Err(e) = self.client_conn.write_all(&rsp.encode()).await{
@@ -329,7 +332,8 @@ impl ProtocolHandler {
         datasource_name: String,
         controlplane_client: InspektorClient,
         token: String,
-        passthrough: bool
+        passthrough: bool,
+        audit_sender: Sender<String>,
     ) -> Result<ProtocolHandler, anyhow::Error> {
         debug!("intializing protocol handler");
         let mut target_conn = ProtocolHandler::connect_target(&config).await?;
@@ -448,6 +452,7 @@ impl ProtocolHandler {
                         pending_metrics: RepeatedField::default(),
                         token: token,
                         passthrough: passthrough,
+                        audit_sender: audit_sender,
                     };
                     return Ok(handler);
                 }
@@ -614,7 +619,7 @@ impl ProtocolHandler {
             .unwrap()
     }
 
-    fn handle_frontend_message(
+    async fn handle_frontend_message(
         &mut self,
         msg: &mut FrontendMessage,
         ctx: Ctx,
@@ -622,23 +627,25 @@ impl ProtocolHandler {
     ) -> Result<(), ProtocolHandlerError> {
         match msg {
             FrontendMessage::Query { query_string } => {
-                self.handle_query(query_string, ctx, schemas)?;
+                self.handle_query(query_string, ctx, schemas).await?;
             }
             FrontendMessage::Parse { query, .. } => {
-                self.handle_query(query, ctx, schemas)?;
+                self.handle_query(query, ctx, schemas).await?;
             }
             _ => {}
         }
         Ok(())
     }
 
-    fn handle_query(
+    async fn handle_query(
         &mut self,
         query: &mut String,
         ctx: Ctx,
         schemas: Vec<String>,
     ) -> Result<(), ProtocolHandlerError> {
         debug!("input query {}", query);
+        let audit_msg = build_audit_msg(query, &self.groups);
+        self.audit_sender.send(audit_msg).await;
         let dialect = sqlparser::dialect::PostgreSqlDialect {};
         let mut statements = match sqlparser::parser::Parser::parse_sql(&dialect, query) {
             Ok(statements) => statements,
@@ -648,7 +655,7 @@ impl ProtocolHandler {
                     e, query
                 );
                 if self.passthrough {
-                    return Ok(())
+                    return Ok(());
                 }
                 return Err(ProtocolHandlerError::ErrParsingQuery);
             }
@@ -759,7 +766,6 @@ impl ProtocolHandler {
         return filtered_attributes;
     }
 
-    
     fn get_call_opt(&self) -> CallOption {
         let mut meta_builder = grpcio::MetadataBuilder::new();
         meta_builder
