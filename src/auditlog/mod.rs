@@ -56,3 +56,23 @@ pub fn start_audit_worker(cfg: CloudWatchConfig) -> mpsc::Sender<String> {
     });
     tx
 }
+
+/// build_audit_msg will return a audit log message from the given input.
+/// statement represents the raw user statement and group represents
+/// the groups that executing the statements.
+pub fn build_audit_msg(statement: &String, groups: &Vec<String>) -> String {
+    return format!(
+        r#"
+     {{
+          "statment":"{}",
+          "groups": [{}]
+     }}
+     "#,
+        statement,
+        groups
+            .iter()
+            .map(|group| { format!("\"{}\"", group) })
+            .collect::<Vec<String>>()
+            .join(",")
+    );
+}

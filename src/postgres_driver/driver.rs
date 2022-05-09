@@ -162,7 +162,8 @@ impl PostgresDriver {
                         self.datasource.data_source_name.clone(),
                         self.client.clone(),
                         self.token.clone(),
-                        auth_res.passthrough
+                        auth_res.passthrough,
+                        self.audit_sender.clone()
                     )
                     .await
                     {
