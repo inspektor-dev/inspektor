@@ -10,10 +10,12 @@
       </div>
     </n-gi>
     <n-gi span="3">
-      <div v-if="showUser">
+      <div v-if="tagFlag.showUser.value">
         <users />
       </div>
-      <div v-if="showGithub" class="green"></div>
+      <div v-if="tagFlag.showIntegration.value">
+        <integration/>
+      </div>
     </n-gi>
   </n-grid>
   <!-- <n-grid x-gap="2" :cols="2">
@@ -29,13 +31,12 @@
 <script>
 import {
   AccessibilityOutline as UserIcon,
-  LogoGithub as GithubIcon,
-  LogoSlack as SlackIcon,
+  GlobeOutline
 } from "@vicons/ionicons5";
 import { NIcon } from "naive-ui";
 import { h, ref } from "vue";
 import Users from "./Users.vue";
-
+import Integration from "./Integration.vue";
 function renderIcon(icon) {
   return () => h(NIcon, null, { default: () => h(icon) });
 }
@@ -44,9 +45,16 @@ const menuOptions = [
     label: () => {
       return h("a", {}, "Users");
     },
-    key: "user",
+    key: "showUser",
     icon: renderIcon(UserIcon),
   },
+  {
+    label: () => {
+      return h("a", {}, "3rd Party Integration");
+    },
+    key: "showIntegration",
+    icon: renderIcon(GlobeOutline),
+  }
   // {
   //   label: () => {
   //     return h("a", {}, "Github Access");
@@ -64,30 +72,29 @@ const menuOptions = [
 ];
 export default {
   setup() {
-    let showUser = ref(true);
-    let showGithub = ref(false);
+    let tagFlag = {
+      showUser: ref(true),
+      showIntegration: ref(false)
+    }
     return {
       menuOptions: menuOptions,
       handleMenuSelect: (key) => {
-          console.log("key val ", key);
-        if (key == "user") {
-          showUser.value = true;
-          showGithub.value = false;
-          return;
+        for (const [flagKey, flag] of Object.entries(tagFlag)) {
+          if (flagKey == key) {
+            flag.value = true;
+            continue;
+          }
+          flag.value = false;
         }
-        if (key == "github") {
-          showUser.value = false;
-          showGithub.value = true;
-          return;
-        }
+        console.log("steate ", key, tagFlag)
       },
-      showUser,
-      showGithub,
+      tagFlag,
     };
   },
   name: "Admin",
   components: {
     Users,
+    Integration
   },
 };
 </script>
