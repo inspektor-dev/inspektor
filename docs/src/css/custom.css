@@ -52,7 +52,7 @@
   
     
 
-  @font-face {
+  /* @font-face {
   font-family: 'Gordita';
   font-style: normal;
   font-weight: lighter;
@@ -71,7 +71,7 @@
     font-style: oblique;
     font-weight: lighter;
     src:url('/src/fonts/Gordita\ Light\ Italic.woff') format('woff');
-    }
+    } */
 
   /* @font-face {
     font-family: 'Gordita';
