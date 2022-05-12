@@ -13,12 +13,13 @@
           :bordered="false"
           size="huge"
         >
-          <n-form :model="formValue" ref="formRef">
+          <n-form :model="formValue" ref="formRef" :rules="rules">
             <n-form-item path="credType" label="Credentials Type">
               <n-select
                 v-model:value="formValue.credType"
                 :options="credOptions"
                 placeholder="Select credentials type"
+                :on-update:value="onCredUpdate"
               />
             </n-form-item>
             <n-form-item path="regionName" label="Region Name">
@@ -32,12 +33,14 @@
               <n-input
                 v-model:value="formValue.accessKey"
                 placeholder="*****"
+                :disabled="credDisabled"
               />
             </n-form-item>
             <n-form-item path="secretKey" label="Secret Key">
               <n-input
                 v-model:value="formValue.secretKey"
                 placeholder="*****"
+                :disabled="credDisabled"
               />
             </n-form-item>
             <n-form-item path="logGroupName" label="Log Group Name">
@@ -66,10 +69,12 @@
 
 <script>
 import { ref } from "vue";
+import { useMessage } from "naive-ui";
+import api from "@/api/api";
 export default {
   setup() {
     let formValue = ref({
-      credType: "",
+      credType: "env",
       regionName: "",
       accessKey: "",
       secretKey: "",
@@ -77,8 +82,11 @@ export default {
       logStreamName: "",
     });
     let formRef = ref(null);
+    let credDisabled = ref(true);
+    const message = useMessage();
+    let showModal = ref(false);
     return {
-      showModal: ref(false),
+      showModal,
       formRef,
       formValue,
       regionOptions: [
@@ -108,6 +116,74 @@ export default {
         "us-gov-west-1",
       ].map((v) => ({ label: v, value: v })),
       credOptions: ["env", "cred"].map((v) => ({ label: v, value: v })),
+      credDisabled,
+      onCredUpdate: (value) => {
+        if (value == "env") {
+          credDisabled.value = true;
+          formValue.value.credType = value;
+          return;
+        }
+        credDisabled.value = false;
+        formValue.value.credType = value;
+        return;
+      },
+      rules: {
+        credType: {
+          required: true,
+          message: "Please select the credential type",
+          trigger: "blur",
+        },
+        regionName: {
+          required: true,
+          message: "Please select the region type",
+          trigger: "blur",
+        },
+        logGroupName: {
+          required: true,
+          message: "Please enter log group name",
+          trigger: "blur",
+        },
+        logStreamName: {
+          required: true,
+          message: "Please enter log stream name",
+          trigger: "blur",
+        },
+        accessKey: {
+          message: "Please enter access key",
+          validator: (_rule, value) => {
+            if (credDisabled.value) {
+              return true;
+            }
+            if (value.length > 0) {
+              return true;
+            }
+            return false;
+          },
+        },
+        secretKey: {
+          message: "Please enter secret key",
+          validator: (_rule, value) => {
+            if (credDisabled.value) {
+              return true;
+            }
+            if (value.length > 0) {
+              return true;
+            }
+            return false;
+          },
+        },
+      },
+      configureCloudWatch: (e) => {
+        e.preventDefault();
+        formRef.value.validate(async (error) => {
+          if (error) {
+            message.error("Invalid data");
+            return;
+          }
+          await api.configureCloudWatch(formValue.value);
+          showModal.value = false;
+        });
+      },
     };
   },
 };
