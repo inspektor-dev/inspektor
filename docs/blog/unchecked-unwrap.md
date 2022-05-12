@@ -58,13 +58,13 @@ The only catch is that it is an unsafe function, and no backtrace will be shown 
 
 Here is a failure case with `unwrap` and `unchecked_unwrap` respectively
 
-with unwrap
+**with unwrap**
 ```shell
 thread 'main' panicked at 'called `Option::unwrap()` on a `None` value', src/main.rs:4:32
 note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 ``` 
 
-with unchecked_unwrap
+**with unchecked_unwrap**
 ```shell
 Illegal instruction (core dumped)
 ```
@@ -73,7 +73,7 @@ The `unchecked_unwarp` is optimized because there is no panic handler to handle 
 
 Here is the assembly code and benchmark of `unwrap` and `unchecked_unwarp` from the [rust docs](https://docs.rs/unchecked_unwrap/latest/unchecked_unwrap/). 
 
-unwrap assembly code. 
+**unwrap assembly code** 
 ```asm
 push    rax
 test    rdi, rdi
@@ -83,7 +83,7 @@ mov     rax, rdi
 pop     rcx
 ret
 ```
-unchecked_unwap assembly code.
+**unchecked_unwap assembly code**
 
 ```asm
 mov     rdx, rsi
@@ -91,7 +91,7 @@ mov     rax, rdi
 ret
 ``` 
 
-benchmarks
+**benchmarks**
 
 ```shell
 test checked::expect_option   ... bench:         798 ns/iter (+/- 90)
@@ -104,5 +104,5 @@ test unchecked::unwrap_option ... bench:         345 ns/iter (+/- 53)
 test unchecked::unwrap_result ... bench:         407 ns/iter (+/- 22)
 ``` 
 
-So, if you know what you are doing then `unchecked_unwrap` would you give you a nice performance bump. 
+*So, if you know what you are doing then `unchecked_unwrap` would you give you a nice performance bump.*
  
