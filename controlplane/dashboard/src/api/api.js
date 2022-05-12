@@ -42,22 +42,25 @@ export default {
     createSession: async (data) => {
         await axios.post("/api/session", data)
     },
-    config: async() => {
+    config: async () => {
         let res = await axios.get("/api/config")
         return res.data
     },
-    refreshPolicy: async() => {
+    refreshPolicy: async () => {
         await axios.post("/api/policy/nofification")
     },
-    updateRoles: async(data) => {
+    updateRoles: async (data) => {
         await axios.post("/api/roles", data)
     },
-    createTempCredentials: async(data) => {
+    createTempCredentials: async (data) => {
         await axios.post("/api/session/temp", data)
     },
-    getTempCredentials: async(data) => {
-       let res =  await axios.get("/api/session/temp", data)
-       return res.data
+    getTempCredentials: async (data) => {
+        let res = await axios.get("/api/session/temp", data)
+        return res.data
+    },
+    configureCloudWatch: async (data) => {
+        await axios.post("/api/configure/cloudwatch", data)
     },
     intializeToken: () => {
         let token = localStorage.getItem("access-token");
