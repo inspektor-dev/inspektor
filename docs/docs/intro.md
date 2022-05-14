@@ -7,7 +7,7 @@ title: Inspektor Tutorial
 
 Inpektor helps you to enfore access control for all your data sources. 
 
-In this tutorial, you'll be downloading and running the sample docker-compose setup and configure it to enforce access policy on postgres database for different user group. 
+In this tutorial, you'll be downloading and getting familiar with basics of inspektor.
 
 ## Prerequisite
  - docker
@@ -31,15 +31,16 @@ change your current working directory to the cloned respository.
 cd inspektor-demo
 ```
 
-Run the docker compose file to setup the inspektor demo setup.
+### Postgres setup
+Run the docker compose file to run postgres instance with some sample seeding data. postgres is required by the inspektor's controlplane to store all metadata.
 
 ```
 docker-compose up
 ```
 
-The setup won't be complete on the first run, because we have to wait till our database is up and ready with the sample data. So, wait till you see the following output.
+You can move to next steps after you seeing the following logs.
 
-```
+```shell
 postgres_demo_container | 2022-01-19 10:09:23.152 UTC [49] LOG:  received fast shutdown request
 postgres_demo_container | waiting for server to shut down....2022-01-19 10:09:23.158 UTC [49] LOG:  aborting any active transactions
 postgres_demo_container | 2022-01-19 10:09:23.159 UTC [49] LOG:  background worker "logical replication launcher" (PID 56) exited with exit code 1
@@ -58,25 +59,70 @@ postgres_demo_container | 2022-01-19 10:09:23.310 UTC [64] LOG:  database system
 postgres_demo_container | 2022-01-19 10:09:23.380 UTC [1] LOG:  database system is ready to accept connections
 
 ```
+### Control plane setup
 
-Please `CTRL+C` after database is initialized.
+After postgres, we have to run the control plane. The config file to run the control plane is already present in the cloned repository. Here is the sample config file of controlplane.
 
-Now, run the `docker-compose up` again to start the setup again
+**Note: read the comments to know more about config file **
+```yaml
+# postgres credentials to store metadata
+postgres_host: "localhost"
+postgres_port: "5432"
+database_name: "postgres"
+postgres_username: "postgres"
+postgres_password: "postgrespass"
+jwt_key: "demokey"
+# github repository of access policy. Since inspektor use OPA 
+# to enforce access policies
+policy_repo: "https://github.com/poonai/inspektor-policy.git"
+github_access_token: ""
+```
+The below command will run the controlplane and mount the config file as volume to the container
 
 ```sh
-docker-compose up
+docker run -v $(pwd)/config.yaml:/config.yaml --network=host  schoolboy/inspektor-controlplane:latest ./inspektor
 ```
 
-We are running `docker-compose up` twice because, I don't know how to make the other service to wait till the database is seeded with the sample data  😂  😂. If you know how to do that, please reach out to me. I really want to fix this ugly part of the tutorial.
+After this, you can hit `http://localhost:3123/` on the browser to go to inspektor's dashboard, where you can create datasource (database which you want to connect). 
 
+You can login using `admin` as username and `admin` as password.
+
+## Dataplane setup
+
+Seeded database already contains configured datasource. So we don't need to configure datasource for this tutorial. But please feel free to get your hands dirty :P 
+
+dataplane also needs config file to run. The dataplane config file also present in the cloned repository. Here is the sample dataplane config file
+
+```yaml
+# type of datasource
+driver_type: "postgres"
+# control plane address
+controlplane_addr: "localhost:5003"
+# secret token that is used to connect dataplane with controlplane. This 
+# can be retrived from the dashboard.
+secret_token: "b5571a086fb62180cf5493a4a6555a641dede6a45048fda0d79b24fc9a8e"
+# postgres_config contains the credentisla of datasource that we want to connect
+# for the simplicity we are using the same the database that we are using to store 
+# all inspektor metadata.
+postgres_config:
+  target_addr: "localhost"
+  target_port: "5432"
+  target_username: "postgres"
+  target_password: "postgrespass"
+  proxy_listen_port: "8081"
+```
+
+Run the below command to run the dataplane.
+
+```sh
+docker run -v $(pwd)/dataplane_config.yaml:/dataplane_config.yaml --network=host -e RUST_LOG=inspektor=debug schoolboy/inspektor-dataplane:latest1 ./inspektor --config_file ./dataplane_config.yaml
+
+```
 ## Inspektor basic features
 
 The above steps will run a postgres instance, dataplane and controlplane. The postgres instance is connected to the dataplane. So, here after all the access to the postgres goes through the inpektor dataplane.
 
-The sample database contains sample data taken from the following repository.
-- https://github.com/devrimgunduz/pagila
-
-In this sample database, we want to protect email column of customer table. For this we have to define policy using Open Policy Agent. Same policy is already defined in the demo repo. 
+In this sample database, we want to protect first_name of actor table. For this we have to define policy using Open Policy Agent. Same policy is already defined in the demo repo ()
 
 To know more about how to define policy, please refer policy section of the docs.
 
