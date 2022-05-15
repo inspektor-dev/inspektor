@@ -54,7 +54,24 @@ fn main() {
 }
 ```
 
-The only catch is that it is an unsafe function, and no backtrace will be shown if the code crashes.
+The only catch is that it is an unsafe function which leads to `UB`(undefined behaviour) when the `Option` is of `None` variant, and also no backtrace will be shown if the code crashes.
+
+The `unchecked_unwrap` implementation is shown below.
+
+```rust
+     unsafe fn unchecked_unwrap(self) -> T {
+        #[allow(clippy::option_if_let_else)]
+        if cfg!(debug_assertions) && cfg!(feature = "debug_checks") {
+            self.unwrap()
+        } else if let Some(value) = self {
+            value
+        } else {
+            core::hint::unreachable_unchecked()
+        }
+    }
+```
+In the above implementation, you can clearly see that `None` variant calls `hint::unreachable_unchecked()`. `hint::unreachable_unchecked()` tells the compiler that
+this point of the code is not reachable and enable opitmization.
 
 Here is a failure case with `unwrap` and `unchecked_unwrap` respectively
 
