@@ -155,49 +155,37 @@ which you copied from the modal to login.
 Now that, you logged in. execute a simple select query on actor table.
 
 ```sql
-select * from customer;
+select * from actor;
 ```
 
 You'll get output similar to this.
 ```
- customer_id | store_id | first_name  |  last_name   |                  email                   | address_id | activebool | create_date |      last_update       | active 
--------------+----------+-------------+--------------+------------------------------------------+------------+------------+-------------+------------------------+--------
-           1 |        1 | MARY        | SMITH        | MARY.SMITH@sakilacustomer.org            |          5 | t          | 2020-02-14  | 2020-02-15 09:57:20+00 |      1
-           2 |        1 | PATRICIA    | JOHNSON      | PATRICIA.JOHNSON@sakilacustomer.org      |          6 | t          | 2020-02-14  | 2020-02-15 09:57:20+00 |      1
-           3 |        1 | LINDA       | WILLIAMS     | LINDA.WILLIAMS@sakilacustomer.org        |          7 | t          | 2020-02-14  | 2020-02-15 09:57:20+00 |      1
-           4 |        2 | BARBARA     | JONES        | BARBARA.JONES@sakilacustomer.org         |          8 | t          | 2020-02-14  | 2020-02-15 09:57:20+00 |      1
-           5 |        1 | ELIZABETH   | BROWN        | ELIZABETH.BROWN@sakilacustomer.org       |          9 | t          | 2020-02-14  | 2020-02-15 09:57:20+00 |      1
-           6 |        2 | JENNIFER    | DAVIS        | JENNIFER.DAVIS@sakilacustomer.org        |         10 | t          | 2020-02-14  | 2020-02-15 09:57:20+00 |      1
-           7 |        1 | MARIA       | MILLER       | MARIA.MILLER@sakilacustomer.org          |         11 | t          | 2020-02-14  | 2020-02-15 09:57:20+00 |      1
-           8 |        2 | SUSAN       | WILSON       | SUSAN.WILSON@sakilacustomer.org          |         12 | t          | 2020-02-14  | 2020-02-15 09:57:20+00 |      1
+ actor_id | first_name |  last_name   |      last_update       
+----------+------------+--------------+------------------------
+        1 |            | GUINESS      | 2020-02-15 09:34:33+00
+        2 |            | WAHLBERG     | 2020-02-15 09:34:33+00
+        3 |            | CHASE        | 2020-02-15 09:34:33+00
+        4 |            | DAVIS        | 2020-02-15 09:34:33+00
+        5 |            | LOLLOBRIGIDA | 2020-02-15 09:34:33+00
+        6 |            | NICHOLSON    | 2020-02-15 09:34:33+00
+        7 |            | MOSTEL       | 2020-02-15 09:34:33+00
+        8 |            | JOHANSSON    | 2020-02-15 09:34:33+00
+        9 |            | SWANK        | 2020-02-15 09:34:33+00
+       10 |            | GABLE        | 2020-02-15 09:34:33+00
+       11 |            | CAGE         | 2020-02-15 09:34:33+00
+       12 |            | BERRY        | 2020-02-15 09:34:33+00
+       13 |            | WOOD         | 2020-02-15 09:34:33+00
+       14 |            | BERGEN       | 2020-02-15 09:34:33+00
+       15 |            | OLIVIER      | 2020-02-15 09:34:33+00
+       16 |            | COSTNER      | 2020-02-15 09:34:33+00
+       17 |            | VOIGHT       | 2020-02-15 09:34:33+00
+       18 |            | TORN         | 2020-02-15 09:34:33+00
+       19 |            | FAWCETT      | 2020-02-15 09:34:33+00
+       20 |            | TRACY        | 2020-02-15 09:34:33+00
+       21 |            | PALTROW      | 2020-02-15 09:34:33+00
 
 ```
 
-Admin role doesn't have any protected columns so, email address of the customer table are exposed.
+You can clearly see that first_name has been hidden to the user by inspektor. Now, get your hands dirty by forking inspektor demo policy repo and play with inspektor. Probably, you can run an insert statement. 
 
-
-Let's see what happens if we login to the postgres instance using dev role. 
-
-The demo setup already have a user with dev role. You can login to the dashboard using following credentials to obtain the postgres credentials for the `dev@company.io` user.
-
-```
-username: dev@company.io
-password: hello123
-```
-
-If you query the customer table, you won't be seeing email address because our policy tells not to expose email id for the dev role.
-
-
-```
- customer_id | store_id | first_name  |  last_name   | customer.email | address_id | activebool | create_date |      last_update       | active 
--------------+----------+-------------+--------------+----------------+------------+------------+-------------+------------------------+--------
-           1 |        1 | MARY        | SMITH        |                |          5 | t          | 2020-02-14  | 2020-02-15 09:57:20+00 |      1
-           2 |        1 | PATRICIA    | JOHNSON      |                |          6 | t          | 2020-02-14  | 2020-02-15 09:57:20+00 |      1
-           3 |        1 | LINDA       | WILLIAMS     |                |          7 | t          | 2020-02-14  | 2020-02-15 09:57:20+00 |      1
-           4 |        2 | BARBARA     | JONES        |                |          8 | t          | 2020-02-14  | 2020-02-15 09:57:20+00 |      1
-           5 |        1 | ELIZABETH   | BROWN        |                |          9 | t          | 2020-02-14  | 2020-02-15 09:57:20+00 |      1
-           6 |        2 | JENNIFER    | DAVIS        |                |         10 | t          | 2020-02-14  | 2020-02-15 09:57:20+00 |      1
-           7 |        1 | MARIA       | MILLER       |                |         11 | t          | 2020-02-14  | 2020-02-15 09:57:20+00 |      1
-           8 |        2 | SUSAN       | WILSON       |                |         12 | t          | 2020-02-14  | 2020-02-15 09:57:20+00 |      1
-
-```
+We are active on discord, so if you need any help please do reachout out to us. We are more happy to help you. Here is the dicord invite link:  https://discord.com/invite/YxZbDJHTxf
