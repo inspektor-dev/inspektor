@@ -120,11 +120,11 @@ docker run -v $(pwd)/dataplane_config.yaml:/dataplane_config.yaml --network=host
 ```
 ## Inspektor basic features
 
-The above steps will run a postgres instance, dataplane and controlplane. The postgres instance is connected to the dataplane. So, here after all the access to the postgres goes through the inpektor dataplane.
+The above steps will run a postgres instance, controlplane and dataplane. The dataplane is connected to the same postgres container that used by controlplane to store metadata to ease out the complexitiy. But, you can connect to any postgres instance as you like by tinkering the dataplane
+config file.
 
-In this sample database, we want to protect first_name of actor table. For this we have to define policy using Open Policy Agent. Same policy is already defined in the demo repo ()
+In this sample database, we want to protect first_name of actor table. For this we have to define policy using Open Policy Agent. We have already defined that policy on sample repo. (https://github.com/poonai/inspektor-policy.git)
 
-To know more about how to define policy, please refer policy section of the docs.
 
 Now hit the [http://localhost:3123](http://localhost:3123) and use the following credentials to login to the dashboard.
 
@@ -143,7 +143,7 @@ After creating the credentials you'll get to see show credentials button. After 
 
 ![Credentials Modal](../static/img/credentials.png)
 
-Now just use psql to login to the postgres instance.
+Now just use psql to login to the postgres instance using the copied credentials from the dashboard.
 
 ```
 psql "sslmode=disable host=localhost port=8081 dbname=postgres user=<username>"
@@ -152,7 +152,7 @@ psql "sslmode=disable host=localhost port=8081 dbname=postgres user=<username>"
 After executing the above command, psql will prompt you to enter password. Enter the password
 which you copied from the modal to login.
 
-Now that, you logged in. execute a simple select query on customer table.
+Now that, you logged in. execute a simple select query on actor table.
 
 ```sql
 select * from customer;
