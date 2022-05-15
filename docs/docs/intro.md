@@ -5,9 +5,9 @@ title: Inspektor Tutorial
 
 ## Introduction
 
-Inpektor helps you to enfore access control for all your data sources. 
+Inspektor helps you to enforce access control for all your data sources. 
 
-In this tutorial, you'll be downloading and getting familiar with basics of inspektor.
+In this tutorial, you'll be downloading and getting familiar with the basics of Inspektor.
 
 ## Prerequisite
  - docker
@@ -17,28 +17,23 @@ In this tutorial, you'll be downloading and getting familiar with basics of insp
 
 ## Demo Inspektor setup.
 
-Clone the example inspektor setup in your local machine.
+Clone the given repository in your local machine and change your current working directory to the cloned repository.
 
 ```sh
-git clone https://github.com/poonai/inspektor-demo
+git clone https://github.com/poonai/inspektor
+cd inspektor
 ```
 
-The cloned repository contains neccessary files to setup a demo inspektor environment.
-
-change your current working directory to the cloned respository.
-
-```sh
-cd inspektor-demo
-```
+The cloned repository contains necessary files to setup a demo inspektor environment.
 
 ### Postgres setup
-Run the docker compose file to run postgres instance with some sample seeding data. postgres is required by the inspektor's controlplane to store all metadata.
+Run the docker-compose file to run Postgres instance with some sample seeding data. Postgres is required by the inspektor's controlplane to store all metadata.
 
-```
+```sh
 docker-compose up
 ```
 
-You can move to next steps after you seeing the following logs.
+You can move to the next steps after you see the following logs.
 
 ```shell
 postgres_demo_container | 2022-01-19 10:09:23.152 UTC [49] LOG:  received fast shutdown request
@@ -59,12 +54,16 @@ postgres_demo_container | 2022-01-19 10:09:23.310 UTC [64] LOG:  database system
 postgres_demo_container | 2022-01-19 10:09:23.380 UTC [1] LOG:  database system is ready to accept connections
 
 ```
+
+Reach out to us in case the logs looks different from the one we provided above. 
+
 ### Control plane setup
 
-After postgres, we have to run the control plane. The config file to run the control plane is already present in the cloned repository. Here is the sample config file of controlplane.
+After Postgres, we have to run the control plane. The config file to run the control plane is already present in the cloned repository at `inspektor/systest/controlplane_config.yaml` . Here is the sample config file of controlplane.
 
 **Note: read the comments to know more about config file **
-```yaml
+```yaml title="controlplane_config.yaml"
+# controlplane_config.yaml
 # postgres credentials to store metadata
 postgres_host: "localhost"
 postgres_port: "5432"
@@ -83,17 +82,18 @@ The below command will run the controlplane and mount the config file as volume 
 docker run -v $(pwd)/config.yaml:/config.yaml --network=host  schoolboy/inspektor-controlplane:latest ./inspektor
 ```
 
-After this, you can hit `http://localhost:3123/` on the browser to go to inspektor's dashboard, where you can create datasource (database which you want to connect). 
+After this, you can hit `http://localhost:3123/` on the browser to go to inspektor's dashboard, where you can create datasource (A database which you want to connect with inspektor). 
 
 You can login using `admin` as username and `admin` as password.
 
 ## Dataplane setup
 
-Seeded database already contains configured datasource. So we don't need to configure datasource for this tutorial. But please feel free to get your hands dirty :P 
+The seeded database already contains configured datasource so, we don't need to configure datasource for this tutorial. But please feel free to get your hands dirty :P 
 
-dataplane also needs config file to run. The dataplane config file also present in the cloned repository. Here is the sample dataplane config file
+Dataplane also needs config file to run. The dataplane config file also present in the cloned repository at `inspektor/systest/dataplane_config.yaml`. Here is the sample dataplane config file. 
 
-```yaml
+```yaml title="dataplane_config"
+# dataplane_config.yaml
 # type of datasource
 driver_type: "postgres"
 # control plane address
@@ -120,13 +120,12 @@ docker run -v $(pwd)/dataplane_config.yaml:/dataplane_config.yaml --network=host
 ```
 ## Inspektor basic features
 
-The above steps will run a postgres instance, controlplane and dataplane. The dataplane is connected to the same postgres container that used by controlplane to store metadata to ease out the complexitiy. But, you can connect to any postgres instance as you like by tinkering the dataplane
-config file.
+The above steps will run a Postgres instance, controlplane and dataplane. The dataplane is connected to the same Postgres container that is used by controlplane to store metadata to ease out the complexitiy. But, you can connect to any Postgres instance as you like by tinkering with the dataplane config file.
 
-In this sample database, we want to protect first_name of actor table. For this we have to define policy using Open Policy Agent. We have already defined that policy on sample repo. (https://github.com/poonai/inspektor-policy.git)
+In this sample database, we want to protect first_name of the actor table. For this, we have to define policy using Open Policy Agent. We have already defined that policy on [sample repo](https://github.com/poonai/inspektor-policy.git)
 
 
-Now hit the [http://localhost:3123](http://localhost:3123) and use the following credentials to login to the dashboard.
+Now hit the [http://localhost:3123](http://localhost:3123) and use the following credentials to login into the dashboard.
 
 ```
 username: admin
@@ -137,13 +136,13 @@ After login, you'll see the list of datasources that controlplane manages.
 
 ![Dashboard](../static/img/dashboard.png)
 
-The postgres instance that we want to enforce policy is already added as datasource, now you can click on create credentials button to get login information to access the datasource.
+The Postgres instance that we want to enforce policy is already added as datasource, now you can click on create credentials button to get login information to access the datasource.
 
-After creating the credentials you'll get to see show credentials button. After clicking you'll get modal showing the credentials to access the postgres instance.
+After creating the credentials you'll get to see show credentials button. After clicking you'll get a modal showing the credentials to access the Postgres instance.
 
 ![Credentials Modal](../static/img/credentials.png)
 
-Now just use psql to login to the postgres instance using the copied credentials from the dashboard.
+Now just use psql to login to the Postgres instance using the copied credentials from the dashboard.
 
 ```
 psql "sslmode=disable host=localhost port=8081 dbname=postgres user=<username>"
@@ -152,7 +151,7 @@ psql "sslmode=disable host=localhost port=8081 dbname=postgres user=<username>"
 After executing the above command, psql will prompt you to enter password. Enter the password
 which you copied from the modal to login.
 
-Now that, you logged in. execute a simple select query on actor table.
+Now that, you logged in. execute a simple select query on the actor table.
 
 ```sql
 select * from actor;
@@ -186,6 +185,8 @@ You'll get output similar to this.
 
 ```
 
-You can clearly see that first_name has been hidden to the user by inspektor. Now, get your hands dirty by forking inspektor demo policy repo and play with inspektor. Probably, you can run an insert statement. 
+You can clearly see that first_name has been hidden from the user by inspektor. Now, get your hands dirty by forking inspektor demo policy repo and play with inspektor. Probably, you can run an insert statement. 
 
-We are active on discord, so if you need any help please do reachout out to us. We are more happy to help you. Here is the dicord invite link:  https://discord.com/invite/YxZbDJHTxf
+We are active on discord, so if you need any help please do reach out to us. We are more than happy to help you. Here is the discord invite link:  https://discord.com/invite/YxZbDJHTxf.
+
+See you soon. Can't wait to see what cool things you can do with Inspektor. 
