@@ -34,22 +34,16 @@ Inspektor has two components:
 
 Let us understand what those 2 words actually means, 
 
-**Controlplane:** The control plane is the part of a network that controls how data packets are forwarded — meaning how data is sent from one place to another. The process of creating a routing table, for example, is considered part of the control plane. 
+**Controlplane:** The controlplane acts as a management service that dynamically configures dataplane. In other way you can call it as leader, which is used to dicate dataplane.
 
-Routers use various protocols to identify network paths, and they store these paths in routing tables.
+Controlplane also ships with it's own dashboard, which will be used to create datasource and all the third party integration
 
-and...
+**Dataplane:** The dataplane is tcp proxy for the datasource. dataplane intercept all the user issued statement to enfoce access policy.
 
-**Dataplane:** In contrast to the control plane, which determines how packets should be forwarded, the data plane actually forwards the packets. The data plane is also called the forwarding plane.
-
-Think of the control plane as being like the stoplights that operate at the intersections of a city. Meanwhile, the data plane (or the forwarding plane) is more like the cars that drive on the roads, stop at the intersections, and obey the stoplights.
-
-
-The **dataplane** deployed along with your data service as a **sidecar**, to **intercept** all the network traffic to your data service to enforce access policies.
+dataplane takes polices from controlplane.
 
 ![Inspektor design](../static/img/inspektordesign.png)
 
-The **controlplane** acts as a management service to dynamically configure all your dataplane to enforce policies.
 
 <br/>
 
@@ -62,18 +56,13 @@ The **controlplane** acts as a management service to dynamically configure all y
 - MySQL
 - S3
 
-### Tech Stack 
-- Languages: Rust and Go
-- UI: Vue
-- Policy: Open Policy Agent (OPA)
-
 ### Team
 
 **Balaji Jinnah (poonai)** | [Twitter](https://twitter.com/poonai_) | [Rant](https://poonai.github.io) | [Discord](https://discord.gg/YxZbDJHTxf) 
-- Lead Project Creator and Maintainer.
+-  Maintainer and Author
 
 <br/>
 
 **Priyansh**
-- disturbs the maintainer.
+- Core Team
 

@@ -111,10 +111,6 @@ The below command will run the controlplane and mount the config file as volume 
 docker run -v $(pwd)/config.yaml:/config.yaml --network=host  schoolboy/inspektor-controlplane:latest ./inspektor
 ```
 
-:::info
-- The above command will fetch the image `schoolboy/inspektor-controlplane`, 6 images, ~30MB each.
-:::
-
 After this, you can hit [http://localhost:3123](http://localhost:3123/) on the browser to go to inspektor's dashboard, where you can create datasource (A database which you want to connect with inspektor). 
 
 Use the following credentials. 
