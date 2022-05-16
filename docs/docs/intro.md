@@ -69,7 +69,7 @@ The **controlplane** acts as a management service to dynamically configure all y
 
 ### Team
 
-**Balaji Jinnah (poonai)** | [Twitter](https://twitter.com/poonai_) | [Rant](https://poonai.github.io) | [Discord](https://discord.gg/YxZbDJHTxf) | Github | LinkedIn | Reddit | Hackernews | Lobsters 
+**Balaji Jinnah (poonai)** | [Twitter](https://twitter.com/poonai_) | [Rant](https://poonai.github.io) | [Discord](https://discord.gg/YxZbDJHTxf) 
 - Lead Project Creator and Maintainer.
 
 <br/>
