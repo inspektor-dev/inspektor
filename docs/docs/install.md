@@ -19,7 +19,7 @@ https://github.com/poonai/inspektor-demo
 
 ```sh
 git clone https://github.com/poonai/inspektor-demo
-cd inspektor
+cd inspektor-demo
 ```
 
 The cloned repository contains necessary files to setup a local inspektor environment.
@@ -28,7 +28,6 @@ The cloned repository contains necessary files to setup a local inspektor enviro
 ### Postgres setup
 Run the docker-compose file to run Postgres instance with some sample seeding data. Postgres is required by the inspektor's controlplane to store all metadata.
 
-Now, `cd systest` and run the following command.
 
 ```sh
 docker-compose up
@@ -88,7 +87,7 @@ Reach out to us in case the logs looks different from the one we provided above.
 ### Controlplane Setup
 
 After Postgres, we have to run the control plane. The config file to run the control plane is already present in the cloned repository. 
-[](at_inspektor/systest/controlplane_config.yaml)
+
 
 Here is the sample config file of controlplane.
 
@@ -130,7 +129,7 @@ password: admin
 The seeded database already contains configured datasource so, we don't need to configure datasource for this tutorial. But please feel free to get your hands dirty :P 
 
 Dataplane also needs config file to run. The dataplane config file also present in the cloned repository 
-[](at_inspektor/systest/dataplane_config.yaml)
+
 
 
 Here is the sample dataplane config file. 
