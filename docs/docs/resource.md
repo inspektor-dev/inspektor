@@ -3,7 +3,7 @@ sidebar_position: 5
 title: Resources
 ---
 
-You can learn more about Open Policy Agent (OPA) on their [official documentation](link)
+You can learn more about Open Policy Agent (OPA) on their official documentation.
 
 Here's a quick terminology on all things associated with inspektor.
 
