@@ -1,192 +1,79 @@
 ---
 sidebar_position: 1
-title: Inspektor Tutorial
+title: Introduction
 ---
 
-## Introduction
+Hello all, 
 
-Inspektor helps you to enforce access control for all your data sources. 
+**Inspektor** is an access control layer for all your data sources. It acts as guardian and enforces access policies to all your data sources. 
 
-In this tutorial, you'll be downloading and getting familiar with the basics of Inspektor.
+It helps organizations in securing their data assets and obtaining data compliance.
 
-## Prerequisite
- - docker
- - docker-compose
- - git
- - psql
+With Inspektor, you can leverage open policy and GitOps to enforce policies. By having features like **policy as a code** and **GitOps**, Inspektor is a first-class citizen for your modern cloud-native workloads.
 
-## Demo Inspektor setup.
+Inspektor is designed to work with all databases such as Postgres, MySQL, and MongoDB. 
 
-Clone the given repository in your local machine and change your current working directory to the cloned repository.
+The access policies are defined using OPA (open policy agent). Since policies are written in OPA, you can write policies such as granting access to the support engineer only if a support ticket is assigned.
 
-```sh
-git clone https://github.com/poonai/inspektor
-cd inspektor
-```
-
-The cloned repository contains necessary files to setup a demo inspektor environment.
-
-### Postgres setup
-Run the docker-compose file to run Postgres instance with some sample seeding data. Postgres is required by the inspektor's controlplane to store all metadata.
-
-```sh
-docker-compose up
-```
-
-You can move to the next steps after you see the following logs.
-
-```shell
-postgres_demo_container | 2022-01-19 10:09:23.152 UTC [49] LOG:  received fast shutdown request
-postgres_demo_container | waiting for server to shut down....2022-01-19 10:09:23.158 UTC [49] LOG:  aborting any active transactions
-postgres_demo_container | 2022-01-19 10:09:23.159 UTC [49] LOG:  background worker "logical replication launcher" (PID 56) exited with exit code 1
-postgres_demo_container | 2022-01-19 10:09:23.159 UTC [51] LOG:  shutting down
-postgres_demo_container | 2022-01-19 10:09:23.244 UTC [49] LOG:  database system is shut down
-postgres_demo_container |  done
-postgres_demo_container | server stopped
-postgres_demo_container | 
-postgres_demo_container | PostgreSQL init process complete; ready for start up.
-postgres_demo_container | 
-postgres_demo_container | 2022-01-19 10:09:23.283 UTC [1] LOG:  starting PostgreSQL 13.5 (Debian 13.5-1.pgdg110+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 10.2.1-6) 10.2.1 20210110, 64-bit
-postgres_demo_container | 2022-01-19 10:09:23.283 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
-postgres_demo_container | 2022-01-19 10:09:23.283 UTC [1] LOG:  listening on IPv6 address "::", port 5432
-postgres_demo_container | 2022-01-19 10:09:23.296 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
-postgres_demo_container | 2022-01-19 10:09:23.310 UTC [64] LOG:  database system was shut down at 2022-01-19 10:09:23 UTC
-postgres_demo_container | 2022-01-19 10:09:23.380 UTC [1] LOG:  database system is ready to accept connections
-
-```
-
-Reach out to us in case the logs looks different from the one we provided above. 
-
-### Control plane setup
-
-After Postgres, we have to run the control plane. The config file to run the control plane is already present in the cloned repository at `inspektor/systest/controlplane_config.yaml` . Here is the sample config file of controlplane.
-
-**Note: read the comments to know more about config file **
-```yaml title="controlplane_config.yaml"
-# controlplane_config.yaml
-# postgres credentials to store metadata
-postgres_host: "localhost"
-postgres_port: "5432"
-database_name: "postgres"
-postgres_username: "postgres"
-postgres_password: "postgrespass"
-jwt_key: "demokey"
-# github repository of access policy. Since inspektor use OPA 
-# to enforce access policies
-policy_repo: "https://github.com/poonai/inspektor-policy.git"
-github_access_token: ""
-```
-The below command will run the controlplane and mount the config file as volume to the container
-
-```sh
-docker run -v $(pwd)/config.yaml:/config.yaml --network=host  schoolboy/inspektor-controlplane:latest ./inspektor
-```
-
-After this, you can hit `http://localhost:3123/` on the browser to go to inspektor's dashboard, where you can create datasource (A database which you want to connect with inspektor). 
-
-You can login using `admin` as username and `admin` as password.
-
-## Dataplane setup
-
-The seeded database already contains configured datasource so, we don't need to configure datasource for this tutorial. But please feel free to get your hands dirty :P 
-
-Dataplane also needs config file to run. The dataplane config file also present in the cloned repository at `inspektor/systest/dataplane_config.yaml`. Here is the sample dataplane config file. 
-
-```yaml title="dataplane_config"
-# dataplane_config.yaml
-# type of datasource
-driver_type: "postgres"
-# control plane address
-controlplane_addr: "localhost:5003"
-# secret token that is used to connect dataplane with controlplane. This 
-# can be retrived from the dashboard.
-secret_token: "b5571a086fb62180cf5493a4a6555a641dede6a45048fda0d79b24fc9a8e"
-# postgres_config contains the credentisla of datasource that we want to connect
-# for the simplicity we are using the same the database that we are using to store 
-# all inspektor metadata.
-postgres_config:
-  target_addr: "localhost"
-  target_port: "5432"
-  target_username: "postgres"
-  target_password: "postgrespass"
-  proxy_listen_port: "8081"
-```
-
-Run the below command to run the dataplane.
-
-```sh
-docker run -v $(pwd)/dataplane_config.yaml:/dataplane_config.yaml --network=host -e RUST_LOG=inspektor=debug schoolboy/inspektor-dataplane:latest1 ./inspektor --config_file ./dataplane_config.yaml
-
-```
-## Inspektor basic features
-
-The above steps will run a Postgres instance, controlplane and dataplane. The dataplane is connected to the same Postgres container that is used by controlplane to store metadata to ease out the complexitiy. But, you can connect to any Postgres instance as you like by tinkering with the dataplane config file.
-
-In this sample database, we want to protect first_name of the actor table. For this, we have to define policy using Open Policy Agent. We have already defined that policy on [sample repo](https://github.com/poonai/inspektor-policy.git)
+Go to the official documentation to learn more about OPA.
 
 
-Now hit the [http://localhost:3123](http://localhost:3123) and use the following credentials to login into the dashboard.
+## Use Cases
 
-```
-username: admin
-password: admin
-```
+- Standardise your ad hoc data access.
+- Create access credentials in no time for your dev team to debug.
+- Manage all your data policies in a centralized place and avoid managing data policies in silos.
+- Protect PPI data of your customers while collaborating.
+- Avoid dangerous commands like DELETE,UPDATE accidentally.
 
-After login, you'll see the list of datasources that controlplane manages. 
+## How it works
 
-![Dashboard](../static/img/dashboard.png)
+Inspektor has two components: 
+1. The **Dataplane** and, <br/>
+2. The **Controlplane**.
 
-The Postgres instance that we want to enforce policy is already added as datasource, now you can click on create credentials button to get login information to access the datasource.
+Let us understand what those 2 words actually means, 
 
-After creating the credentials you'll get to see show credentials button. After clicking you'll get a modal showing the credentials to access the Postgres instance.
+**Controlplane:** The control plane is the part of a network that controls how data packets are forwarded — meaning how data is sent from one place to another. The process of creating a routing table, for example, is considered part of the control plane. 
 
-![Credentials Modal](../static/img/credentials.png)
+Routers use various protocols to identify network paths, and they store these paths in routing tables.
 
-Now just use psql to login to the Postgres instance using the copied credentials from the dashboard.
+and...
 
-```
-psql "sslmode=disable host=localhost port=8081 dbname=postgres user=<username>"
-```
+**Dataplane:** In contrast to the control plane, which determines how packets should be forwarded, the data plane actually forwards the packets. The data plane is also called the forwarding plane.
 
-After executing the above command, psql will prompt you to enter password. Enter the password
-which you copied from the modal to login.
+Think of the control plane as being like the stoplights that operate at the intersections of a city. Meanwhile, the data plane (or the forwarding plane) is more like the cars that drive on the roads, stop at the intersections, and obey the stoplights.
 
-Now that, you logged in. execute a simple select query on the actor table.
 
-```sql
-select * from actor;
-```
+The **dataplane** deployed along with your data service as a **sidecar**, to **intercept** all the network traffic to your data service to enforce access policies.
 
-You'll get output similar to this.
-```
- actor_id | first_name |  last_name   |      last_update       
-----------+------------+--------------+------------------------
-        1 |            | GUINESS      | 2020-02-15 09:34:33+00
-        2 |            | WAHLBERG     | 2020-02-15 09:34:33+00
-        3 |            | CHASE        | 2020-02-15 09:34:33+00
-        4 |            | DAVIS        | 2020-02-15 09:34:33+00
-        5 |            | LOLLOBRIGIDA | 2020-02-15 09:34:33+00
-        6 |            | NICHOLSON    | 2020-02-15 09:34:33+00
-        7 |            | MOSTEL       | 2020-02-15 09:34:33+00
-        8 |            | JOHANSSON    | 2020-02-15 09:34:33+00
-        9 |            | SWANK        | 2020-02-15 09:34:33+00
-       10 |            | GABLE        | 2020-02-15 09:34:33+00
-       11 |            | CAGE         | 2020-02-15 09:34:33+00
-       12 |            | BERRY        | 2020-02-15 09:34:33+00
-       13 |            | WOOD         | 2020-02-15 09:34:33+00
-       14 |            | BERGEN       | 2020-02-15 09:34:33+00
-       15 |            | OLIVIER      | 2020-02-15 09:34:33+00
-       16 |            | COSTNER      | 2020-02-15 09:34:33+00
-       17 |            | VOIGHT       | 2020-02-15 09:34:33+00
-       18 |            | TORN         | 2020-02-15 09:34:33+00
-       19 |            | FAWCETT      | 2020-02-15 09:34:33+00
-       20 |            | TRACY        | 2020-02-15 09:34:33+00
-       21 |            | PALTROW      | 2020-02-15 09:34:33+00
+![Inspektor design](../static/img/inspektordesign.png)
 
-```
+The **controlplane** acts as a management service to dynamically configure all your dataplane to enforce policies.
 
-You can clearly see that first_name has been hidden from the user by inspektor. Now, get your hands dirty by forking inspektor demo policy repo and play with inspektor. Probably, you can run an insert statement. 
+<br/>
 
-We are active on discord, so if you need any help please do reach out to us. We are more than happy to help you. Here is the discord invite link:  https://discord.com/invite/YxZbDJHTxf.
+**Supported Data Source**
+- Postgres
 
-See you soon. Can't wait to see what cool things you can do with Inspektor. 
+**Planned Data Sources**
+- Snowflake
+- MongoDB
+- MySQL
+- S3
+
+### Tech Stack 
+- Languages: Rust and Go
+- UI: Vue
+- Policy: Open Policy Agent (OPA)
+
+### Team
+
+**Balaji Jinnah (poonai)** | [Twitter](https://twitter.com/poonai_) | [Rant](https://poonai.github.io) | [Discord](https://discord.gg/YxZbDJHTxf) | Github | LinkedIn | Reddit | Hackernews | Lobsters 
+- Lead Project Creator and Maintainer.
+
+<br/>
+
+**Priyansh**
+- disturbs the maintainer.
+

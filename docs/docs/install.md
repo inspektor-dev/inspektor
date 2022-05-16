@@ -1,0 +1,161 @@
+---
+sidebar_position: 2
+title: Installation
+---
+
+In this tutorial, you'll be downloading and getting familiar with the basics of Inspektor.
+
+## Prerequisites
+ - docker
+ - docker-compose
+ - git
+ - psql
+
+
+## Inspektor Local Setup
+
+Clone the given repository in your local machine and change your current working directory to the cloned repository.
+https://github.com/poonai/inspektor-demo
+
+```sh
+git clone https://github.com/poonai/inspektor-demo
+cd inspektor
+```
+
+The cloned repository contains necessary files to setup a local inspektor environment.
+
+
+### Postgres setup
+Run the docker-compose file to run Postgres instance with some sample seeding data. Postgres is required by the inspektor's controlplane to store all metadata.
+
+Now, `cd systest` and run the following command.
+
+```sh
+docker-compose up
+```
+
+This is how the docker-compose.yaml file looks like
+
+```yaml title="docker-compose.yaml"
+version: '3.8'
+
+services:
+  postgres:
+    container_name: postgres_systest_container
+    image: postgres:13.5
+    environment:
+        POSTGRES_USER: "postgres"
+        POSTGRES_PASSWORD: "postgrespass"
+    ports:
+     - 5432:5432
+    restart: unless-stopped
+```
+
+**Note:** You must have Docker up and running for your respective system before you do `docker-compose up`.
+
+Refer here for [macOS](https://docs.docker.com/desktop/mac/install/), [Linux](https://docs.docker.com/engine/install/ubuntu/) and [Windows](https://docs.docker.com/desktop/windows/install/) setup of Docker if you don't already have the setup ready.
+
+:::tip
+- You need to install Docker Engine for Linux systems (Docker Desktop for Linux is currently in beta)
+- You need to install only Docker Desktop for macOS and Windows based systems.
+:::
+
+You can move to the next steps after you see the following logs.
+
+```shell
+postgres_demo_container | 2022-01-19 10:09:23.152 UTC [49] LOG:  received fast shutdown request
+postgres_demo_container | waiting for server to shut down....2022-01-19 10:09:23.158 UTC [49] LOG:  aborting any active transactions
+postgres_demo_container | 2022-01-19 10:09:23.159 UTC [49] LOG:  background worker "logical replication launcher" (PID 56) exited with exit code 1
+postgres_demo_container | 2022-01-19 10:09:23.159 UTC [51] LOG:  shutting down
+postgres_demo_container | 2022-01-19 10:09:23.244 UTC [49] LOG:  database system is shut down
+postgres_demo_container |  done
+postgres_demo_container | server stopped
+postgres_demo_container | 
+postgres_demo_container | PostgreSQL init process complete; ready for start up.
+postgres_demo_container | 
+postgres_demo_container | 2022-01-19 10:09:23.283 UTC [1] LOG:  starting PostgreSQL 13.5 (Debian 13.5-1.pgdg110+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 10.2.1-6) 10.2.1 20210110, 64-bit
+postgres_demo_container | 2022-01-19 10:09:23.283 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+postgres_demo_container | 2022-01-19 10:09:23.283 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+postgres_demo_container | 2022-01-19 10:09:23.296 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgres_demo_container | 2022-01-19 10:09:23.310 UTC [64] LOG:  database system was shut down at 2022-01-19 10:09:23 UTC
+postgres_demo_container | 2022-01-19 10:09:23.380 UTC [1] LOG:  database system is ready to accept connections
+
+```
+
+Reach out to us in case the logs looks different from the one we provided above. 
+
+
+### Controlplane Setup
+
+After Postgres, we have to run the control plane. The config file to run the control plane is already present in the cloned repository. 
+[](at_inspektor/systest/controlplane_config.yaml)
+
+Here is the sample config file of controlplane.
+
+**Note: read the comments to know more about config file. **
+```yaml title="controlplane_config.yaml"
+# postgres credentials to store metadata
+postgres_host: "localhost"
+postgres_port: "5432"
+database_name: "postgres"
+postgres_username: "postgres"
+postgres_password: "postgrespass"
+jwt_key: "demokey"
+# github repository of access policy. Since inspektor use OPA 
+# to enforce access policies
+policy_repo: "https://github.com/poonai/inspektor-policy.git"
+github_access_token: ""
+```
+The below command will run the controlplane and mount the config file as volume to the container.
+
+```sh
+docker run -v $(pwd)/config.yaml:/config.yaml --network=host  schoolboy/inspektor-controlplane:latest ./inspektor
+```
+
+:::info
+- The above command will fetch the image `schoolboy/inspektor-controlplane`, 6 images, ~30MB each.
+:::
+
+After this, you can hit [http://localhost:3123](http://localhost:3123/) on the browser to go to inspektor's dashboard, where you can create datasource (A database which you want to connect with inspektor). 
+
+Use the following credentials. 
+```
+username: admin
+password: admin
+```
+
+
+### Dataplane Setup
+
+The seeded database already contains configured datasource so, we don't need to configure datasource for this tutorial. But please feel free to get your hands dirty :P 
+
+Dataplane also needs config file to run. The dataplane config file also present in the cloned repository 
+[](at_inspektor/systest/dataplane_config.yaml)
+
+
+Here is the sample dataplane config file. 
+
+```yaml title="dataplane_config.yaml"
+# type of datasource
+driver_type: "postgres"
+# control plane address
+controlplane_addr: "localhost:5003"
+# secret token that is used to connect dataplane with controlplane. This 
+# can be retrived from the dashboard.
+secret_token: "b5571a086fb62180cf5493a4a6555a641dede6a45048fda0d79b24fc9a8e"
+# postgres_config contains the credentials of datasource that we want to connect
+# for the simplicity we are using the same database that we are using to store 
+# all inspektor metadata.
+postgres_config:
+  target_addr: "localhost"
+  target_port: "5432"
+  target_username: "postgres"
+  target_password: "postgrespass"
+  proxy_listen_port: "8081"
+```
+
+Run the below command to run the dataplane.
+
+```sh
+docker run -v $(pwd)/dataplane_config.yaml:/dataplane_config.yaml --network=host -e RUST_LOG=inspektor=debug schoolboy/inspektor-dataplane:latest1 ./inspektor --config_file ./dataplane_config.yaml
+```
