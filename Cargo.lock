@@ -177,28 +177,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "aws-sdk-config"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2945a9f89454260264f607d39e9732bdb933fa4708fd2e7afa569bfec1c1a6ca"
-dependencies = [
- "aws-endpoint",
- "aws-http",
- "aws-sig-auth",
- "aws-smithy-async",
- "aws-smithy-client",
- "aws-smithy-http",
- "aws-smithy-http-tower",
- "aws-smithy-json",
- "aws-smithy-types",
- "aws-types",
- "bytes 1.1.0",
- "http",
- "tokio-stream",
- "tower",
-]
-
-[[package]]
 name = "aws-sdk-sso"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1579,7 +1557,6 @@ dependencies = [
  "async-trait",
  "aws-config",
  "aws-sdk-cloudwatchlogs",
- "aws-sdk-config",
  "burrego",
  "byteorder",
  "bytes 1.1.0",

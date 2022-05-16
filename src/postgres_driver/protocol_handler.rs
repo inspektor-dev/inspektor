@@ -244,7 +244,7 @@ impl ProtocolHandler {
                                     BackendMessage::ReadyForQuery{..} => {
                                         // send the pending error message.
                                         let e = self.pending_error.as_ref().unwrap();
-                                        let err_rsp = BackendMessage::ErrorMsg(b'S',Some(format!("{}", e)));
+                                        let err_rsp = BackendMessage::err_msg(format!("{}", e));
                                         if let Err(e) = self.client_conn.write_all(&err_rsp.encode()).await{
                                             error!("error while writing the rsp message to the client {:?}", e);
                                             return Ok(());
@@ -283,7 +283,7 @@ impl ProtocolHandler {
                             let ctx =  Ctx::new(table_info.column_relation.clone());
                             if let Err(e) = self.handle_frontend_message(&mut msg, ctx, table_info.schemas.clone()).await{
                                 error!("error while handling frontend message {:?}", e);
-                                let rsp = BackendMessage::ErrorMsg(b'S',Some(format!("{}", e)));
+                                let rsp = BackendMessage::err_msg(format!("{}", e));
                                 if let Err(e) = self.client_conn.write_all(&rsp.encode()).await{
                                     error!("error while writing the rsp message to the client {:?}", e);
                                     return Ok(());

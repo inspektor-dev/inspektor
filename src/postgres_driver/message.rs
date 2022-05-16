@@ -3,7 +3,7 @@ use crate::postgres_driver::utils::{
     write_message,
 };
 use anyhow::*;
-use byteorder::{ByteOrder, NetworkEndian};
+use byteorder::{ByteOrder, NetworkEndian, ReadBytesExt};
 use bytes::{Buf, BufMut, BytesMut};
 use log::*;
 use std::collections::HashMap;
@@ -47,7 +47,7 @@ impl TransactionStatus {
 
 #[derive(Debug)]
 pub enum BackendMessage {
-    ErrorMsg(u8,Option<String>),
+    ErrorMsg(Vec<u8>),
     AuthenticationOk { success: bool },
     AuthenticationCleartextPassword,
     AuthenticationMD5Password { salt: Vec<u8> },
@@ -78,13 +78,10 @@ impl BackendMessage {
                 buf.put_u32(1);
                 buf
             }
-            BackendMessage::ErrorMsg(code,msg) => {
+            BackendMessage::ErrorMsg(data) => {
                 buf.put_u8(b'E');
                 write_message(&mut buf, |buf| {
-                    buf.put_u8(*code);
-                    if let Some(msg) = msg {
-                        buf.put_slice(msg.as_bytes());
-                    }
+                    buf.extend_from_slice(data);
                     Ok(())
                 })
                 .unwrap();
@@ -109,6 +106,19 @@ impl BackendMessage {
                 unreachable!("encoding invalid startup message")
             }
         }
+    }
+
+    pub fn err_msg(msg: String) -> BackendMessage {
+        let mut buf = BytesMut::new();
+        buf.put_u8(b'S');
+        unsafe {
+            write_cstr(&mut buf, "ERROR".to_string().as_bytes()).unwrap_unchecked();
+            buf.put_u8(b'C');
+            write_cstr(&mut buf, "42501".to_string().as_bytes()).unwrap_err_unchecked();
+            buf.put_u8(b'M');
+            write_cstr(&mut buf, msg.as_bytes()).unwrap_err_unchecked();
+        }
+        BackendMessage::ErrorMsg(buf.to_vec())
     }
 }
 
@@ -165,19 +175,7 @@ where
             }
         }
         b'E' => {
-            let code= buf[0];
-            if code == 0 {
-                return Ok(BackendMessage::ErrorMsg(code,None));
-            }
-            buf.advance(1);
-            // it's safe to convert remaining byte to string since 
-            // from now on we have only bytes related to string.
-            
-            let err_msg = std::str::from_utf8(&buf[..buf.remaining()])
-            .map_err(|_| anyhow!("error while reading cstr"))?
-            .to_string();
-
-            return Ok(BackendMessage::ErrorMsg(code,Some(err_msg)));
+            return Ok(BackendMessage::ErrorMsg(buf.to_vec()));
         }
         b'Z' => {
             let state = TransactionStatus::from_u8(buf[0]);
