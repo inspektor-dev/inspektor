@@ -111,13 +111,11 @@ impl BackendMessage {
     pub fn err_msg(msg: String) -> BackendMessage {
         let mut buf = BytesMut::new();
         buf.put_u8(b'S');
-        unsafe {
-            write_cstr(&mut buf, "ERROR".to_string().as_bytes()).unwrap_unchecked();
-            buf.put_u8(b'C');
-            write_cstr(&mut buf, "42501".to_string().as_bytes()).unwrap_err_unchecked();
-            buf.put_u8(b'M');
-            write_cstr(&mut buf, msg.as_bytes()).unwrap_err_unchecked();
-        }
+        write_cstr(&mut buf, "ERROR".to_string().as_bytes()).unwrap();
+        buf.put_u8(b'C');
+        write_cstr(&mut buf, "42501".to_string().as_bytes()).unwrap();
+        buf.put_u8(b'M');
+        write_cstr(&mut buf, msg.as_bytes()).unwrap();
         BackendMessage::ErrorMsg(buf.to_vec())
     }
 }
