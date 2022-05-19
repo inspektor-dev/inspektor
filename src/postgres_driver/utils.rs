@@ -9,12 +9,12 @@ use tokio::time::Interval;
 // Postgres protocol version.
 
 // decode_startup_message decode pg startup message, if ssl request it'll  upgrade the connection to ssl connection and returns the
-pub async fn decode_init_startup_message<T>(mut conn: T) -> Result<FrontendMessage, DecoderError>
+pub async fn decode_init_startup_message<T>(conn: &mut T) -> Result<FrontendMessage, DecoderError>
 where
     T: AsyncRead + Unpin + AsyncReadExt + AsyncWrite + AsyncWriteExt,
 {
     // read the frame length.
-    let len = decode_frame_length(&mut conn).await?;
+    let len = decode_frame_length(conn).await?;
     let mut buf = BytesMut::new();
     buf.resize(len, b'0');
     conn.read_exact(&mut buf).await?;
@@ -45,7 +45,7 @@ where
     };
 }
 
-pub async fn decode_frame_length<T>(mut conn: T) -> Result<usize, anyhow::Error>
+pub async fn decode_frame_length<T>(conn: &mut T) -> Result<usize, anyhow::Error>
 where
     T: AsyncRead + Unpin,
 {

@@ -123,6 +123,7 @@ fn main() {
         client: client,
         token: config.secret_token.as_ref().unwrap().clone(),
         audit_sender: audit_sender,
+        ssl_acceptor: None
     };
     driver.start();
 }

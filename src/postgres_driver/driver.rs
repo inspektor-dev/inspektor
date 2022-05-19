@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::apiproto::api::{AuthRequest, DataSourceResponse, AuthResponse};
+use crate::apiproto::api::{AuthRequest, AuthResponse, DataSourceResponse};
 use crate::apiproto::api_grpc::*;
 use crate::config::PostgresConfig;
 use crate::policy_evaluator::evaluator::PolicyEvaluator;
@@ -19,9 +19,9 @@ use std::pin::Pin;
 use tokio;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
+use tokio::sync::mpsc::Sender;
 use tokio::sync::watch;
 use tokio_openssl::SslStream;
-use tokio::sync::mpsc::Sender;
 #[derive(Clone)]
 pub struct PostgresDriver {
     pub postgres_config: PostgresConfig,
@@ -29,10 +29,14 @@ pub struct PostgresDriver {
     pub client: InspektorClient,
     pub token: String,
     pub datasource: DataSourceResponse,
-    pub audit_sender: Sender<String>
+    pub audit_sender: Sender<String>,
+    pub ssl_acceptor: Option<SslAcceptor>,
 }
 
 impl PostgresDriver {
+
+    /// start will start listening for postgres connection from the configured
+    /// listening port.
     pub fn start(&self) {
         // let acceptor = self.get_ssl_acceptor();
         // run the socket message.
@@ -44,7 +48,7 @@ impl PostgresDriver {
             ))
             .await
             .map_err(|_| anyhow!("unable to listern on the given port"))
-            .unwrap();        
+            .unwrap();
             info!(
                 "postgres driver listeneing at 0.0.0.0:{}",
                 self.postgres_config.proxy_listen_port.as_ref().unwrap()
@@ -55,7 +59,9 @@ impl PostgresDriver {
                 let driver = self.clone();
                 let socket = PostgresConn::Unsecured(socket);
                 tokio::spawn(async move {
-                    driver.handle_client_conn(socket, None).await;
+                    if let Err(e) = driver.handle_client_conn(socket).await {
+                        error!("error while handling client connection {:?}", e);
+                    }
                     ()
                 });
             }
@@ -76,139 +82,137 @@ impl PostgresDriver {
     //     acceptor
     // }
 
-    async fn handle_client_conn(
+    /// handle_client_conn will handle the tcp connection of the client.
+    async fn handle_client_conn(&self, conn: PostgresConn) -> Result<(), anyhow::Error> {
+        let (startup_msg, mut conn) = self.get_startup_msg(conn).await?;
+
+        let params = match startup_msg {
+            FrontendMessage::Startup { params, .. } => params,
+            _ => unreachable!(),
+        };
+        // authenticate client connection.
+        let auth_res = match self.verfiy_client_params(&params, &mut conn).await {
+            Ok(result) => result,
+            Err(e) => return Err(anyhow!("error while verifying auth. err msg: {:?}", e)),
+        };
+
+        // check whether user can access the db.
+        let mut evaluator = match PolicyEvaluator::new(&self.policy_watcher.borrow()) {
+            Ok(evaluator) => evaluator,
+            Err(e) => {
+                return Err(anyhow!("error while building the policy evaluator {:?}", e));
+            }
+        };
+        let groups: Vec<String> = auth_res.get_groups().into();
+        let result = match evaluator.evaluate(
+            &self.datasource.data_source_name,
+            &"view".to_string(),
+            &groups,
+        ) {
+            Ok(res) => res,
+            Err(e) => {
+                return Err(anyhow!("error while evulating policy {:?}", e));
+            }
+        };
+        if !result.allow {
+            // since this datasource is not allowed by the group
+            // let's drop the connection here.
+            return Err(anyhow!(
+                "incomming connection don't have access to the given datasource"
+            ));
+        }
+
+        // terminate the connection if the incoming db access is fall under protected
+        // attribute.
+        if let Some(_) = result
+            .protected_attributes
+            .iter()
+            .position(|attribute| attribute == params.get("database").unwrap())
+        {
+            return Err(anyhow!("unautorized db access"));
+        }
+
+        let mut handler = match ProtocolHandler::initialize(
+            self.postgres_config.clone(),
+            conn,
+            params,
+            self.policy_watcher.clone(),
+            groups,
+            evaluator,
+            self.datasource.data_source_name.clone(),
+            self.client.clone(),
+            self.token.clone(),
+            auth_res.passthrough,
+            self.audit_sender.clone(),
+        )
+        .await
+        {
+            Ok(h) => h,
+            Err(e) => {
+                return Err(anyhow!("error while initializing protocol handler {:?}", e));
+            }
+        };
+        handler.serve(auth_res.expires_at).await
+    }
+
+    // get_startup_msg returns the startup message and upgrade the connection to secure connection
+    // if the client ask's for.
+    async fn get_startup_msg(
         &self,
-        mut client_conn: PostgresConn,
-        acceptor: Option<SslAcceptor>,
-    ) {
+        mut conn: PostgresConn,
+    ) -> Result<(FrontendMessage, PostgresConn), anyhow::Error> {
         loop {
-            // get the initial startup message from client.
-            let msg = match decode_init_startup_message(&mut client_conn).await {
+            // decode the intial message form the client.
+            let msg = match decode_init_startup_message(&mut conn).await {
                 Ok(msg) => msg,
                 Err(e) => {
                     match e {
                         DecoderError::UnsupporedVersion => {
-                            error!("closing connection because of unsuppored version");
-                            // looks like client sent lower version.
-                            // report that and close the connection.
-                            return;
+                            return Err(anyhow!("unsupported postgres protocol version"))
                         }
                         _ => {
-                            error!("error while decoding startup message {:?}", e);
                             // log the error and close the connection.
-                            return;
+                            return Err(anyhow!("error while decoding startup message {:?}", e));
                         }
                     };
                 }
             };
-
             match msg {
-                FrontendMessage::Startup { params, .. } => {
-                    // let's verify the user name and
-                    let auth_res =
-                        match self.verfiy_client_params(&params, &mut client_conn).await {
-                            Ok(result) => result,
-                            Err(e) => {
-                                error!("error while verifying auth. err msg: {:?}", e);
-                                continue;
-                            }
-                        };
-                    // check whether user can access the db.
-                    let mut evaluator = match PolicyEvaluator::new(&self.policy_watcher.borrow()) {
-                        Ok(evaluator) => evaluator,
-                        Err(e) => {
-                            error!("error while building the policy evaluator {:?}", e);
-                            return;
-                        }
-                    };
-
-                    let groups: Vec<String> = auth_res.get_groups().into();
-                    let result = match evaluator.evaluate(
-                        &self.datasource.data_source_name,
-                        &"view".to_string(),
-                        &groups,
-                    ) {
-                        Ok(res) => res,
-                        Err(e) => {
-                            error!("error while evulating policy {:?}", e);
-                            return;
-                        }
-                    };
-                    if !result.allow {
-                        // since this datasource is not allowed by the group
-                        // let's drop the connection here.
-                        info!("incomming connection don't have access to the given datasource");
-                        return;
-                    }
-
-                    // terminate the connection if the incoming db access is fall under protected
-                    // attribute.
-                    if let Some(_) = result
-                        .protected_attributes
-                        .iter()
-                        .position(|attribute| attribute == params.get("database").unwrap())
-                    {
-                        error!("unautorized db access");
-                        return;
-                    }
-
-                    let mut handler = match ProtocolHandler::initialize(
-                        self.postgres_config.clone(),
-                        client_conn,
-                        params,
-                        self.policy_watcher.clone(),
-                        groups,
-                        evaluator,
-                        self.datasource.data_source_name.clone(),
-                        self.client.clone(),
-                        self.token.clone(),
-                        auth_res.passthrough,
-                        self.audit_sender.clone()
-                    )
-                    .await
-                    {
-                        Ok(h) => h,
-                        Err(e) => {
-                            error!("error while initializing protocol handler {:?}", e);
-                            return;
-                        }
-                    };
-                    handler.serve(auth_res.expires_at).await.unwrap();
-                    return;
-                }
+                // sometimes client asks to upgrade the connection to tls. So, upgrade
+                // before decoding the startup message.
                 FrontendMessage::SslRequest => {
-                    if let None = acceptor {
-                        debug!("dropping connection since we are not able to upgrade the connection to ssl");
-                        return;
-                    }
-                    //
-                    if let PostgresConn::Unsecured(mut inner) = client_conn {
-                        // tell the client that you are upgrading for secure connection
-                        if let Err(e) = inner.write_all(&[ACCEPT_SSL_ENCRYPTION]).await {
-                            error!(
-                                "error while sending ACCEPT_SSL_ENCRYPTION to client {:?}",
-                                e
-                            );
-                            return;
-                        }
-                        let ssl = Ssl::new(acceptor.as_ref().unwrap().context()).unwrap();
-                        let mut stream = SslStream::new(ssl, inner).unwrap();
-                        Pin::new(&mut stream).accept().await.unwrap();
-                        client_conn = PostgresConn::Secured(stream);
-                        debug!("client connection upgraded  to tls connection");
-                        continue;
-                    }
-                    // upgrade the client connection to secured tls connection.
-                    error!("can't upgrade secured connection. sus client");
-                    return;
+                    conn = self.upgrade_to_tls(conn).await?;
+                    continue;
                 }
-                _ => {
-                    error!("don't know the message type");
-                    // all the return should send a error message before closing.
-                    return;
-                }
+                FrontendMessage::Startup { .. } => return Ok((msg, conn)),
+                _ => return Err(anyhow!("invalid message")),
             }
         }
+    }
+
+    /// upgrade_to_tls will upgrade the given unsecured connection to secured connection.
+    async fn upgrade_to_tls(&self, mut conn: PostgresConn) -> Result<PostgresConn, anyhow::Error> {
+        if let None = self.ssl_acceptor {
+            return Err(anyhow!(
+                "don't have ssl acceptor to upgrade the connection to tls"
+            ));
+        }
+        // upgrade the connection to tls only if the given connection is
+        // insecured.
+        if let PostgresConn::Unsecured(mut inner) = conn {
+            if let Err(e) = inner.write_all(&[ACCEPT_SSL_ENCRYPTION]).await {
+                return Err(anyhow!(
+                    "error while sending ACCEPT_SSL_ENCRYPTION to client {:?}",
+                    e
+                ));
+            }
+            let ssl = Ssl::new(self.ssl_acceptor.as_ref().unwrap().context()).unwrap();
+            let mut stream = SslStream::new(ssl, inner).unwrap();
+            Pin::new(&mut stream).accept().await.unwrap();
+            conn = PostgresConn::Secured(stream);
+            return Ok(conn);
+        }
+        Err(anyhow!("can't upgrade secured connection"))
     }
 
     // verfiy_client_params will verify the client password with the dataplane.
@@ -242,6 +246,8 @@ impl PostgresDriver {
         Ok(res)
     }
 
+    /// get_call_opt return call option with control plane auth token. So that 
+    /// it can used with grpc client while talking to
     fn get_call_opt(&self) -> CallOption {
         let mut meta_builder = grpcio::MetadataBuilder::new();
         meta_builder
