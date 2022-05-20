@@ -30,6 +30,8 @@ use openssl::ssl::{Ssl, SslConnector, SslMethod};
 use postgres_protocol::authentication::sasl;
 use protobuf::RepeatedField;
 use sqlparser::ast::Statement;
+use std::borrow::BorrowMut;
+use std::cell::Ref;
 use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
 use std::mem;
@@ -68,6 +70,7 @@ pub struct ProtocolHandler {
     token: String,
     passthrough: bool,
     audit_sender: Sender<String>,
+    postgres_client: tokio_postgres::Client,
 }
 
 #[derive(Default)]
@@ -80,7 +83,6 @@ impl ProtocolHandler {
     // get_table_info get table info of the protected tables.
     async fn get_table_info(
         &mut self,
-        client: &tokio_postgres::Client,
     ) -> Result<TableInfo, anyhow::Error> {
         let result = self.policy_evaluator.evaluate(
             &self.datasource_name,
@@ -127,7 +129,7 @@ impl ProtocolHandler {
             schema_selection, table_selection
         );
 
-        let rows = client.query(&query, &[]).await?;
+        let rows = self.postgres_client.query(&query, &[]).await?;
 
         let mut column_relation: HashMap<String, Vec<String>> = HashMap::default();
         let mut schemas: HashSet<String> = HashSet::default();
@@ -152,82 +154,35 @@ impl ProtocolHandler {
         })
     }
 
+    
+
     // serve will listen to client packets and decide whether to process
     // the packet based on the opa policy.
     pub async fn serve(&mut self, expires_at: i64) -> Result<(), anyhow::Error> {
         debug!("started serving");
-        // is_session_expired returns true if session expired
-        let is_session_expired = move || {
-            // session won't expire if there is no expiry time.
-            if expires_at == 0 {
-                return false;
-            }
-            let current_epoch = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-            return current_epoch.as_secs() >= expires_at as u64;
-        };
-
-        println!(
-            "host={} port={} user={} dbname = {} password = {}",
-            self.config.target_addr.as_ref().unwrap(),
-            self.config.target_port.as_ref().unwrap(),
-            self.config.target_username.as_ref().unwrap(),
-            self.connected_db,
-            self.config.target_password.as_ref().unwrap()
-        );
-        let (client, connection) = tokio_postgres::connect(
-            &format!(
-                "host={} port={} user={} dbname = {} password = {}",
-                self.config.target_addr.as_ref().unwrap(),
-                self.config.target_port.as_ref().unwrap(),
-                self.config.target_username.as_ref().unwrap(),
-                self.connected_db,
-                self.config.target_password.as_ref().unwrap()
-            ),
-            tokio_postgres::NoTls,
-        )
-        .await?;
-        tokio::spawn(connection);
-        let mut table_info = self.get_table_info(&client).await.map_err(|e| {
+        let mut table_info = self.get_table_info().await.map_err(|e| {
             error!("error while getting table meta {:?}", e);
             return anyhow!("error while getting table meta");
         })?;
-        let mut target_buf = [0; 1024];
         // refresh table for every 2 minutes.
         let mut table_info_refresh_ticker = tokio_time::interval(Duration::from_secs(60 * 2));
         loop {
             tokio::select! {
+                // policy_watcher listens for any policy changes. If there is any policy change
+                // then the new policy will be updated and check whether the current connection
+                // follows the given policy
                 evaluator = self.policy_watcher.changed() => {
                     if !evaluator.is_ok(){
                         error!("watched failed to get new evaluation. prolly watcher closed");
                         continue;
                     }
-                    let wasm_policy = self.policy_watcher.borrow();
-                    // update the current evaluator with new policy
-                    let mut evaluator = match PolicyEvaluator::new(&wasm_policy){
-                        Ok(evaluator) => evaluator,
-                        Err(_) => {
-                            error!("error while building new policy evaluator so skiping this policy.");
-                            continue;
-                        }
-                    };
-                    // let's check whether new policy allows the current db connection
-                    let result = evaluator.evaluate(&self.datasource_name, &"view".to_string(), &self.groups)?;
-                    if !result.allow{
-                        error!("updated policy violating the existing connection so dropping the connection");
-                        return Err(anyhow!("updated policy violating the existing connection"));
-                    }
-                    if let Some(_) = result
-                    .protected_attributes
-                    .iter()
-                    .position(|attribute| *attribute == self.connected_db)
-                {
-                    error!("unautorized db access");
-                    return Err(anyhow!("updated policy violating the existing connection"));
+                    let wasm_policy = self.policy_watcher.borrow().clone();
+                    self.update_policy(wasm_policy)?;
                 }
-                    self.policy_evaluator = evaluator;
-                }
-                n = decode_backend_message(&mut self.target_conn) => {
-                    if is_session_expired() {
+                // listen for target postgres message and tunnel it to the client
+                // if there is no pending error.
+                n = BackendMessage::decode(&mut self.target_conn) => {
+                    if self.is_session_expired(expires_at) {
                         return Ok(())
                     }
                     match n {
@@ -236,41 +191,17 @@ impl ProtocolHandler {
                                 return Ok(());
                         },
                         Ok(msg) =>{
-                            if self.pending_error.is_some(){
-                                // check the incoming message is ready for query.
-                                // if it's ready for query send the error message before
-                                // forwarding ready for query message.
-                                match &msg{
-                                    BackendMessage::ReadyForQuery{..} => {
-                                        // send the pending error message.
-                                        let e = self.pending_error.as_ref().unwrap();
-                                        let err_rsp = BackendMessage::err_msg(format!("{}", e));
-                                        if let Err(e) = self.client_conn.write_all(&err_rsp.encode()).await{
-                                            error!("error while writing the rsp message to the client {:?}", e);
-                                            return Ok(());
-                                        }
-                                    },
-                                    BackendMessage::ErrorMsg(..) => {
-                                        // we should reset the error if the backend sends error message.
-                                        // Cuz current transaction is aborted. it's upto the backend to
-                                        // send ready for query message.
-                                        debug!("resetting error message if exist");
-                                        self.pending_error = None;
-                                    }
-                                    _=> {}
-                                }
+                            if let Err(e) = self.handle_target_msg(msg).await{
+                                error!("{:?}", e);
+                                return Ok(())
                             }
-                            //debug!("writing backend mesage to client {:?}", msg);
-                            if let Err(e) = self.client_conn.write_all(&msg.encode()).await{
-                                error!("error while writing the rsp message to the client {:?}", e);
-                                return Ok(());
-                            }
-                            continue;
                         }
                     }
                 }
+                // listen for client message and check whether the given client commands
+                // are following the policy or not.
                 n = FrontendMessage::decode(&mut self.client_conn) => {
-                    if is_session_expired() {
+                    if self.is_session_expired(expires_at) {
                         return Ok(())
                     }
                     match n {
@@ -278,38 +209,22 @@ impl ProtocolHandler {
                                 println!("failed to read from socket; err = {:?}", e);
                                 return Ok(());
                         },
-                        Ok(mut msg) =>{
-                            debug!("got frontend message {:?}", msg);
-                            let ctx =  Ctx::new(table_info.column_relation.clone());
-                            if let Err(e) = self.handle_frontend_message(&mut msg, ctx, table_info.schemas.clone()).await{
-                                error!("error while handling frontend message {:?}", e);
-                                let rsp = BackendMessage::err_msg(format!("{}", e));
-                                if let Err(e) = self.client_conn.write_all(&rsp.encode()).await{
-                                    error!("error while writing the rsp message to the client {:?}", e);
-                                    return Ok(());
-                                }
-                                // after sending error message we should send ready for query command
-                                // otherwise client doesn't know that it can send commands.
-                                debug!("sending ready for query with transaction status {:?}", self.current_transaction_status);
-                                if let Err(e) = self.client_conn.write_all(&BackendMessage::ReadyForQuery{state: self.current_transaction_status.clone()}.encode()).await {
-                                    error!("error while sending ready for query message {:?}", e);
-                                    return Ok(())
-                                }
-                                continue;
-                            }
-                            if let Err(e) = self.target_conn.write_all(&msg.encode()).await{
-                                error!("error while writing the frontend message to the target {:?}", e);
-                                return Ok(());
+                        Ok(msg) =>{
+                            if let Err(e) = self.handle_client_msg(msg, &table_info).await {
+                                error!("{:?}", e);
+                                return Ok(())
                             }
                         }
                     }
                 }
+                // refresh table info on certain interval so we'll know the current
+                // database layout and we don't miss any schema update.
                 _ = table_info_refresh_ticker.tick() => {
                     debug!("refreshing table meta");
-                    if is_session_expired() {
+                    if self.is_session_expired(expires_at) {
                         return Ok(())
                     }
-                    table_info = match  self.get_table_info(&client).await {
+                    table_info = match  self.get_table_info().await {
                         Ok(info) => info,
                         Err(e) => {
                             error!("error while refreshing table meta {:?}", e);
@@ -319,6 +234,106 @@ impl ProtocolHandler {
                 }
             }
         }
+    }
+
+    // is_session_expired tells the current session is expired or not.
+    fn is_session_expired(&self, expires_at: i64) -> bool {
+        if expires_at == 0 {
+            return false;
+        }
+        let current_epoch = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+        return current_epoch.as_secs() >= expires_at as u64;
+    }
+
+    /// handle_target_msg will handle target message and checks whether there is any preflight error
+    /// that needs to be updated other wise message is directly forwarded to the client.
+    async fn handle_target_msg(&mut self, msg: BackendMessage) -> Result<(), anyhow::Error> {
+        if self.pending_error.is_some() {
+            // check the incoming message is ready for query.
+            // if it's ready for query send the error message before
+            // forwarding ready for query message.
+            match &msg {
+                BackendMessage::ReadyForQuery { .. } => {
+                    // send the pending error message.
+                    let e = self.pending_error.as_ref().unwrap();
+                    let err_rsp = BackendMessage::err_msg(format!("{}", e));
+                    if let Err(e) = self.client_conn.write_all(&err_rsp.encode()).await {
+                        return Err(anyhow!(
+                            "error while writing the rsp message to the client {:?}",
+                            e
+                        ));
+                    }
+                }
+                BackendMessage::ErrorMsg(..) => {
+                    // we should reset the error if the backend sends error message.
+                    // Cuz current transaction is aborted. it's upto the backend to
+                    // send ready for query message.
+                    debug!("resetting error message if exist");
+                    self.pending_error = None;
+                }
+                _ => {}
+            }
+        }
+        if let Err(e) = self.client_conn.write_all(&msg.encode()).await {
+            return Err(anyhow!(
+                "error while writing the rsp message to the client {:?}",
+                e
+            ));
+        }
+        return Ok(());
+    }
+
+    /// handle_client_msg will handle the client message, on successful policy evaluation, the
+    /// client message is forwarded to the target postgres instance.
+    async fn handle_client_msg(
+        &mut self,
+        mut msg: FrontendMessage,
+        table_info: &TableInfo,
+    ) -> Result<(), anyhow::Error> {
+        // rewrite the query if possible or send error message back to the client.
+        let ctx = Ctx::new(table_info.column_relation.clone());
+        if let Err(e) = self
+            .handle_frontend_message(&mut msg, ctx, table_info.schemas.clone())
+            .await
+        {
+            // seems like the incoming command is not adhering to the policy requirement
+            // so let's send the error message back to the client.
+            error!("error while handling frontend message {:?}", e);
+            let rsp = BackendMessage::err_msg(format!("{}", e));
+            self.client_conn
+                .write_all(&rsp.encode())
+                .await
+                .map_err(|e| {
+                    return anyhow!("error while writing the rsp message to the client {:?}", e);
+                })?;
+            // after sending error message we should send ready for query command
+            // otherwise client doesn't know that it can send commands.
+            debug!(
+                "sending ready for query with transaction status {:?}",
+                self.current_transaction_status
+            );
+            self.client_conn
+                .write_all(
+                    &BackendMessage::ReadyForQuery {
+                        state: self.current_transaction_status.clone(),
+                    }
+                    .encode(),
+                )
+                .await
+                .map_err(|e| anyhow!("error while sending ready for query message {:?}", e))?;
+            return Ok(());
+        }
+        // the incoming command have not violated any polices or query rewritter able to rewrite
+        // successfully, so forward the incoming message to the target postgres instance.
+        self.target_conn
+            .write_all(&msg.encode())
+            .await
+            .map_err(|e| {
+                anyhow!(
+                    "error while writing the frontend message to the target {:?}",
+                    e
+                )
+            })
     }
 
     // intialize will create a new connection with target and returns initialized postgres protocol handler.
@@ -336,10 +351,10 @@ impl ProtocolHandler {
         audit_sender: Sender<String>,
     ) -> Result<ProtocolHandler, anyhow::Error> {
         debug!("intializing protocol handler");
-        let mut target_conn = ProtocolHandler::connect_target(&config).await?;
-        //target_conn = ProtocolHandler::try_ssl_upgrade(&config, target_conn).await?;
 
-        // create startup parameter to establish authenticated connection.
+        // create a tcp connection with target postgres server to start
+        // sending messages.
+        let target_conn = ProtocolHandler::connect_target(&config).await?;
         let startup_params = HashMap::from([
             (
                 "database".to_string(),
@@ -352,7 +367,44 @@ impl ProtocolHandler {
             ("client_encoding".to_string(), "UTF8".to_string()),
             ("application_name".to_string(), "inspektor".to_string()),
         ]);
-        target_conn
+
+        let (postgres_client, connection) = tokio_postgres::connect(
+            &format!(
+                "host={} port={} user={} dbname = {} password = {}",
+                config.target_addr.as_ref().unwrap(),
+                config.target_port.as_ref().unwrap(),
+                config.target_username.as_ref().unwrap(),
+                client_parms.get("database").unwrap(),
+                config.target_password.as_ref().unwrap()
+            ),
+            tokio_postgres::NoTls,
+        )
+        .await?;
+        tokio::spawn(connection);
+
+        let mut handler = ProtocolHandler {
+            target_conn: target_conn,
+            client_conn: client_conn,
+            policy_watcher: policy_watcher,
+            policy_evaluator: evaluator,
+            groups: groups,
+            config: config.clone(),
+            connected_db: client_parms.get("database").unwrap().clone(),
+            datasource_name: datasource_name,
+            pending_error: None,
+            current_transaction_status: TransactionStatus::Idle,
+            client: controlplane_client,
+            pending_metrics: RepeatedField::default(),
+            token: token,
+            passthrough: passthrough,
+            audit_sender: audit_sender,
+            postgres_client: postgres_client,
+        };
+
+        // send startup parameters to the target postgres to initiate the
+        // the initial handshake.
+        handler
+            .target_conn
             .write_all(
                 &FrontendMessage::Startup {
                     params: startup_params,
@@ -368,24 +420,33 @@ impl ProtocolHandler {
                 );
                 e
             })?;
+        handler.authenticate_target_conn().await?;
+        Ok(handler)
+    }
 
-        // send password if the target ask's for otherwise wait for the
-        // AuthenticationOk message;
+    /// authenticate_target_conn will authenticate the target connection with target
+    /// postgres instance and on sucessful authentication, it sends the authenticationOK
+    /// message to the client connection as well.
+    async fn authenticate_target_conn(&mut self) -> Result<(), anyhow::Error> {
         loop {
-            let rsp_msg = decode_backend_message(&mut target_conn)
+            // decode the message from the target postgres connection to figure
+            // out what sort of authentication mechanism the target postgres uses.
+            let rsp_msg = BackendMessage::decode(&mut self.target_conn)
                 .await
                 .map_err(|e| {
                     error!("error decoding target message. error {:?}", e);
                     e
                 })?;
             match rsp_msg {
+                // AuthenticationMD5Password states that target server wants us to send
+                // the hashed password instead of plain password.
                 BackendMessage::AuthenticationMD5Password { salt } => {
                     let password = md5_password(
-                        config.target_username.as_ref().unwrap(),
-                        config.target_password.as_ref().unwrap(),
+                        self.config.target_username.as_ref().unwrap(),
+                        self.config.target_password.as_ref().unwrap(),
                         salt,
                     );
-                    target_conn
+                    self.target_conn
                         .write_all(&FrontendMessage::PasswordMessage { password }.encode())
                         .await
                         .map_err(|e| {
@@ -394,11 +455,13 @@ impl ProtocolHandler {
                         })?;
                     continue;
                 }
+                // AuthenticationCleartextPassword states that targer server accept
+                // plain text password to authenticate.
                 BackendMessage::AuthenticationCleartextPassword => {
-                    target_conn
+                    self.target_conn
                         .write_all(
                             &FrontendMessage::PasswordMessage {
-                                password: config.target_password.as_ref().unwrap().clone(),
+                                password: self.config.target_password.as_ref().unwrap().clone(),
                             }
                             .encode(),
                         )
@@ -409,12 +472,14 @@ impl ProtocolHandler {
                         })?;
                     continue;
                 }
+                // AuthenticationSASL states that the target server requires SASL to
+                // complete the authentication process.
                 BackendMessage::AuthenticationSASL { mechanisms } => {
                     debug!(
                         "sasl authhentication requested with the following mechanism {:?}",
                         mechanisms
                     );
-
+                    // inspektor only supports SCRAM-SHA-256 for now.
                     if mechanisms
                         .iter()
                         .position(|mechanism| *mechanism == "SCRAM-SHA-256")
@@ -426,35 +491,19 @@ impl ProtocolHandler {
                         ));
                     }
                     ProtocolHandler::authenticate_sasl(
-                        &mut target_conn,
-                        config.target_password.as_ref().unwrap(),
+                        &mut self.target_conn,
+                        self.config.target_password.as_ref().unwrap(),
                     )
                     .await?;
                     debug!("sasl authentication completed successfully");
                     continue;
                 }
+                // AuthenticationOk states that authentication is completed.
                 BackendMessage::AuthenticationOk { .. } => {
                     // send authentication ok to client connection since we established connection with
                     // target.
-                    client_conn.write_all(&rsp_msg.encode()).await?;
-                    let handler = ProtocolHandler {
-                        target_conn: target_conn,
-                        client_conn: client_conn,
-                        policy_watcher: policy_watcher,
-                        policy_evaluator: evaluator,
-                        groups: groups,
-                        config: config.clone(),
-                        connected_db: client_parms.get("database").unwrap().clone(),
-                        datasource_name: datasource_name,
-                        pending_error: None,
-                        current_transaction_status: TransactionStatus::Idle,
-                        client: controlplane_client,
-                        pending_metrics: RepeatedField::default(),
-                        token: token,
-                        passthrough: passthrough,
-                        audit_sender: audit_sender,
-                    };
-                    return Ok(handler);
+                    self.client_conn.write_all(&rsp_msg.encode()).await?;
+                    return Ok(());
                 }
                 _ => {
                     error!(
@@ -486,6 +535,32 @@ impl ProtocolHandler {
         ))
     }
 
+    // update_policy initiate the policy evaluator with the given new policy.
+    fn update_policy(&mut self, wasm_policy: Vec<u8>) -> Result<(), anyhow::Error> {
+        let mut evaluator = match PolicyEvaluator::new(&wasm_policy) {
+            Ok(evaluator) => evaluator,
+            Err(_) => {
+                error!("error while building new policy evaluator so skiping this policy.");
+                return Ok(());
+            }
+        };
+        // let's check whether new policy allows the current db connection
+        let result =
+            evaluator.evaluate(&self.datasource_name, &"view".to_string(), &self.groups)?;
+        if !result.allow {
+            return Err(anyhow!("updated policy violating the existing connection"));
+        }
+        if let Some(_) = result
+            .protected_attributes
+            .iter()
+            .position(|attribute| *attribute == self.connected_db)
+        {
+            return Err(anyhow!("updated policy violating the existing connection"));
+        }
+        self.policy_evaluator = evaluator;
+        Ok(())
+    }
+
     async fn authenticate_sasl(
         mut target_conn: &mut PostgresConn,
         password: &String,
@@ -506,7 +581,7 @@ impl ProtocolHandler {
             .await?;
         debug!("receiving server first message");
         // get server first message form the target.
-        let msg = decode_backend_message(&mut target_conn).await?;
+        let msg = BackendMessage::decode(&mut target_conn).await?;
         let data = match msg {
             BackendMessage::AuthenticationSASLContinue { data } => data,
             _ => {
@@ -531,7 +606,7 @@ impl ProtocolHandler {
             .await?;
         // retrive server final message and verify.
         debug!("receiving server final message");
-        let msg = decode_backend_message(&mut target_conn).await?;
+        let msg = BackendMessage::decode(&mut target_conn).await?;
         let data = match msg {
             BackendMessage::AuthenticationSASLFinal { data } => data,
             _ => {

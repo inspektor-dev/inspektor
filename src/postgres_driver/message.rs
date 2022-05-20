@@ -118,72 +118,78 @@ impl BackendMessage {
         write_cstr(&mut buf, msg.as_bytes()).unwrap();
         BackendMessage::ErrorMsg(buf.to_vec())
     }
-}
 
-pub async fn decode_backend_message<T>(mut conn: T) -> Result<BackendMessage, anyhow::Error>
-where
-    T: AsyncRead + Unpin + AsyncReadExt + AsyncWrite + AsyncWriteExt,
-{
-    // read the first byte.
-    let mut meta = [0; 1];
-    conn.read_exact(&mut meta).await.map_err(|e| {
-        error!("error while reading the meta for backend message {:?}", e);
-        anyhow!("error reading backend meta")
-    })?;
-    let len = decode_frame_length(&mut conn).await.map_err(|e| {
-        error!("error while decoding frame lenght {:?}", e);
-        anyhow!("invalid backend message")
-    })?;
-    let mut buf = BytesMut::new();
-    buf.resize(len, b'0');
-    conn.read_exact(&mut buf).await.map_err(|err| {
-        error!("error while reading backend message {:?}", err);
-        anyhow!("error while decoding error messaage")
-    })?;
-    match meta[0] {
-        b'R' => {
-            let msg_type = NetworkEndian::read_u32(&buf);
-            buf.advance(4);
-            match msg_type {
-                3 => return Ok(BackendMessage::AuthenticationCleartextPassword),
-                5 => {
-                    let salt = buf[..4].to_vec();
-                    return Ok(BackendMessage::AuthenticationMD5Password { salt });
-                }
-                0 => {
-                    return Ok(BackendMessage::AuthenticationOk { success: true });
-                }
-                1 => {
-                    return Ok(BackendMessage::AuthenticationOk { success: false });
-                }
-                10 => {
-                    let mut mechanisms = Vec::new();
-                    while *buf.get(0).unwrap() != 0 {
-                        mechanisms.push(read_cstr(&mut buf)?);
+    pub async fn decode<T>(mut conn: T) -> Result<BackendMessage, anyhow::Error>
+    where
+        T: AsyncRead + Unpin + AsyncReadExt + AsyncWrite + AsyncWriteExt,
+    {
+        // read the first byte.
+        let mut meta = [0; 1];
+        conn.read_exact(&mut meta).await.map_err(|e| {
+            error!("error while reading the meta for backend message {:?}", e);
+            anyhow!("error reading backend meta")
+        })?;
+        let len = decode_frame_length(&mut conn).await.map_err(|e| {
+            error!("error while decoding frame lenght {:?}", e);
+            anyhow!("invalid backend message")
+        })?;
+        let mut buf = BytesMut::new();
+        buf.resize(len, b'0');
+        conn.read_exact(&mut buf).await.map_err(|err| {
+            error!("error while reading backend message {:?}", err);
+            anyhow!("error while decoding error messaage")
+        })?;
+        match meta[0] {
+            b'R' => {
+                let msg_type = NetworkEndian::read_u32(&buf);
+                buf.advance(4);
+                match msg_type {
+                    3 => return Ok(BackendMessage::AuthenticationCleartextPassword),
+                    5 => {
+                        let salt = buf[..4].to_vec();
+                        return Ok(BackendMessage::AuthenticationMD5Password { salt });
                     }
-                    return Ok(BackendMessage::AuthenticationSASL {
-                        mechanisms: mechanisms,
-                    });
-                }
-                11 => return Ok(BackendMessage::AuthenticationSASLContinue { data: buf.to_vec() }),
-                12 => return Ok(BackendMessage::AuthenticationSASLFinal { data: buf.to_vec() }),
-                _ => {
-                    unreachable!("unknown message type {:?}", msg_type)
+                    0 => {
+                        return Ok(BackendMessage::AuthenticationOk { success: true });
+                    }
+                    1 => {
+                        return Ok(BackendMessage::AuthenticationOk { success: false });
+                    }
+                    10 => {
+                        let mut mechanisms = Vec::new();
+                        while *buf.get(0).unwrap() != 0 {
+                            mechanisms.push(read_cstr(&mut buf)?);
+                        }
+                        return Ok(BackendMessage::AuthenticationSASL {
+                            mechanisms: mechanisms,
+                        });
+                    }
+                    11 => {
+                        return Ok(BackendMessage::AuthenticationSASLContinue {
+                            data: buf.to_vec(),
+                        })
+                    }
+                    12 => {
+                        return Ok(BackendMessage::AuthenticationSASLFinal { data: buf.to_vec() })
+                    }
+                    _ => {
+                        unreachable!("unknown message type {:?}", msg_type)
+                    }
                 }
             }
-        }
-        b'E' => {
-            return Ok(BackendMessage::ErrorMsg(buf.to_vec()));
-        }
-        b'Z' => {
-            let state = TransactionStatus::from_u8(buf[0]);
-            return Ok(BackendMessage::ReadyForQuery { state: state });
-        }
-        _ => {
-            return Ok(BackendMessage::Message {
-                data: buf.to_vec(),
-                meta: meta[0],
-            });
+            b'E' => {
+                return Ok(BackendMessage::ErrorMsg(buf.to_vec()));
+            }
+            b'Z' => {
+                let state = TransactionStatus::from_u8(buf[0]);
+                return Ok(BackendMessage::ReadyForQuery { state: state });
+            }
+            _ => {
+                return Ok(BackendMessage::Message {
+                    data: buf.to_vec(),
+                    meta: meta[0],
+                });
+            }
         }
     }
 }
