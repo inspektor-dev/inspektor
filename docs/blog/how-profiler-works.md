@@ -8,7 +8,7 @@ authors:
     url: https://twitter.com/poonai_
     image_url: https://i.imgur.com/RNM7R6Q.jpg
 tags: [rust,linux,performance]
-image: /img/measure.jpg
+image: /img/cpu_profiler_banner.jpeg
 hide_table_of_contents: false
 ---
 ![handwritten banner for blog](/img/cpu_profiler_banner.jpeg)
@@ -258,6 +258,6 @@ The collected stack frame and it's count is passed to the `flamegraph` crate to 
 
 `pprof-rs` also encodes the sampled data in google's `pprof` format which let you plot interactive graphs.
 
-
+In recent days I've been excited about continuous profiling and it has been a hot thing in the observability space. Follow these amazing open-source projects [parca](https://github.com/parca-dev/parca) and [pyroscope](https://github.com/pyroscope-io/pyroscope) to know more about continuous profiling. 
 ## Reference
 - [pprof-rs](https://github.com/tikv/pprof-rs)
