@@ -339,7 +339,7 @@ impl ProtocolHandler {
     // intialize will create a new connection with target and returns initialized postgres protocol handler.
     pub async fn initialize(
         config: PostgresConfig,
-        mut client_conn: PostgresConn,
+        client_conn: PostgresConn,
         client_parms: HashMap<String, String>,
         policy_watcher: watch::Receiver<Vec<u8>>,
         groups: Vec<String>,

@@ -25,10 +25,12 @@ use clap::{App, Arg};
 use env_logger;
 use futures;
 use futures::prelude::*;
+use grpcio::CallOption;
 use grpcio::{ChannelBuilder, EnvBuilder};
 use log::*;
 use std::sync::Arc;
 use tokio::sync::watch;
+
 
 fn main() {
     env_logger::init();
@@ -71,16 +73,38 @@ fn main() {
     let mut integration_config = client
         .get_integration_config_opt(&Empty::new(), get_call_opt())
         .expect("error while retriving integration config");
+    // start audit worker.
     let audit_sender = auditlog::start_audit_worker(integration_config.take_cloud_watch_config());
+    // look for policy changes.
+    let policy_watcher = look_for_policy_update(client.clone(), get_call_opt());
+    let driver = postgres_driver::driver::PostgresDriver {
+        postgres_config: config.postgres_config.unwrap(),
+        policy_watcher: policy_watcher,
+        datasource: source,
+        client: client,
+        token: config.secret_token.as_ref().unwrap().clone(),
+        audit_sender: audit_sender,
+        ssl_acceptor: None,
+    };
+    driver.start();
+}
+
+
+/// look_for_policy_update will open a streaming connection with controlplane. If it detect any changes in polices,
+/// then it propogate the changes to the all listeners.
+fn look_for_policy_update(
+    policy_client: InspektorClient,
+    call_opt: CallOption,
+) -> watch::Receiver<Vec<u8>> {
     // prepare for wathcing polices.
-    let mut policy_reciver = client
-        .policy_opt(&Empty::default(), get_call_opt())
+    let mut policy_reciver = policy_client
+        .policy_opt(&Empty::default(), call_opt.clone())
         .unwrap();
+
     let rt = tokio::runtime::Runtime::new().unwrap();
     let (policy_broadcaster, policy_watcher) = watch::channel(Vec::<u8>::new());
     // wait for policy in a different thread. we can use the same thread for other common telementry
     // data.
-    let policy_client = client.clone();
     std::thread::spawn(move || {
         info!("strated watching for polices");
         rt.block_on(async {
@@ -90,14 +114,15 @@ fn main() {
                     Err(e) => {
                         error!("error while retriving policies {:?}", e);
                         'policy_retrier: loop {
-                            policy_reciver =
-                                match policy_client.policy_opt(&Empty::default(), get_call_opt()) {
-                                    Ok(receiver) => receiver,
-                                    Err(e) => {
-                                        error!("error while retriving policy receiver {:?}", e);
-                                        continue 'policy_retrier;
-                                    }
-                                };
+                            policy_reciver = match policy_client
+                                .policy_opt(&Empty::default(), call_opt.clone())
+                            {
+                                Ok(receiver) => receiver,
+                                Err(e) => {
+                                    error!("error while retriving policy receiver {:?}", e);
+                                    continue 'policy_retrier;
+                                }
+                            };
                             continue 'policy_watcher;
                         }
                     }
@@ -115,15 +140,6 @@ fn main() {
             }
         });
     });
-
-    let driver = postgres_driver::driver::PostgresDriver {
-        postgres_config: config.postgres_config.unwrap(),
-        policy_watcher: policy_watcher,
-        datasource: source,
-        client: client,
-        token: config.secret_token.as_ref().unwrap().clone(),
-        audit_sender: audit_sender,
-        ssl_acceptor: None
-    };
-    driver.start();
+    return policy_watcher;
 }
+
