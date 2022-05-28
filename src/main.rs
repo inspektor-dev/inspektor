@@ -22,6 +22,7 @@ mod sql;
 use apiproto::api::*;
 use apiproto::api_grpc::*;
 use clap::{App, Arg};
+use config::Config;
 use env_logger;
 use futures;
 use futures::prelude::*;
@@ -31,13 +32,12 @@ use log::*;
 use std::sync::Arc;
 use tokio::sync::watch;
 
-
 fn main() {
     env_logger::init();
     let app = App::new("inspektor")
         .version("0.0.1")
         .author("Balaji <rbalajis25@gmail.com>")
-        .about("inspector is used to autheticate your data layer")
+        .about("Inspektor is a protocol-aware proxy to enforce access policies")
         .arg(
             Arg::with_name("config_file")
                 .short("c")
@@ -50,33 +50,21 @@ fn main() {
     let mut config = config::read_config(&std::path::PathBuf::from(config_path)).unwrap();
     config.validate().unwrap();
 
-    let env = Arc::new(EnvBuilder::new().build());
-    let ch = ChannelBuilder::new(env).connect(config.controlplane_addr.as_ref().unwrap());
-    let client = InspektorClient::new(ch);
-
-    let token = config.secret_token.as_ref().unwrap().clone();
-    let get_call_opt = Box::new(move || {
-        // create meta which is used for header based authentication.
-        let mut meta_builder = grpcio::MetadataBuilder::new();
-        meta_builder.add_str("auth-token", &token.clone()).unwrap();
-        let meta = meta_builder.build();
-        return grpcio::CallOption::default().headers(meta);
-    });
-
+   let (client, call_opt) = get_controlplane_client(&config);
     // retrive data source. so that we can use that to give as input to evaluate policies.
     // if we don't get any data then there is something wrong with control plane or provided
     // secret token.
     let source = client
-        .get_data_source_opt(&Empty::default(), get_call_opt())
+        .get_data_source_opt(&Empty::default(), call_opt.clone())
         .expect("check whether given secret token is valid or check control plane");
     // retrive all the integration config.
     let mut integration_config = client
-        .get_integration_config_opt(&Empty::new(), get_call_opt())
+        .get_integration_config_opt(&Empty::new(), call_opt.clone())
         .expect("error while retriving integration config");
     // start audit worker.
     let audit_sender = auditlog::start_audit_worker(integration_config.take_cloud_watch_config());
     // look for policy changes.
-    let policy_watcher = look_for_policy_update(client.clone(), get_call_opt());
+    let policy_watcher = look_for_policy_update(client.clone(), call_opt.clone());
     let driver = postgres_driver::driver::PostgresDriver {
         postgres_config: config.postgres_config.unwrap(),
         policy_watcher: policy_watcher,
@@ -89,6 +77,19 @@ fn main() {
     driver.start();
 }
 
+/// get_controlplane_client returns the controlplane's grpc client and call option.
+fn get_controlplane_client(config: &Config) -> (InspektorClient, CallOption) {
+    let env = Arc::new(EnvBuilder::new().build());
+    let ch = ChannelBuilder::new(env).connect(config.controlplane_addr.as_ref().unwrap());
+    let client = InspektorClient::new(ch);
+    // create meta which is used for header based authentication.
+    let token = config.secret_token.as_ref().unwrap().clone();
+    let mut meta_builder = grpcio::MetadataBuilder::new();
+    meta_builder.add_str("auth-token", &token.clone()).unwrap();
+    let meta = meta_builder.build();
+    let call_opt = grpcio::CallOption::default().headers(meta);
+    return (client, call_opt)
+}
 
 /// look_for_policy_update will open a streaming connection with controlplane. If it detect any changes in polices,
 /// then it propogate the changes to the all listeners.
@@ -142,4 +143,3 @@ fn look_for_policy_update(
     });
     return policy_watcher;
 }
-
