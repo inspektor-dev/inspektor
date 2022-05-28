@@ -13,9 +13,7 @@ hide_table_of_contents: false
 ---
 ![reflection](/img/reflection.jpg)
 
-To avoid SQL injection or storing raw HTML in the database, it's common practise to escape all SQL statements and HTML from the request body. As a result, when that raw HTML fetched from then database get displayed on the client side will not be executed.
-
-Even OWASP(Open Web Application Security Project) suggests escaping HTML and SQL statement to secure the API. 
+I've had a use case of escaping all the raw html from the REST API request body.  
 
 However, it is time-consuming to write a function for each request struct to escape each field. So I came up with the idea of creating a single function called `EscapeStruct` that uses reflection to detect the layout of the struct and then it can be used to escape all of the string fields.
 
