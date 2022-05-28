@@ -18,6 +18,7 @@ mod auditlog;
 mod config;
 mod policy_evaluator;
 mod postgres_driver;
+mod mysql_driver;
 mod sql;
 use apiproto::api::*;
 use apiproto::api_grpc::*;
