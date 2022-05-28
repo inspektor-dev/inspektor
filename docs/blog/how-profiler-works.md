@@ -31,14 +31,16 @@ The sample program calculates the number of prime numbers from 1 to 50000.
 ```rust
 fn main() {
     let prime_numbers = prepare_prime_numbers();
-
+    // start profiling
     let guard = pprof::ProfilerGuardBuilder::default()
         .frequency(100)
         .build()
         .unwrap();
     let mut v = 0;
     for i in 1..50000 {
-        if i % 3 == 0 {
+        // use `is_prime_number1` function only if the incoming value
+        // i is divisable by 3.
+        if i % 3 == 0 { 
             if is_prime_number1(i, &prime_numbers) {
                 v += 1;
             }
@@ -50,6 +52,7 @@ fn main() {
         }
     }
     println!("Prime numbers: {}", v);
+    // stop profiling and generate the profiled report.
     if let Ok(report) = guard.report().build() {
         let mut file = File::create("profile.pb").unwrap();
         let profile = report.pprof().unwrap();
@@ -93,12 +96,16 @@ From the visualized profile, you can clearly see that `is_prime_number2` have co
 
 Now, that we learned how to profile rust program using `pprof-rs`. Let's learn how `pprof-rs` works internally. 
 
+Please don't get too worn out yet! So far, we've learned the basics of profiler and how to use `pprof-rs`. Before we begin internal working of profiler, let's take a sip of water to rehydrate ourselves.
+
+![drink water to stay hyderated](/img/drink_water_to_stay_hydrated.jpeg)
+
 
 ## Gist of cpu profilers
 
 Before we get into `pprof-rs` code, let's learn cpu profiling in theory. 
 
-Profiler pause the programme in certain interval of time and resumes after sampling the current stack trace. While sampling, it takes each stack frame and increments it's count. Then the sampled data is then used to create a flamegraph or something similar.
+Profiler pause the program in certain interval of time and resumes after sampling the current stack trace. While sampling, it takes each stack frame and increments it's count. Then the sampled data is then used to create a flamegraph or something similar.
 
 >> stack traces: stack traces are the list of call stack of function calls. for eg: is_prime_number_1 -> main
 
@@ -157,16 +164,10 @@ extern "C" fn perf_signal_handler(
         if let Ok(profiler) = guard.as_mut() {
             let mut bt: SmallVec<[<TraceImpl as Trace>::Frame; MAX_DEPTH]> =
                 SmallVec::with_capacity(MAX_DEPTH);
-            let mut index = 0;
+            // ucontext is passed to trace method to retrive 
+            // stack frame of current instruction pointer. 
             TraceImpl::trace(ucontext, |frame| {
-                let ip = Frame::ip(frame);
-                if index < MAX_DEPTH {
-                    bt.push(frame.clone());
-                    index += 1;
-                    true
-                } else {
-                    false
-                }
+                 bt.push(frame.clone());               
             });
             let current_thread = unsafe { libc::pthread_self() };
             let mut name = [0; MAX_THREAD_NAME];
