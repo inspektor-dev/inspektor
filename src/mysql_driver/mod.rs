@@ -13,3 +13,4 @@
 // limitations under the License.
 
 mod driver;
+mod message;

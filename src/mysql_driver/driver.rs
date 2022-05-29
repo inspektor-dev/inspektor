@@ -49,6 +49,8 @@ impl MySqlDriver{
     }
 
     async fn handle_client_conn(&self, conn: TcpStream) -> Result<(), anyhow::Error>{
+        // to initate the handshake, we must get the target mysql configuration.
+        
         todo!()
     }
 }
