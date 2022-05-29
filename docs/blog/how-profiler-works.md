@@ -255,6 +255,13 @@ where
 
 The collected stack frame and it's count is passed to the `flamegraph` crate to create a flamegraph. 
 
+`flamegraph` crate will generate differential flamegraph from folded stack line.
+**Example**
+```
+main;prime_number1 3
+main;prime_number2 5
+```
+
 ![demo flamegraph](/img/demo_flamegraph.png)
 
 `pprof-rs` also encodes the sampled data in google's `pprof` format which let you plot interactive graphs.
@@ -262,3 +269,4 @@ The collected stack frame and it's count is passed to the `flamegraph` crate to 
 In recent days I've been excited about continuous profiling and it has been a hot thing in the observability space. Follow these amazing open-source projects [parca](https://github.com/parca-dev/parca) and [pyroscope](https://github.com/pyroscope-io/pyroscope) to know more about continuous profiling. 
 ## Reference
 - [pprof-rs](https://github.com/tikv/pprof-rs)
+- You can learn more about diffrential flamegraph from Brendan Gregg's [Blog](https://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html)
