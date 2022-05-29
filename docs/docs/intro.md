@@ -57,23 +57,19 @@ The **controlplane** acts as a management service to dynamically configure all y
 - Postgres
 
 **Planned Data Sources**
+- MYSQL 
 - Snowflake
 - MongoDB
 - MySQL
 - S3
 
-### Tech Stack 
-- Languages: Rust and Go
-- UI: Vue
-- Policy: Open Policy Agent (OPA)
-
 ### Team
 
-**Balaji Jinnah (poonai)** | [Twitter](https://twitter.com/poonai_) | [Rant](https://poonai.github.io) | [Discord](https://discord.gg/YxZbDJHTxf) 
-- Lead Project Creator and Maintainer.
+**Balaji Jinnah (poonai)** | [Twitter](https://twitter.com/poonai_)
+- Maintainer
 
 <br/>
 
 **Priyansh**
-- disturbs the maintainer.
+- Contributor
 
