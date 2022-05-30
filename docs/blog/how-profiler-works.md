@@ -111,13 +111,13 @@ Please don't get too worn out yet! So far, we've learned the basics of profiler 
 
 Before we get into `pprof-rs` code, let's learn cpu profiling in theory. 
 
-Profiler pause the program in certain interval of time and resumes after sampling the current stack trace. While sampling, it takes each stack frame and increments it's count. Then the sampled data is then used to create a flamegraph or something similar.
+Profiler pause the program in certain interval of time and resumes after sampling the current stack trace. While sampling, it takes each stack frame and increments its count. Then the sampled data is then used to create a flamegraph or something similar.
 
 >> stack traces: stack traces are the list of call stack of function calls. for eg: is_prime_number_1 -> main
 
 ![Gist of profiler notes](/img/notes_on_profiler.jpeg)
 
-## pprof-rs implementation and it's syscalls
+## pprof-rs implementation and its syscalls
 
 **start profiling**
 
@@ -205,7 +205,7 @@ extern "C" fn perf_signal_handler(
 
 **sampling**
 
-`profiler.sample` interally calls a hashmap to insert stack frame and it's count. As a side note, this is a custom implementation of the hashmap, rather than the rust's built-in hashmap. That's because heap allocation is forbidden inside signal handler so hashmap can't grow dynamically.
+`profiler.sample` interally calls a hashmap to insert stack frame and its count. As a side note, this is a custom implementation of the hashmap, rather than the rust's built-in hashmap. That's because heap allocation is forbidden inside signal handler so hashmap can't grow dynamically.
 
 <p align="right"> <a href="https://github.com/tikv/pprof-rs/blob/master/src/collector.rs#L47">Link to the source</a></p>
 
@@ -242,7 +242,7 @@ Some(new_entry)
 
 **ploting**
 
-The collected stack frame and it's count is passed to the `flamegraph` crate to create a flamegraph. 
+The collected stack frame and its count is passed to the `flamegraph` crate to create a flamegraph. 
 
 <p align="right"> <a href="https://github.com/tikv/pprof-rs/blob/master/src/report.rs#L174">Link to the source</a></p>
 
