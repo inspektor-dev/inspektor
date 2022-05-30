@@ -15,12 +15,13 @@ hide_table_of_contents: false
 
 Many of us use profiler to measure the CPU or memory consumed by the piece of code. This led me to figure out how profilers work. 
 
-I learn most of the things by reading the source code of open-source projects.I'm grateful to all the OSS fellows who are sharing their knowledge and it's a game changer for small town person like me who don't have access to top university.
+To learn about profiling, I groked a popular profiling crate [pprof-rs](https://github.com/tikv/pprof-rs). This library is used to measure the CPU usage of a rust program.
 
 If you are also interested in contributing to open source code or want to learn how to read complex project source code. I would highly recommend [Contributing to Complex Projects](https://mitchellh.com/writing/contributing-to-complex-projects) by [Mitchell Hashimoto](https://twitter.com/mitchellh).
 
 ## Basics of profiling
-I groked a popular profiling crate [pprof-rs](https://github.com/tikv/pprof-rs) to learn about it's working.  This library is used to measure the CPU usage of a rust program. Before we start, let's just profile a sample rust program and see how it's used.
+
+let's just profile a sample rust program and see how `pprof` used.
 
 Here is the modifled example program that I've taken from pprof-rs. You find the full source [here](https://gist.github.com/poonai/dab9e7e4812b65aeea82451efe81e227).
 
@@ -32,10 +33,12 @@ The sample program calculates the number of prime numbers from 1 to 50000.
 fn main() {
     let prime_numbers = prepare_prime_numbers();
     // start profiling
+    // highlight-start
     let guard = pprof::ProfilerGuardBuilder::default()
         .frequency(100)
         .build()
         .unwrap();
+    // highlight-end
     let mut v = 0;
     for i in 1..50000 {
         // use `is_prime_number1` function only if the incoming value
@@ -53,6 +56,7 @@ fn main() {
     }
     println!("Prime numbers: {}", v);
     // stop profiling and generate the profiled report.
+    // highlight-start
     if let Ok(report) = guard.report().build() {
         let mut file = File::create("profile.pb").unwrap();
         let profile = report.pprof().unwrap();
@@ -61,6 +65,7 @@ fn main() {
         profile.write_to_vec(&mut content).unwrap();
         file.write_all(&content).unwrap();
     };
+    // highlight-end
 }
 ```
 
@@ -98,7 +103,8 @@ Now, that we learned how to profile rust program using `pprof-rs`. Let's learn h
 
 Please don't get too worn out yet! So far, we've learned the basics of profiler and how to use `pprof-rs`. Before we begin internal working of profiler, let's take a sip of water to rehydrate ourselves.
 
-![drink water to stay hyderated](/img/drink_water_to_stay_hydrated.jpeg)
+<p align="center"> <img src= "/img/drink_water_to_stay_hyderated.webp"/> </p>
+<p align="center"> <a href="https://www.memecreator.org/meme/please-drink-water-staying-hydrated-is-awesome/">image source</a></p>
 
 
 ## Gist of cpu profilers
@@ -113,16 +119,24 @@ Profiler pause the program in certain interval of time and resumes after samplin
 
 ## pprof-rs implementation and it's syscalls
 
-** start profiling**
+**start profiling**
+
+When you start the profiling with `ProfilerGuardBuilder`, `pprof-rs` will register signal handler and timer to specify how often programs is supposed to pause.
+
 ```rust
  let guard = pprof::ProfilerGuardBuilder::default()
         .frequency(100)
         .build()
         .unwrap();
 ```
-When you start the profiling with `ProfilerGuardBuilder`, `pprof-rs` will register signal handler and timer to specify how often programs is supposed to pause.
-
 **registering signal handler**
+
+`perf_signal_handler` callback function is registered for `SIGPROF` signal. whenever `SIGPROF` signal emitted, `perf_signal_handler` is invoked.
+
+>> [SIGPROF](https://www.gnu.org/software/libc/manual/html_node/Alarm-Signals.html): This signal typically indicates expiration of a timer that measures both CPU time used by the current process, and CPU time expended on behalf of the process by the system. Such a timer is used to implement code profiling facilities, hence the name of this signal.
+
+<p align="right"> <a href="https://github.com/tikv/pprof-rs/blob/master/src/profiler.rs#L370">Link to the source</a></p>
+
 ```rust
 let handler = signal::SigHandler::SigAction(perf_signal_handler);
 let sigaction = signal::SigAction::new(
@@ -132,11 +146,12 @@ let sigaction = signal::SigAction::new(
 );
 unsafe { signal::sigaction(signal::SIGPROF, &sigaction) }?;
 ```
-`perf_signal_handler` callback function is registered for `SIGPROF` signal. whenever `SIGPROF` signal emitted, `perf_signal_handler` is invoked.
-
->> [SIGPROF](https://www.gnu.org/software/libc/manual/html_node/Alarm-Signals.html): This signal typically indicates expiration of a timer that measures both CPU time used by the current process, and CPU time expended on behalf of the process by the system. Such a timer is used to implement code profiling facilities, hence the name of this signal.
 
 **specifying interval**
+
+Interval time for the every `SIGPROF` signal is configured using `setitimer` syscall. This is useful to determine how often the sample needs to be taken.
+
+<p align="right"> <a href="https://github.com/tikv/pprof-rs/blob/master/src/timer.rs#L42">Link to the source</a></p>
 
 ```rust
 unsafe {
@@ -150,9 +165,15 @@ unsafe {
   )
 };
 ```
-Interval time for the every `SIGPROF` signal is configured using `setitimer` syscall. This is useful to determine how often the sample needs to be taken.
 
 **handling SIGPROF signal**
+
+Since we registered `perf_signal_handler` function to handle `SIGPROF` signals, it is invoked whenever a `SIGPROF` signal is emitted. perf_signal_handler takes `ucontext` as one of the arguments. `ucontext` contains the current instruction pointer of machine code that is being executed.
+
+Using that instruction pointer, current call stack trace is retrivied. That is done using [backtrace](https://github.com/rust-lang/backtrace-rs) crate. The collected backtrace and thread name is passed to 
+the `profiler.sample` for sampling.
+
+<p align="right"> <a href="https://github.com/tikv/pprof-rs/blob/master/src/profiler.rs#L239">Link to the source</a></p>
 
 ```rust
 extern "C" fn perf_signal_handler(
@@ -174,18 +195,19 @@ extern "C" fn perf_signal_handler(
             let name_ptr = &mut name as *mut [libc::c_char] as *mut libc::c_char;
             write_thread_name(current_thread, &mut name);
             let name = unsafe { std::ffi::CStr::from_ptr(name_ptr) };
+            // highlight-start
             profiler.sample(bt, name.to_bytes(), current_thread as u64);
+            // highlight-end
         }
     }
 }
 ```
 
-Since we registered `perf_signal_handler` function to handle `SIGPROF` signals, it is invoked whenever a `SIGPROF` signal is emitted. perf_signal_handler takes `ucontext` as one of the arguments. `ucontext` contains the current instruction pointer of machine code that is being executed.
-
-Using that instruction pointer, current call stack trace is retrivied. That is done using [backtrace](https://github.com/rust-lang/backtrace-rs) crate. The collected backtrace and thread name is passed to 
-the `profiler.sample` for sampling.
-
 **sampling**
+
+`profiler.sample` interally calls a hashmap to insert stack frame and it's count. As a side note, this is a custom implementation of the hashmap, rather than the rust's built-in hashmap. That's because heap allocation is forbidden inside signal handler so hashmap can't grow dynamically.
+
+<p align="right"> <a href="https://github.com/tikv/pprof-rs/blob/master/src/collector.rs#L47">Link to the source</a></p>
 
 ```rust
 pub fn add(&mut self, key: T, count: isize) -> Option<Entry<T>> {
@@ -199,7 +221,9 @@ pub fn add(&mut self, key: T, count: isize) -> Option<Entry<T>> {
     ...
 }
 ```
-`profiler.sample` interally calls a hashmap to insert stack frame and it's count. As a side note, this is a custom implementation of the hashmap, rather than the rust's built-in hashmap. That's because heap allocation is forbidden inside signal handler so hashmap can't grow dynamically.
+A stack frame with least count is evicted from the hashmap if the incoming stack frame can't find a place in it, and a temporary file is created to store the evicted stack frame.
+
+<p align="right"> <a href="https://github.com/tikv/pprof-rs/blob/master/src/collector.rs#L66">Link to the source</a></p>
 
 ```rust
 let mut min_index = 0;
@@ -215,9 +239,12 @@ let mut new_entry = Entry { item: key, count };
 std::mem::swap(&mut self.entries[min_index], &mut new_entry);
 Some(new_entry)
 ```
-A stack frame with least count is evicted from the hashmap if the incoming stack frame can't find a place in it, and a temporary file is created to store the evicted stack frame.
 
 **ploting**
+
+The collected stack frame and it's count is passed to the `flamegraph` crate to create a flamegraph. 
+
+<p align="right"> <a href="https://github.com/tikv/pprof-rs/blob/master/src/report.rs#L174">Link to the source</a></p>
 
 ```rust
 pub fn flamegraph_with_options<W>(
@@ -246,14 +273,13 @@ where
         })
         .collect();
     if !lines.is_empty() {
+        // highlight-start
         flamegraph::from_lines(options, lines.iter().map(|s| &**s), writer).unwrap();
-        // TODO: handle this error
+        // highlight-end
     
     Ok(())
 }
 ```
-
-The collected stack frame and it's count is passed to the `flamegraph` crate to create a flamegraph. 
 
 `flamegraph` crate will generate differential flamegraph from folded stack line.
 **Example**
