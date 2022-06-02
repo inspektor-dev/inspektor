@@ -146,6 +146,12 @@ const config = {
         additionalLanguages: ['rust', 'go'],
       },
     }),
+    scripts:[
+      {
+        src:"/leedfeed.js",
+        async: true
+      }
+    ]
 };
 
 module.exports = config;
