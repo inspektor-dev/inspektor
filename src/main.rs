@@ -19,6 +19,7 @@ mod config;
 mod policy_evaluator;
 mod postgres_driver;
 mod sql;
+mod bytespool;
 use apiproto::api::*;
 use apiproto::api_grpc::*;
 use clap::{App, Arg};
