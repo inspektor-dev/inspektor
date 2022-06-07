@@ -255,12 +255,11 @@ pub enum FrontendMessage {
 }
 
 impl FrontendMessage {
-    pub fn encode(&self) -> BytesMut {
-        let mut buf = BytesMut::new();
+    pub fn encode(&self, buf: &mut BytesMut) {
         match self {
             FrontendMessage::PasswordMessage { password } => {
                 buf.put_u8(b'p');
-                write_message(&mut buf, |buf| {
+                write_message(buf, |buf| {
                     write_cstr(buf, password.as_bytes())?;
                     Ok(())
                 })
@@ -271,7 +270,7 @@ impl FrontendMessage {
                 buf.put_i32(VERSION_SSL);
             }
             FrontendMessage::Startup { params, version } => {
-                write_message(&mut buf, |buf| {
+                write_message(buf, |buf| {
                     buf.put_i32(*version);
                     for (key, val) in params {
                         write_cstr(buf, key.as_bytes())?;
@@ -287,7 +286,7 @@ impl FrontendMessage {
                 name,
             } => {
                 buf.put_u8(b'D');
-                write_message(&mut buf, |buf| {
+                write_message(buf, |buf| {
                     if *is_prepared_statement {
                         buf.put_u8(b'S');
                     } else {
@@ -308,7 +307,7 @@ impl FrontendMessage {
             }
             FrontendMessage::Query { query_string } => {
                 buf.put_u8(b'Q');
-                write_message(&mut buf, |buf| write_cstr(buf, query_string.as_bytes())).unwrap();
+                write_message(buf, |buf| write_cstr(buf, query_string.as_bytes())).unwrap();
             }
             FrontendMessage::Sync => {
                 buf.put_u8(b'S');
@@ -326,7 +325,7 @@ impl FrontendMessage {
                 result_column_format_codes,
             } => {
                 buf.put_u8(b'B');
-                write_message(&mut buf, |buf| {
+                write_message(buf, |buf| {
                     write_cstr(buf, destination_portal_name.as_bytes()).unwrap();
                     write_cstr(buf, prepared_statement_name.as_bytes()).unwrap();
                     write_counted_message(
@@ -373,7 +372,7 @@ impl FrontendMessage {
                 function_arguments,
                 result_format_code,
             } => {
-                write_message(&mut buf, |buf| {
+                write_message(buf, |buf| {
                     buf.put_i32(*object_id);
                     write_counted_message(
                         format_codes,
@@ -410,7 +409,7 @@ impl FrontendMessage {
             }
             FrontendMessage::CopyData(data) => {
                 buf.put_u8(b'd');
-                write_message(&mut buf, |buf| {
+                write_message(buf, |buf| {
                     buf.extend_from_slice(data);
                     Ok(())
                 })
@@ -418,15 +417,15 @@ impl FrontendMessage {
             }
             FrontendMessage::CopyDone => {
                 buf.put_u8(b'c');
-                write_message(&mut buf, |_| Ok(())).unwrap();
+                write_message(buf, |_| Ok(())).unwrap();
             }
             FrontendMessage::CopyFail { err_msg } => {
                 buf.put_u8(b'f');
-                write_message(&mut buf, |buf| Ok(write_cstr(buf, err_msg.as_bytes())?)).unwrap();
+                write_message(buf, |buf| Ok(write_cstr(buf, err_msg.as_bytes())?)).unwrap();
             }
             FrontendMessage::Close { is_portal, name } => {
                 buf.put_u8(b'C');
-                write_message(&mut buf, |buf| {
+                write_message(buf, |buf| {
                     if *is_portal {
                         buf.put_u8(b'P');
                     } else {
@@ -441,7 +440,7 @@ impl FrontendMessage {
                 max_no_of_rows,
             } => {
                 buf.put_u8(b'E');
-                write_message(&mut buf, |buf| {
+                write_message(buf, |buf| {
                     write_cstr(buf, name.as_bytes())?;
                     buf.put_i32(*max_no_of_rows);
                     Ok(())
@@ -454,7 +453,7 @@ impl FrontendMessage {
                 object_ids,
             } => {
                 buf.put_u8(b'P');
-                write_message(&mut buf, |buf| {
+                write_message(buf, |buf| {
                     write_cstr(buf, name.as_bytes())?;
                     write_cstr(buf, query.as_bytes())?;
                     write_counted_message(
@@ -471,7 +470,7 @@ impl FrontendMessage {
             }
             FrontendMessage::SASLInitialResponse { body, mechanism } => {
                 buf.put_u8(b'p');
-                write_message(&mut buf, |buf| {
+                write_message(buf, |buf| {
                     write_cstr(buf, mechanism.as_bytes())?;
                     buf.put_i32(body.len() as i32);
                     buf.put_slice(body);
@@ -481,13 +480,19 @@ impl FrontendMessage {
             }
             FrontendMessage::SASLResponse { body } => {
                 buf.put_u8(b'p');
-                write_message(&mut buf, |buf| {
+                write_message(buf, |buf| {
                     buf.extend_from_slice(body);
                     Ok(())
                 })
                 .unwrap();
             }
         }
+    }
+
+
+    pub fn encode_without_buf(&self) -> BytesMut {
+        let mut buf = BytesMut::new();
+        self.encode(&mut buf);
         buf
     }
 

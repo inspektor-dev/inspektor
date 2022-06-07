@@ -31,5 +31,7 @@ postgres-protocol = "0.6.3"
 aws-config = "0.11.0"
 aws-sdk-cloudwatchlogs = "0.11.0"
 async-trait = "0.1.53"
+thread_local = "1.1.4"
+lazy_static = "1.4.0"
 [build-dependencies]
 protoc-grpcio = "3.0.0"

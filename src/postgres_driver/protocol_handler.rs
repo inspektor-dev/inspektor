@@ -14,6 +14,7 @@ use crate::apiproto::api_grpc::InspektorClient;
 // limitations under the License.
 use crate::apiproto::api::{Metric, MetricsRequest};
 use crate::auditlog::build_audit_msg;
+use crate::bytespool::BUF_POOL;
 use crate::config::PostgresConfig;
 use crate::policy_evaluator::evaluator::PolicyEvaluator;
 use crate::postgres_driver::conn::PostgresConn;
@@ -23,6 +24,7 @@ use crate::sql::ctx::Ctx;
 use crate::sql::query_rewriter::QueryRewriter;
 use crate::sql::rule_engine::HardRuleEngine;
 use anyhow::*;
+use bytes::BytesMut;
 use grpcio::CallOption;
 use log::*;
 use md5::{Digest, Md5};
@@ -81,9 +83,7 @@ struct TableInfo {
 
 impl ProtocolHandler {
     // get_table_info get table info of the protected tables.
-    async fn get_table_info(
-        &mut self,
-    ) -> Result<TableInfo, anyhow::Error> {
+    async fn get_table_info(&mut self) -> Result<TableInfo, anyhow::Error> {
         let result = self.policy_evaluator.evaluate(
             &self.datasource_name,
             &"view".to_string(),
@@ -153,8 +153,6 @@ impl ProtocolHandler {
             schemas,
         })
     }
-
-    
 
     // serve will listen to client packets and decide whether to process
     // the packet based on the opa policy.
@@ -325,15 +323,24 @@ impl ProtocolHandler {
         }
         // the incoming command have not violated any polices or query rewritter able to rewrite
         // successfully, so forward the incoming message to the target postgres instance.
-        self.target_conn
-            .write_all(&msg.encode())
-            .await
-            .map_err(|e| {
-                anyhow!(
-                    "error while writing the frontend message to the target {:?}",
-                    e
-                )
-            })
+        let mut buf = self.get_buf();
+        msg.encode(&mut buf);
+        self.target_conn.write_all(&buf).await.map_err(|e| {
+            anyhow!(
+                "error while writing the frontend message to the target {:?}",
+                e
+            )
+        })?;
+        self.put_buf(buf);
+        Ok(())
+    }
+
+    pub fn get_buf(&self) -> BytesMut {
+        BUF_POOL.with(|pool| pool.borrow_mut().get())
+    }
+
+    pub fn put_buf(&self, buf: BytesMut) {
+        BUF_POOL.with(|pool| pool.borrow_mut().put(buf))
     }
 
     // intialize will create a new connection with target and returns initialized postgres protocol handler.
@@ -410,7 +417,7 @@ impl ProtocolHandler {
                     params: startup_params,
                     version: VERSION_3,
                 }
-                .encode(),
+                .encode_without_buf(),
             )
             .await
             .map_err(|e| {
@@ -447,7 +454,7 @@ impl ProtocolHandler {
                         salt,
                     );
                     self.target_conn
-                        .write_all(&FrontendMessage::PasswordMessage { password }.encode())
+                        .write_all(&FrontendMessage::PasswordMessage { password }. encode_without_buf())
                         .await
                         .map_err(|e| {
                             error!("error while sending md5 password message to target");
@@ -463,7 +470,7 @@ impl ProtocolHandler {
                             &FrontendMessage::PasswordMessage {
                                 password: self.config.target_password.as_ref().unwrap().clone(),
                             }
-                            .encode(),
+                            .encode_without_buf(),
                         )
                         .await
                         .map_err(|e| {
@@ -576,7 +583,7 @@ impl ProtocolHandler {
                     body: sasl_auth.message().to_vec(),
                     mechanism: String::from("SCRAM-SHA-256"),
                 }
-                .encode(),
+                .encode_without_buf(),
             )
             .await?;
         debug!("receiving server first message");
@@ -601,7 +608,7 @@ impl ProtocolHandler {
                 &FrontendMessage::SASLResponse {
                     body: sasl_auth.message().to_vec(),
                 }
-                .encode(),
+                .encode_without_buf(),
             )
             .await?;
         // retrive server final message and verify.
@@ -647,9 +654,9 @@ impl ProtocolHandler {
         conn: PostgresConn,
     ) -> Result<PostgresConn, anyhow::Error> {
         match conn {
-            PostgresConn::Unsecured(mut inner) => {
+            PostgresConn::Unsecured(mut inner) => {                
                 inner
-                    .write_all(&FrontendMessage::SslRequest.encode())
+                    .write_all(&FrontendMessage::SslRequest.encode_without_buf())
                     .await
                     .map_err(|e| {
                         error!("unable to send ssl upgrade request to target. err: {:?}", e);
