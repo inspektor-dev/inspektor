@@ -37,6 +37,7 @@ message Metric {
 
 message IntegrationConfigResponse {
     CloudWatchConfig cloud_watch_config = 1;
+    AuditLogConfig audit_log_config = 2;
 }
 
 message CloudWatchConfig {
@@ -46,6 +47,10 @@ message CloudWatchConfig {
     string secret_key = 4;
     string log_group_name = 5;
     string log_stream_name = 6;
+}
+
+message AuditLogConfig {
+    string log_prefix = 1;
 }
 
 service Inspektor {
