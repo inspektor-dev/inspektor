@@ -266,6 +266,55 @@ func (h *Handlers) CreateTempSession() InspectorHandler {
 	}
 }
 
+func (h *Handlers) CreateServiceAccount() InspectorHandler {
+	return func(ctx *types.Ctx) {
+		if utils.IndexOf(ctx.Claim.Roles, "admin") == -1 {
+			utils.WriteErrorMsgWithErrCode("only admin can create data source", types.ErrInvalidAccess, http.StatusUnauthorized, ctx.Rw)
+			return
+		}
+		req := &types.CreateServiceAccount{}
+		if err := json.NewDecoder(ctx.R.Body).Decode(req); err != nil {
+			utils.Logger.Error("error while decoding user request", zap.String("err_msg", err.Error()))
+			utils.WriteErrorMsg("invalid request", http.StatusBadRequest, ctx.Rw)
+			return
+		}
+		err := req.Validate()
+		if err != nil {
+			utils.WriteErrorMsg(err.Error(), http.StatusBadRequest, ctx.Rw)
+			return
+		}
+		// validate datasource exist or not.
+		_, err = h.Store.GetDatasource(req.DatasourceID)
+		if err != nil {
+			utils.Logger.Error("error while retriving datasoruce", zap.String("err_msg", err.Error()))
+			handleErr(err, ctx)
+			return
+		}
+
+		if len(req.Roles) == 0 {
+			utils.WriteErrorMsg("expected atleast one role to create session", http.StatusBadRequest, ctx.Rw)
+			return
+		}
+		session := &models.Session{
+			ObjectID: req.DatasourceID,
+			SessionMeta: &models.SessionMeta{
+				Type:               "postgres",
+				PostgresPassword:   utils.GenerateSecureToken(7),
+				PostgresUsername:   namegenerator.NewNameGenerator(time.Now().UnixNano()).Generate(),
+				TempRoles:          req.Roles,
+				ServiceAccountName: req.ServiceAccountName,
+			},
+		}
+		session.MarshalMeta()
+		if err := h.Store.CreateSession(session); err != nil {
+			utils.Logger.Error("error while creating temp session", zap.String("err_msg", err.Error()))
+			handleErr(err, ctx)
+			return
+		}
+		utils.WriteSuccesMsg("ok", http.StatusOK, ctx.Rw)
+	}
+}
+
 func (h *Handlers) OAuthUrl() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		res := &types.OauthResponse{}
@@ -381,12 +430,14 @@ func (h *Handlers) Init(router *mux.Router) {
 	router.HandleFunc("/api/session", h.AuthMiddleWare(h.GetSesssion())).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/session/temp", h.AuthMiddleWare(h.CreateTempSession())).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/session/temp", h.AuthMiddleWare(h.GetTempSessions())).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/serviceaccount", h.AuthMiddleWare(h.CreateServiceAccount())).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/serviceaccount", h.AuthMiddleWare(h.GetServiceAccount())).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/policy/nofification", h.PolicyNotification()).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/user", h.AuthMiddleWare(h.AddUser())).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/users", h.AuthMiddleWare(h.GetUsers())).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/roles", h.AuthMiddleWare(h.Roles())).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/roles", h.AuthMiddleWare(h.AddRoles())).Methods("POST", "OPTIONS")
-	router.HandleFunc("/api/config", h.AuthMiddleWare(h.Config())).Methods("GET")
+	router.HandleFunc("/api/config", h.AuthMiddleWare(h.Config())).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/oauth", h.OAuthUrl()).Methods("GET")
 	router.HandleFunc("/api/configure/cloudwatch", h.AuthMiddleWare(h.ConfigureCloudWatch())).Methods("POST")
 	router.HandleFunc("/api/configure/auditlog", h.AuthMiddleWare(h.ConfigureAuditLog())).Methods("POST")
@@ -395,8 +446,8 @@ func (h *Handlers) Init(router *mux.Router) {
 	router.HandleFunc("/readiness", func(rw http.ResponseWriter, r *http.Request) {
 		rw.Write([]byte("ok"))
 	})
-	spa := spaHandler{staticPath: "dashboard/dist", indexPath: "index.html"}
-	router.PathPrefix("/").Handler(spa)
+	//spa := spaHandler{staticPath: "dashboard/dist", indexPath: "index.html"}
+	//router.PathPrefix("/").Handler(spa)
 	cors := handlers.CORS(
 		handlers.AllowedHeaders([]string{"Content-Type", "Auth-Token"}),
 		handlers.AllowedOrigins([]string{"*"}),

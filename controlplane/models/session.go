@@ -18,14 +18,15 @@ type Session struct {
 }
 
 type SessionMeta struct {
-	Type             string          `json:"type"`
-	PostgresPassword string          `json:"postgresPassword"`
-	PostgresUsername string          `json:"postgresUsername"`
-	TempRoles        []string        `json:"tempRoles"`
-	ExpiresAt        int64           `json:"expiresAt"`
-	Context          json.RawMessage `json:"context"`
-	TempCreatedBy    string          `json:"tempCreatedBy"`
-	Passthrough      bool            `json:"passthrough"`
+	Type               string          `json:"type"`
+	PostgresPassword   string          `json:"postgresPassword"`
+	PostgresUsername   string          `json:"postgresUsername"`
+	TempRoles          []string        `json:"tempRoles"`
+	ExpiresAt          int64           `json:"expiresAt"`
+	Context            json.RawMessage `json:"context"`
+	TempCreatedBy      string          `json:"tempCreatedBy"`
+	Passthrough        bool            `json:"passthrough"`
+	ServiceAccountName string          `json:"serviceAccountName"`
 }
 
 func (s *Session) UnmarshalMeta() {

@@ -42,7 +42,35 @@ func (h *Handlers) GetTempSessions() InspectorHandler {
 		filteredSession := []*models.Session{}
 		for _, session := range sessions {
 			session.UnmarshalMeta()
-			if len(session.SessionMeta.TempRoles) == 0 {
+			if len(session.SessionMeta.TempRoles) == 0 || session.SessionMeta.ServiceAccountName != "" {
+				continue
+			}
+			datasource, err := h.Store.GetDatasource(session.ObjectID)
+			if err != nil {
+				utils.Logger.Error("error while retriving temp sessions", zap.String("err_msg", err.Error()))
+				utils.WriteErrorMsg("server down", http.StatusInternalServerError, ctx.Rw)
+				return
+			}
+			datasource.SideCarToken = ""
+			session.Datasource = datasource
+			filteredSession = append(filteredSession, session)
+		}
+		utils.WriteSuccesMsgWithData("ok", http.StatusOK, filteredSession, ctx.Rw)
+	}
+}
+
+func (h *Handlers) GetServiceAccount() InspectorHandler {
+	return func(ctx *types.Ctx) {
+		sessions, err := h.Store.GetSessions()
+		if err != nil {
+			utils.Logger.Error("error while retriving user session", zap.String("err_msg", err.Error()))
+			utils.WriteErrorMsg("server down", http.StatusInternalServerError, ctx.Rw)
+			return
+		}
+		filteredSession := []*models.Session{}
+		for _, session := range sessions {
+			session.UnmarshalMeta()
+			if session.SessionMeta.ServiceAccountName == "" {
 				continue
 			}
 			datasource, err := h.Store.GetDatasource(session.ObjectID)

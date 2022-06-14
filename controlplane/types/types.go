@@ -104,6 +104,19 @@ type CreateTempSession struct {
 	Roles        []string `json:"roles"`
 }
 
+type CreateServiceAccount struct {
+	Roles              []string `json:"roles"`
+	ServiceAccountName string   `json:"serviceAccountName"`
+	DatasourceID       uint     `json:"datasourceId"`
+}
+
+func (c *CreateServiceAccount) Validate() error {
+	if c.ServiceAccountName == "" {
+		return errors.New("service account name is a mandatory field")
+	}
+	return nil
+}
+
 type IntegrationConfig struct {
 	CloudWatchConfig *CloudWatchConfig `json:"cloudWatchConfig"`
 	AuditLogConfig   *AuditLogConfig   `json:"auditLogConfig"`

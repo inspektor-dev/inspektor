@@ -216,6 +216,15 @@ func (s *Store) GetSessionForUser(userID uint) ([]*models.Session, error) {
 	return sessions, nil
 }
 
+func (s *Store) GetSessions() ([]*models.Session, error) {
+	sessions := []*models.Session{}
+	if err := s.db.Model(&models.Session{}).Find(&sessions).Error; err != nil {
+		utils.Logger.Error("error while retriving sessions", zap.String("err_msg", err.Error()))
+		return nil, err
+	}
+	return sessions, nil
+}
+
 func (s *Store) GetSessionByWhere(query interface{}, args ...interface{}) (*models.Session, error) {
 	session := &models.Session{}
 	err := s.db.Model(&models.Session{}).Where(query, args...).First(session).Error
