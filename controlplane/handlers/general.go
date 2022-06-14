@@ -16,6 +16,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"inspektor/types"
 	"inspektor/utils"
 	"net/http"
@@ -52,23 +53,57 @@ func (h *Handlers) ConfigureCloudWatch() InspectorHandler {
 			utils.WriteErrorMsg(err.Error(), http.StatusBadRequest, ctx.Rw)
 			return
 		}
-		val, err := h.Store.Get(types.IntegrationConfigKey)
+		err := h.UpdateIntegrationCfg(func(cfg *types.IntegrationConfig) {
+			cfg.CloudWatchConfig = config
+		})
 		if err != nil {
-			utils.Logger.Error("error while retriving integration config", zap.String("err_msg", err.Error()))
-			utils.WriteErrorMsg("error while retriving integration config", http.StatusInternalServerError, ctx.Rw)
-			return
-		}
-		integrationConfig := &types.IntegrationConfig{}
-		err = json.Unmarshal([]byte(val), integrationConfig)
-		if err != nil {
-			utils.Logger.Error("error while unmarshaling integration config", zap.String("err_msg", err.Error()))
+			utils.Logger.Error("eror while updating integration config", zap.String("err_msg", err.Error()))
 			utils.WriteErrorMsg("server down", http.StatusInternalServerError, ctx.Rw)
 			return
 		}
-		integrationConfig.CloudWatchConfig = config
-		err = h.Store.Update(types.IntegrationConfigKey, string(utils.MarshalJSON(integrationConfig)))
+		utils.WriteSuccesMsg("ok", http.StatusOK, ctx.Rw)
+	}
+}
+
+func (h *Handlers) UpdateIntegrationCfg(cb func(cfg *types.IntegrationConfig)) error {
+	val, err := h.Store.Get(types.IntegrationConfigKey)
+	if err != nil {
+		return fmt.Errorf("error while retriving integration config %s", err.Error())
+	}
+	integrationConfig := &types.IntegrationConfig{}
+	err = json.Unmarshal([]byte(val), integrationConfig)
+	if err != nil {
+		utils.Logger.Error("error while unmarshaling integration config", zap.String("err_msg", err.Error()))
+		return fmt.Errorf("error while unmarshalling integration config %s", err.Error())
+	}
+	cb(integrationConfig)
+	err = h.Store.Update(types.IntegrationConfigKey, string(utils.MarshalJSON(integrationConfig)))
+	if err != nil {
+		return fmt.Errorf("error while updating config %s", err.Error())
+	}
+	return nil
+}
+
+func (h *Handlers) ConfigureAuditLog() InspectorHandler {
+	return func(ctx *types.Ctx) {
+		if utils.IndexOf(ctx.Claim.Roles, "admin") == -1 {
+			utils.WriteErrorMsg("invalid access", http.StatusBadRequest, ctx.Rw)
+			return
+		}
+		config := &types.AuditLogConfig{}
+		if err := json.NewDecoder(ctx.R.Body).Decode(config); err != nil {
+			utils.WriteErrorMsg("invalid json", http.StatusBadRequest, ctx.Rw)
+			return
+		}
+		if err := config.Validate(); err != nil {
+			utils.WriteErrorMsg(err.Error(), http.StatusBadRequest, ctx.Rw)
+			return
+		}
+		err := h.UpdateIntegrationCfg(func(cfg *types.IntegrationConfig) {
+			cfg.AuditLogConfig = config
+		})
 		if err != nil {
-			utils.Logger.Error("error while updating config", zap.String("err_msg", err.Error()))
+			utils.Logger.Error("eror while updating integration config", zap.String("err_msg", err.Error()))
 			utils.WriteErrorMsg("server down", http.StatusInternalServerError, ctx.Rw)
 			return
 		}
