@@ -63,7 +63,7 @@ fn main() {
         .get_integration_config_opt(&Empty::new(), call_opt.clone())
         .expect("error while retriving integration config");
     // start audit worker.
-    let audit_sender = auditlog::start_audit_worker(integration_config.take_cloud_watch_config());
+    let audit_sender = auditlog::start_audit_worker(integration_config);
     // look for policy changes.
     let policy_watcher = look_for_policy_update(client.clone(), call_opt.clone());
     let driver = postgres_driver::driver::PostgresDriver {
