@@ -446,8 +446,8 @@ func (h *Handlers) Init(router *mux.Router) {
 	router.HandleFunc("/readiness", func(rw http.ResponseWriter, r *http.Request) {
 		rw.Write([]byte("ok"))
 	})
-	//spa := spaHandler{staticPath: "dashboard/dist", indexPath: "index.html"}
-	//router.PathPrefix("/").Handler(spa)
+	spa := spaHandler{staticPath: "dashboard/dist", indexPath: "index.html"}
+	router.PathPrefix("/").Handler(spa)
 	cors := handlers.CORS(
 		handlers.AllowedHeaders([]string{"Content-Type", "Auth-Token"}),
 		handlers.AllowedOrigins([]string{"*"}),
