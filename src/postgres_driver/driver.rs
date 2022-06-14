@@ -34,7 +34,6 @@ pub struct PostgresDriver {
 }
 
 impl PostgresDriver {
-
     /// start will start listening for postgres connection from the configured
     /// listening port.
     pub fn start(&self) {
@@ -246,7 +245,7 @@ impl PostgresDriver {
         Ok(res)
     }
 
-    /// get_call_opt return call option with control plane auth token. So that 
+    /// get_call_opt return call option with control plane auth token. So that
     /// it can used with grpc client while talking to
     fn get_call_opt(&self) -> CallOption {
         let mut meta_builder = grpcio::MetadataBuilder::new();

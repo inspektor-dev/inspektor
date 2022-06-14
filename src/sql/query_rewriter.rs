@@ -418,9 +418,9 @@ impl<T: RuleEngine + Clone> QueryRewriter<T> {
                 if selections.len() != 0 {
                     return Ok(selections);
                 }
-                if let Some(properties)  = self.metrics.get_mut(table_name) {
+                if let Some(properties) = self.metrics.get_mut(table_name) {
                     properties.insert(format!("{}.*", table_name));
-                } else { 
+                } else {
                     let mut properties = HashSet::new();
                     properties.insert(format!("{}.*", table_name));
                     self.metrics.insert(table_name.clone(), properties);
@@ -1361,7 +1361,7 @@ mod tests {
     }
 
     #[test]
-    fn test_metrics(){
+    fn test_metrics() {
         let rule_engine = HardRuleEngine {
             protected_columns: HashMap::from([(
                 String::from("public.kids"),

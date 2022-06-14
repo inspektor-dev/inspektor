@@ -44,7 +44,7 @@ impl Ctx {
                 match protected_columns.iter().position(|col| *col == *column) {
                     Some(_) => return false,
                     None => {
-                        if let Some(properties) = metrics.get_mut(from){
+                        if let Some(properties) = metrics.get_mut(from) {
                             properties.insert(column.clone());
                             continue;
                         }
@@ -52,7 +52,7 @@ impl Ctx {
                         set.insert(column.clone());
                         metrics.insert(from.clone(), set);
                         continue;
-                    },
+                    }
                 }
             }
         }
@@ -74,7 +74,10 @@ impl Ctx {
 
     // build_allowed_column_expr will returns all the allowed selection for the
     // the current state.
-    pub fn build_allowed_column_expr(&self, metrics: &mut HashMap<String, HashSet<String>>) -> Vec<SelectItem> {
+    pub fn build_allowed_column_expr(
+        &self,
+        metrics: &mut HashMap<String, HashSet<String>>,
+    ) -> Vec<SelectItem> {
         let mut selections = vec![];
         let mut wildcard = true;
         let mut froms = self.from.clone().into_iter().collect::<Vec<String>>();
@@ -87,7 +90,7 @@ impl Ctx {
                 } else {
                     let mut properties = HashSet::new();
                     properties.insert("*".to_string());
-                    metrics.insert(from.clone(), properties); 
+                    metrics.insert(from.clone(), properties);
                 }
                 selections.push(SelectItem::QualifiedWildcard(ObjectName(vec![Ident::new(
                     from,
@@ -108,7 +111,7 @@ impl Ctx {
         &self,
         table_name: &String,
         prefix_table_name: bool,
-        metrics: &mut HashMap<String, HashSet<String>>
+        metrics: &mut HashMap<String, HashSet<String>>,
     ) -> Vec<SelectItem> {
         // should_prefix will determine whether we should prefix
         // table name as column name.
@@ -141,7 +144,7 @@ impl Ctx {
                 } else {
                     let mut properties = HashSet::new();
                     properties.insert(col.clone());
-                    metrics.insert(table_name.clone(), properties); 
+                    metrics.insert(table_name.clone(), properties);
                 }
                 if should_prefix {
                     selections.push(SelectItem::UnnamedExpr(Expr::CompoundIdentifier(vec![

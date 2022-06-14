@@ -454,7 +454,9 @@ impl ProtocolHandler {
                         salt,
                     );
                     self.target_conn
-                        .write_all(&FrontendMessage::PasswordMessage { password }. encode_without_buf())
+                        .write_all(
+                            &FrontendMessage::PasswordMessage { password }.encode_without_buf(),
+                        )
                         .await
                         .map_err(|e| {
                             error!("error while sending md5 password message to target");
@@ -654,7 +656,7 @@ impl ProtocolHandler {
         conn: PostgresConn,
     ) -> Result<PostgresConn, anyhow::Error> {
         match conn {
-            PostgresConn::Unsecured(mut inner) => {                
+            PostgresConn::Unsecured(mut inner) => {
                 inner
                     .write_all(&FrontendMessage::SslRequest.encode_without_buf())
                     .await

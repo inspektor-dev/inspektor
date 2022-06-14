@@ -15,11 +15,11 @@
 
 mod apiproto;
 mod auditlog;
+mod bytespool;
 mod config;
 mod policy_evaluator;
 mod postgres_driver;
 mod sql;
-mod bytespool;
 use apiproto::api::*;
 use apiproto::api_grpc::*;
 use clap::{App, Arg};
@@ -51,7 +51,7 @@ fn main() {
     let mut config = config::read_config(&std::path::PathBuf::from(config_path)).unwrap();
     config.validate().unwrap();
 
-   let (client, call_opt) = get_controlplane_client(&config);
+    let (client, call_opt) = get_controlplane_client(&config);
     // retrive data source. so that we can use that to give as input to evaluate policies.
     // if we don't get any data then there is something wrong with control plane or provided
     // secret token.
@@ -89,7 +89,7 @@ fn get_controlplane_client(config: &Config) -> (InspektorClient, CallOption) {
     meta_builder.add_str("auth-token", &token.clone()).unwrap();
     let meta = meta_builder.build();
     let call_opt = grpcio::CallOption::default().headers(meta);
-    return (client, call_opt)
+    return (client, call_opt);
 }
 
 /// look_for_policy_update will open a streaming connection with controlplane. If it detect any changes in polices,

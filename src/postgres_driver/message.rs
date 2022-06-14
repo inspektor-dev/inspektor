@@ -490,7 +490,6 @@ impl FrontendMessage {
         }
     }
 
-
     pub fn encode_without_buf(&self) -> BytesMut {
         let mut buf = BytesMut::new();
         self.encode(&mut buf);
