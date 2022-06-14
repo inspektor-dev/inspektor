@@ -63,6 +63,9 @@ export default {
     configureCloudWatch: async (data) => {
         await axios.post("/api/configure/cloudwatch", data)
     },
+    configureAuditLog: async (data) => {
+        await axios.post("/api/configure/auditlog", data)
+    },
     intializeToken: () => {
         let token = localStorage.getItem("access-token");
         if (token != null) {
