@@ -12,6 +12,7 @@ function getDefaultStore() {
         sup: true,
         count: 1,
         config: {},
+        serviceAccountDatasoruces:[]
     }
 }
 
@@ -49,6 +50,9 @@ const store = createStore({
         },
         setTempDatasource(state, datasource) {
             state.tempDatasource = datasource
+        },
+        setServiceAccountDatasources(state, datasources) {
+            state.serviceAccountDatasoruces = datasources
         }
     },
     actions: {
@@ -76,6 +80,14 @@ const store = createStore({
                 }
             }
             commit("setDatasource", datasources)
+            let serviceAccounts = await api.getServiceAccount();
+            let serviceAccountDatasoruces = []
+            for (let l= 0; l < serviceAccounts.length; l++){
+                let datasource = serviceAccounts[l].datasource;
+                datasource.sessionMeta = serviceAccounts[l]
+                serviceAccountDatasoruces.push(datasource)
+            }
+            commit("setServiceAccountDatasources", serviceAccountDatasoruces)
             let tempSesions = await api.getTempCredentials()
             let tempDatasources = []
             for (let k = 0; k < tempSesions.length; k++) {
