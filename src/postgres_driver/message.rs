@@ -116,6 +116,7 @@ impl BackendMessage {
         write_cstr(&mut buf, "42501".to_string().as_bytes()).unwrap();
         buf.put_u8(b'M');
         write_cstr(&mut buf, msg.as_bytes()).unwrap();
+        buf.put_u8(b'\0');
         BackendMessage::ErrorMsg(buf.to_vec())
     }
 
