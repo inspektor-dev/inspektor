@@ -26,9 +26,13 @@
         <n-tab-pane name="temp sessions" tab="Temp Sessions"
           ><temp-sessions
         /></n-tab-pane>
-        <n-tab-pane name="the beatles" tab="Admin" v-if="isAdmin"
+          <n-tab-pane name="service account" tab="Service Account" v-if="isAdmin"
+          ><service-account
+        /></n-tab-pane> 
+        <n-tab-pane name="the beatles" tab="Setting" v-if="isAdmin"
           ><admin
-        /></n-tab-pane> </n-tabs
+        /></n-tab-pane>
+      </n-tabs
     ></n-card>
   </div>
 </template>
@@ -53,6 +57,7 @@
 <script>
 import Datasources from "@/components/Datasources.vue";
 import Admin from "@/components/Admin.vue";
+import ServiceAccount from "@/components/ServiceAccount.vue";
 import AddTempCredentials from "@/components/AddTempCredentials.vue";
 import TempSessions from "@/components/TempSessions.vue";
 import { useRouter } from "vue-router";
@@ -62,6 +67,7 @@ import { useLoadingBar } from "naive-ui";
 import { useMessage } from "naive-ui";
 import api from "@/api/api";
 import { ref } from "vue";
+
 
 export default {
   async setup() {
@@ -100,6 +106,7 @@ export default {
     Datasources,
     Admin,
     TempSessions,
+    ServiceAccount
   },
 };
 </script>

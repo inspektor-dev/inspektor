@@ -66,6 +66,13 @@ export default {
     configureAuditLog: async (data) => {
         await axios.post("/api/configure/auditlog", data)
     },
+    createServiceAccount: async(data) => {
+        await axios.post("/api/serviceaccount", data)
+    },
+    getServiceAccount: async () => {
+        let res = await axios.get("api/serviceaccount")
+        return res.data
+    },
     intializeToken: () => {
         let token = localStorage.getItem("access-token");
         if (token != null) {
