@@ -1297,6 +1297,7 @@ impl ::protobuf::reflect::ProtobufValue for Metric {
 pub struct IntegrationConfigResponse {
     // message fields
     pub cloud_watch_config: ::protobuf::SingularPtrField<CloudWatchConfig>,
+    pub audit_log_config: ::protobuf::SingularPtrField<AuditLogConfig>,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -1345,11 +1346,49 @@ impl IntegrationConfigResponse {
     pub fn take_cloud_watch_config(&mut self) -> CloudWatchConfig {
         self.cloud_watch_config.take().unwrap_or_else(|| CloudWatchConfig::new())
     }
+
+    // .api.AuditLogConfig audit_log_config = 2;
+
+
+    pub fn get_audit_log_config(&self) -> &AuditLogConfig {
+        self.audit_log_config.as_ref().unwrap_or_else(|| <AuditLogConfig as ::protobuf::Message>::default_instance())
+    }
+    pub fn clear_audit_log_config(&mut self) {
+        self.audit_log_config.clear();
+    }
+
+    pub fn has_audit_log_config(&self) -> bool {
+        self.audit_log_config.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_audit_log_config(&mut self, v: AuditLogConfig) {
+        self.audit_log_config = ::protobuf::SingularPtrField::some(v);
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_audit_log_config(&mut self) -> &mut AuditLogConfig {
+        if self.audit_log_config.is_none() {
+            self.audit_log_config.set_default();
+        }
+        self.audit_log_config.as_mut().unwrap()
+    }
+
+    // Take field
+    pub fn take_audit_log_config(&mut self) -> AuditLogConfig {
+        self.audit_log_config.take().unwrap_or_else(|| AuditLogConfig::new())
+    }
 }
 
 impl ::protobuf::Message for IntegrationConfigResponse {
     fn is_initialized(&self) -> bool {
         for v in &self.cloud_watch_config {
+            if !v.is_initialized() {
+                return false;
+            }
+        };
+        for v in &self.audit_log_config {
             if !v.is_initialized() {
                 return false;
             }
@@ -1363,6 +1402,9 @@ impl ::protobuf::Message for IntegrationConfigResponse {
             match field_number {
                 1 => {
                     ::protobuf::rt::read_singular_message_into(wire_type, is, &mut self.cloud_watch_config)?;
+                },
+                2 => {
+                    ::protobuf::rt::read_singular_message_into(wire_type, is, &mut self.audit_log_config)?;
                 },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
@@ -1380,6 +1422,10 @@ impl ::protobuf::Message for IntegrationConfigResponse {
             let len = v.compute_size();
             my_size += 1 + ::protobuf::rt::compute_raw_varint32_size(len) + len;
         }
+        if let Some(ref v) = self.audit_log_config.as_ref() {
+            let len = v.compute_size();
+            my_size += 1 + ::protobuf::rt::compute_raw_varint32_size(len) + len;
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -1388,6 +1434,11 @@ impl ::protobuf::Message for IntegrationConfigResponse {
     fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
         if let Some(ref v) = self.cloud_watch_config.as_ref() {
             os.write_tag(1, ::protobuf::wire_format::WireTypeLengthDelimited)?;
+            os.write_raw_varint32(v.get_cached_size())?;
+            v.write_to_with_cached_sizes(os)?;
+        }
+        if let Some(ref v) = self.audit_log_config.as_ref() {
+            os.write_tag(2, ::protobuf::wire_format::WireTypeLengthDelimited)?;
             os.write_raw_varint32(v.get_cached_size())?;
             v.write_to_with_cached_sizes(os)?;
         }
@@ -1434,6 +1485,11 @@ impl ::protobuf::Message for IntegrationConfigResponse {
                 |m: &IntegrationConfigResponse| { &m.cloud_watch_config },
                 |m: &mut IntegrationConfigResponse| { &mut m.cloud_watch_config },
             ));
+            fields.push(::protobuf::reflect::accessor::make_singular_ptr_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<AuditLogConfig>>(
+                "audit_log_config",
+                |m: &IntegrationConfigResponse| { &m.audit_log_config },
+                |m: &mut IntegrationConfigResponse| { &mut m.audit_log_config },
+            ));
             ::protobuf::reflect::MessageDescriptor::new_pb_name::<IntegrationConfigResponse>(
                 "IntegrationConfigResponse",
                 fields,
@@ -1451,6 +1507,7 @@ impl ::protobuf::Message for IntegrationConfigResponse {
 impl ::protobuf::Clear for IntegrationConfigResponse {
     fn clear(&mut self) {
         self.cloud_watch_config.clear();
+        self.audit_log_config.clear();
         self.unknown_fields.clear();
     }
 }
@@ -1836,6 +1893,165 @@ impl ::protobuf::reflect::ProtobufValue for CloudWatchConfig {
     }
 }
 
+#[derive(PartialEq,Clone,Default)]
+pub struct AuditLogConfig {
+    // message fields
+    pub log_prefix: ::std::string::String,
+    // special fields
+    pub unknown_fields: ::protobuf::UnknownFields,
+    pub cached_size: ::protobuf::CachedSize,
+}
+
+impl<'a> ::std::default::Default for &'a AuditLogConfig {
+    fn default() -> &'a AuditLogConfig {
+        <AuditLogConfig as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl AuditLogConfig {
+    pub fn new() -> AuditLogConfig {
+        ::std::default::Default::default()
+    }
+
+    // string log_prefix = 1;
+
+
+    pub fn get_log_prefix(&self) -> &str {
+        &self.log_prefix
+    }
+    pub fn clear_log_prefix(&mut self) {
+        self.log_prefix.clear();
+    }
+
+    // Param is passed by value, moved
+    pub fn set_log_prefix(&mut self, v: ::std::string::String) {
+        self.log_prefix = v;
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_log_prefix(&mut self) -> &mut ::std::string::String {
+        &mut self.log_prefix
+    }
+
+    // Take field
+    pub fn take_log_prefix(&mut self) -> ::std::string::String {
+        ::std::mem::replace(&mut self.log_prefix, ::std::string::String::new())
+    }
+}
+
+impl ::protobuf::Message for AuditLogConfig {
+    fn is_initialized(&self) -> bool {
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+            match field_number {
+                1 => {
+                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.log_prefix)?;
+                },
+                _ => {
+                    ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u32 {
+        let mut my_size = 0;
+        if !self.log_prefix.is_empty() {
+            my_size += ::protobuf::rt::string_size(1, &self.log_prefix);
+        }
+        my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
+        self.cached_size.set(my_size);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        if !self.log_prefix.is_empty() {
+            os.write_string(1, &self.log_prefix)?;
+        }
+        os.write_unknown_fields(self.get_unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn get_cached_size(&self) -> u32 {
+        self.cached_size.get()
+    }
+
+    fn get_unknown_fields(&self) -> &::protobuf::UnknownFields {
+        &self.unknown_fields
+    }
+
+    fn mut_unknown_fields(&mut self) -> &mut ::protobuf::UnknownFields {
+        &mut self.unknown_fields
+    }
+
+    fn as_any(&self) -> &dyn (::std::any::Any) {
+        self as &dyn (::std::any::Any)
+    }
+    fn as_any_mut(&mut self) -> &mut dyn (::std::any::Any) {
+        self as &mut dyn (::std::any::Any)
+    }
+    fn into_any(self: ::std::boxed::Box<Self>) -> ::std::boxed::Box<dyn (::std::any::Any)> {
+        self
+    }
+
+    fn descriptor(&self) -> &'static ::protobuf::reflect::MessageDescriptor {
+        Self::descriptor_static()
+    }
+
+    fn new() -> AuditLogConfig {
+        AuditLogConfig::new()
+    }
+
+    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
+        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
+        descriptor.get(|| {
+            let mut fields = ::std::vec::Vec::new();
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
+                "log_prefix",
+                |m: &AuditLogConfig| { &m.log_prefix },
+                |m: &mut AuditLogConfig| { &mut m.log_prefix },
+            ));
+            ::protobuf::reflect::MessageDescriptor::new_pb_name::<AuditLogConfig>(
+                "AuditLogConfig",
+                fields,
+                file_descriptor_proto()
+            )
+        })
+    }
+
+    fn default_instance() -> &'static AuditLogConfig {
+        static instance: ::protobuf::rt::LazyV2<AuditLogConfig> = ::protobuf::rt::LazyV2::INIT;
+        instance.get(AuditLogConfig::new)
+    }
+}
+
+impl ::protobuf::Clear for AuditLogConfig {
+    fn clear(&mut self) {
+        self.log_prefix.clear();
+        self.unknown_fields.clear();
+    }
+}
+
+impl ::std::fmt::Debug for AuditLogConfig {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        ::protobuf::text_format::fmt(self, f)
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for AuditLogConfig {
+    fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
+        ::protobuf::reflect::ReflectValueRef::Message(self)
+    }
+}
+
 static file_descriptor_proto_data: &'static [u8] = b"\
     \n\tapi.proto\x12\x03api\"F\n\x0bAuthRequest\x12\x1a\n\x08password\x18\
     \x01\x20\x01(\tR\x08password\x12\x1b\n\tuser_name\x18\x02\x20\x01(\tR\
@@ -1848,20 +2064,22 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     \x07metrics\x18\x01\x20\x03(\x0b2\x0b.api.MetricR\x07metrics\x12\x16\n\
     \x06groups\x18\x02\x20\x03(\tR\x06groups\"V\n\x06Metric\x12'\n\x0fcollec\
     tion_name\x18\x01\x20\x01(\tR\x0ecollectionName\x12#\n\rproperty_name\
-    \x18\x02\x20\x03(\tR\x0cpropertyName\"`\n\x19IntegrationConfigResponse\
-    \x12C\n\x12cloud_watch_config\x18\x01\x20\x01(\x0b2\x15.api.CloudWatchCo\
-    nfigR\x10cloudWatchConfig\"\xdc\x01\n\x10CloudWatchConfig\x12\x1b\n\tcre\
-    d_type\x18\x01\x20\x01(\tR\x08credType\x12\x1f\n\x0bregion_name\x18\x02\
-    \x20\x01(\tR\nregionName\x12\x1d\n\naccess_key\x18\x03\x20\x01(\tR\tacce\
-    ssKey\x12\x1d\n\nsecret_key\x18\x04\x20\x01(\tR\tsecretKey\x12$\n\x0elog\
-    _group_name\x18\x05\x20\x01(\tR\x0clogGroupName\x12&\n\x0flog_stream_nam\
-    e\x18\x06\x20\x01(\tR\rlogStreamName2\x9a\x02\n\tInspektor\x12-\n\x04Aut\
-    h\x12\x10.api.AuthRequest\x1a\x11.api.AuthResponse\"\0\x12.\n\x06Policy\
-    \x12\n.api.Empty\x1a\x14.api.InspektorPolicy\"\00\x01\x126\n\rGetDataSou\
-    rce\x12\n.api.Empty\x1a\x17.api.DataSourceResponse\"\0\x120\n\x0bSendMet\
-    rics\x12\x13.api.MetricsRequest\x1a\n.api.Empty\"\0\x12D\n\x14GetIntegra\
-    tionConfig\x12\n.api.Empty\x1a\x1e.api.IntegrationConfigResponse\"\0B\
-    \x17Z\x15controlplane/apiprotob\x06proto3\
+    \x18\x02\x20\x03(\tR\x0cpropertyName\"\x9f\x01\n\x19IntegrationConfigRes\
+    ponse\x12C\n\x12cloud_watch_config\x18\x01\x20\x01(\x0b2\x15.api.CloudWa\
+    tchConfigR\x10cloudWatchConfig\x12=\n\x10audit_log_config\x18\x02\x20\
+    \x01(\x0b2\x13.api.AuditLogConfigR\x0eauditLogConfig\"\xdc\x01\n\x10Clou\
+    dWatchConfig\x12\x1b\n\tcred_type\x18\x01\x20\x01(\tR\x08credType\x12\
+    \x1f\n\x0bregion_name\x18\x02\x20\x01(\tR\nregionName\x12\x1d\n\naccess_\
+    key\x18\x03\x20\x01(\tR\taccessKey\x12\x1d\n\nsecret_key\x18\x04\x20\x01\
+    (\tR\tsecretKey\x12$\n\x0elog_group_name\x18\x05\x20\x01(\tR\x0clogGroup\
+    Name\x12&\n\x0flog_stream_name\x18\x06\x20\x01(\tR\rlogStreamName\"/\n\
+    \x0eAuditLogConfig\x12\x1d\n\nlog_prefix\x18\x01\x20\x01(\tR\tlogPrefix2\
+    \x9a\x02\n\tInspektor\x12-\n\x04Auth\x12\x10.api.AuthRequest\x1a\x11.api\
+    .AuthResponse\"\0\x12.\n\x06Policy\x12\n.api.Empty\x1a\x14.api.Inspektor\
+    Policy\"\00\x01\x126\n\rGetDataSource\x12\n.api.Empty\x1a\x17.api.DataSo\
+    urceResponse\"\0\x120\n\x0bSendMetrics\x12\x13.api.MetricsRequest\x1a\n.\
+    api.Empty\"\0\x12D\n\x14GetIntegrationConfig\x12\n.api.Empty\x1a\x1e.api\
+    .IntegrationConfigResponse\"\0B\x17Z\x15controlplane/apiprotob\x06proto3\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;
