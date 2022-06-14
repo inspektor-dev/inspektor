@@ -106,6 +106,18 @@ type CreateTempSession struct {
 
 type IntegrationConfig struct {
 	CloudWatchConfig *CloudWatchConfig `json:"cloudWatchConfig"`
+	AuditLogConfig   *AuditLogConfig   `json:"auditLogConfig"`
+}
+
+type AuditLogConfig struct {
+	LogPrefix string `json:"logPrefix"`
+}
+
+func (a *AuditLogConfig) Validate() error {
+	if a.LogPrefix == "" {
+		return errors.New("log prefix is a required to setup stdout audit log")
+	}
+	return nil
 }
 
 type CloudWatchConfig struct {
