@@ -5,10 +5,11 @@ if (token != null) {
     axios.defaults.headers["Auth-Token"] = token;
 }
 //axios.defaults.baseURL = "http://localhost:3123"
+
 axios.interceptors.response.use(function (res) {
     return res.data
 }, function (error) {
-    console.log("error", error)
+    console.log("error pringing", error)
     Promise.reject(error)
 })
 

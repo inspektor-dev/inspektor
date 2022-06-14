@@ -12,8 +12,8 @@ const routes = [
       if (cookie != null) {
         localStorage.setItem('access-token', cookie)
       }
-      let token = localStorage.getItem('access-token')
-      if (token != null) {
+      let expired = checkTokenExpiration();
+      if (!expired) {
         next({ path: "/dashboard" })
         return
       }
@@ -26,9 +26,31 @@ const routes = [
     // route level code-splitting
     // this generates a separate chunk (about.[hash].js) for this route
     // which is lazy-loaded when the route is visited.
-    component: () => import(/* webpackChunkName: "about" */ '../views/dashboard.vue')
+    component: () => import(/* webpackChunkName: "about" */ '../views/dashboard.vue'),
+    beforeEnter: (_, _1, next) => {
+      let expired = checkTokenExpiration();
+      if (expired){
+        next({path: "/"})
+        return
+      }
+      next()
+    }
   }
 ]
+
+const checkTokenExpiration = () => {
+  let token = localStorage.getItem('access-token')
+  if (token == null){
+    return true
+  }
+  let jwtPayload = JSON.parse(window.atob(token.split('.')[1]))
+  let currentEpoch = Math.round(new Date().getTime()/1000)
+  let expired = currentEpoch > jwtPayload.exp
+  if (expired) {
+    localStorage.clear()
+  }
+  return expired
+}
 
 const router = createRouter({
   history: createWebHistory(process.env.BASE_URL),
