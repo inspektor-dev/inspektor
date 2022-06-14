@@ -192,6 +192,11 @@ func (r *RpcServer) GetIntegrationConfig(ctx context.Context, in *apiproto.Empty
 			LogStreamName: config.CloudWatchConfig.LogStreamName,
 		}
 	}
+	if config.AuditLogConfig != nil && config.AuditLogConfig.LogPrefix != "" {
+		res.AuditLogConfig = &apiproto.AuditLogConfig{
+			LogPrefix: config.AuditLogConfig.LogPrefix,
+		}
+	}
 	return res, nil
 }
 
