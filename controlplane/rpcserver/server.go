@@ -54,7 +54,7 @@ func (r *RpcServer) Auth(ctx context.Context, req *apiproto.AuthRequest) (*apipr
 	expiresAt := int64(0)
 	roles := []string{}
 	// retrive roles from the meta if the session is temporary session.
-	if session.SessionMeta.ExpiresAt != 0 {
+	if session.SessionMeta.ExpiresAt != 0 || session.SessionMeta.ServiceAccountName != "" {
 		expiresAt = session.SessionMeta.ExpiresAt
 		roles = session.SessionMeta.TempRoles
 	} else {
