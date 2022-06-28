@@ -14,6 +14,12 @@
     </n-card>
   </n-modal>
 
+  <n-modal v-model:show="showSecretToken">
+    <n-card title="Secret Token" style="width: 600px">
+          <n-input v-model:value="currentSecretToken " type="text" placeholder="Secret Token" />
+    </n-card>
+  </n-modal>
+
   <n-modal v-model:show="showSessionModal">
     <n-card
       style="width: 600px"
@@ -39,7 +45,14 @@ import { useMessage } from "naive-ui";
 import api from "@/api/api";
 import SessionModal from "./SessionModal.vue";
 
-const createColumn = (message, showSessionModal, currentSessionMeta, store) => {
+const createColumn = (
+  message,
+  showSessionModal,
+  currentSessionMeta,
+  store,
+  currentSecretToken,
+  showSecretToken
+) => {
   return [
     {
       title: "Datasource Name",
@@ -130,16 +143,30 @@ const createColumn = (message, showSessionModal, currentSessionMeta, store) => {
           {
             type: "info",
             onClick: () => {
-              navigator.clipboard.writeText(row.sidecarToken);
-              message.success("Token Copied!!");
+              if (window.isSecureContext) {
+                navigator.clipboard.writeText(row.sidecarToken);
+                message.success("Token Copied!!");
+                return
+              }
+              console.log(row.sidecarToken);
+              currentSecretToken.value = row.sidecarToken;
+              showSecretToken.value = true;
             },
           },
-          "Copy Token"
+           showTokenText()
         );
       },
     },
   ];
 };
+
+function showTokenText() {
+  if (window.isSecureContext) {
+    return "Copy Token"
+  }
+  return "Show Token"
+}
+
 export default {
   components: { AddDatasource, SessionModal },
   async setup() {
@@ -147,7 +174,9 @@ export default {
     let showModal = ref(false);
     let showSessionModal = ref(false);
     let currentSessionMeta = ref({});
+    let currentSecretToken = ref("");
     let message = useMessage();
+    let showSecretToken = ref(false);
     return {
       currentSessionMeta: currentSessionMeta,
       showModal: showModal,
@@ -157,7 +186,9 @@ export default {
         message,
         showSessionModal,
         currentSessionMeta,
-        store
+        store,
+        currentSecretToken,
+        showSecretToken
       ),
       datasourceAdded: async () => {
         showModal.value = false;
@@ -170,6 +201,8 @@ export default {
         return store.state.isAdmin;
       }),
       rowKey: (data) => data.id,
+      showSecretToken: showSecretToken,
+      currentSecretToken: currentSecretToken,
     };
   },
   name: "Datasources",
