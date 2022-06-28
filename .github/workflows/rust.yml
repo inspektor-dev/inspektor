@@ -23,7 +23,7 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: 1.60.0
+        toolchain: nightly-2022-01-17
         override: true
     - name: Build
       run: cargo build --verbose
