@@ -27,11 +27,12 @@ import (
 )
 
 type Handlers struct {
-	Store       *store.Store
-	Cfg         *config.Config
-	Policy      *policy.PolicyManager
-	oauthClient openconnect.OpenConnect
-	idpClient   idp.IdpClient
+	Store        *store.Store
+	Cfg          *config.Config
+	Policy       *policy.PolicyManager
+	oauthClient  openconnect.OpenConnect
+	idpClient    idp.IdpClient
+	TeamsHandler http.HandlerFunc
 }
 
 type LoginRequest struct {
@@ -446,6 +447,7 @@ func (h *Handlers) Init(router *mux.Router) {
 	router.HandleFunc("/readiness", func(rw http.ResponseWriter, r *http.Request) {
 		rw.Write([]byte("ok"))
 	})
+	router.HandleFunc("/api/teams/bot", h.TeamsHandler).Methods("POST")
 	spa := spaHandler{staticPath: "dashboard/dist", indexPath: "index.html"}
 	router.PathPrefix("/").Handler(spa)
 	cors := handlers.CORS(
