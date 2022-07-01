@@ -10,11 +10,13 @@ import (
 	"inspektor/openconnect"
 	"inspektor/policy"
 	"inspektor/store"
+	"inspektor/teamsbot"
 	"inspektor/types"
 	"inspektor/utils"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt"
@@ -27,12 +29,13 @@ import (
 )
 
 type Handlers struct {
-	Store        *store.Store
-	Cfg          *config.Config
-	Policy       *policy.PolicyManager
-	oauthClient  openconnect.OpenConnect
-	idpClient    idp.IdpClient
-	TeamsHandler http.HandlerFunc
+	Store       *store.Store
+	Cfg         *config.Config
+	Policy      *policy.PolicyManager
+	oauthClient openconnect.OpenConnect
+	idpClient   idp.IdpClient
+	teamsBot    *teamsbot.TeamsBotHandler
+	sync.Mutex
 }
 
 type LoginRequest struct {
@@ -447,7 +450,22 @@ func (h *Handlers) Init(router *mux.Router) {
 	router.HandleFunc("/readiness", func(rw http.ResponseWriter, r *http.Request) {
 		rw.Write([]byte("ok"))
 	})
-	router.HandleFunc("/api/teams/bot", h.TeamsHandler).Methods("POST")
+	router.HandleFunc("/integration/meta", h.AuthMiddleWare(h.IntegrationMeta())).Methods("GET")
+	// initialize teams handler
+	integrationCfg, err := h.Store.GetIntegrationConfig()
+	if err != nil {
+		utils.Logger.Fatal("error while intializing integration config", zap.String("err_msg", err.Error()))
+		return
+	}
+
+	if integrationCfg.TeamsConfig.AppID != "" && integrationCfg.TeamsConfig.AppToken != "" {
+		h.teamsBot, err = teamsbot.New(integrationCfg.TeamsConfig.AppID, integrationCfg.TeamsConfig.AppToken, h.Store)
+		if err != nil {
+			utils.Logger.Fatal("error while intializing teams bot handler", zap.String("err_msg", err.Error()))
+		}
+	}
+
+	router.HandleFunc("/api/teams/bot", h.HandleTeamsMsg()).Methods("POST")
 	spa := spaHandler{staticPath: "dashboard/dist", indexPath: "index.html"}
 	router.PathPrefix("/").Handler(spa)
 	cors := handlers.CORS(
