@@ -74,7 +74,7 @@ var rootCmd = &cobra.Command{
 				log.Fatal(err)
 			}
 		}(server)
-		teamsBotHandler, err := teamsbot.New("temp", "temp")
+		teamsBotHandler, err := teamsbot.New("temp", "temp", "tell", store)
 		if err != nil {
 			utils.Logger.Fatal("error while intializing teams bot handler", zap.String("err_msg", err.Error()))
 		}

@@ -121,17 +121,19 @@ func (t *TeamsBotHandler) HandleTeamsNotification(w http.ResponseWriter, req *ht
 			}
 			t.Unlock()
 
+			// see the incoming request is either approval or deniel flow
+			for approvalID, res := range turn.Activity.Value {
+				if approvalID == "approval" {
+					return t.handleAdminApproval(res.(string), turn)
+				}
+			}
+
 			requestID := uuid.NewString()
 			approvalAttachment, err := t.CreateApprovalView(requestID)
 			if err != nil {
 				utils.Logger.Error("error while creating approval view on teams bot", zap.String("err_msg", err.Error()))
 				return turn.Activity, err
 			}
-			// currentUserRef := coreActivity.GetCoversationReference(turn.Activity)
-			// request := &AccessRequest{
-			// 	Account: &turn.Activity.From,
-			// 	UserRef: &currentUserRef,
-			// }
 			t.Lock()
 			t.sentRequestIDs[requestID] = struct{}{}
 			t.Unlock()
@@ -142,6 +144,63 @@ func (t *TeamsBotHandler) HandleTeamsNotification(w http.ResponseWriter, req *ht
 		utils.Logger.Error("error while processing user request", zap.String("err_msg", err.Error()))
 	}
 	utils.WriteSuccesMsg("msg processed", http.StatusOK, w)
+}
+
+func (t *TeamsBotHandler) handleAdminApproval(response string, turn *activity.TurnContext) (schema.Activity, error) {
+	if strings.Contains(response, "deny") {
+		requestID := strings.Trim(response, "deny:")
+		t.Lock()
+		userRequest, ok := t.pendingApproval[requestID]
+		t.Unlock()
+		if !ok {
+			utils.Logger.Error("unable to find the user request")
+			return turn.Activity, errors.New("unable to find user request")
+		}
+		err := t.adapter.ProactiveMessage(context.TODO(), *userRequest.UserRef, coreActivity.HandlerFuncs{
+			OnMessageFunc: func(turn *coreActivity.TurnContext) (schema.Activity, error) {
+				return turn.SendActivity(coreActivity.MsgOptionText("your request has been denied by the admin"))
+			},
+		})
+		if err != nil {
+			utils.Logger.Error("error while sending deniel message to the user", zap.String("err_msg", err.Error()))
+			return turn.Activity, err
+		}
+	}
+	requestID := strings.Trim(response, "aprove:")
+	t.Lock()
+	userRequest, ok := t.pendingApproval[requestID]
+	delete(t.pendingApproval, requestID)
+	t.Unlock()
+	if !ok {
+		utils.Logger.Error("unable to find the user request")
+		return turn.Activity, errors.New("unable to find user request")
+	}
+	session, err := t.store.CreateTempSession(userRequest.Database, userRequest.Roles, 10, "teams", utils.MarshalJSON(userRequest.Account))
+	if err != nil {
+		utils.Logger.Error("error while creating temp credentials", zap.String("err_msg", err.Error()))
+		return turn.Activity, errors.New("error while creating temp crendentials")
+	}
+	datasource, err := t.store.GetDatasource(userRequest.Database)
+	if err != nil {
+		utils.Logger.Error("error while retirivg database on approval", zap.String("err_msg", err.Error()))
+		return turn.Activity, err
+	}
+	err = t.adapter.ProactiveMessage(context.TODO(), *userRequest.UserRef, coreActivity.HandlerFuncs{
+		OnMessageFunc: func(turn *coreActivity.TurnContext) (schema.Activity, error) {
+			return turn.SendActivity(coreActivity.MsgOptionText(fmt.Sprintf(
+				`
+you request for %s has been approved. 
+Use the following credentials
+username: %s
+password: %s
+			`, datasource.Name, session.SessionMeta.PostgresUsername, session.SessionMeta.PostgresPassword)))
+		},
+	})
+	if err != nil {
+		utils.Logger.Error("error while sending session data to user", zap.String("err_msg", err.Error()))
+		return turn.Activity, err
+	}
+	return turn.SendActivity(activity.MsgOptionText("your response sent to the user"))
 }
 
 func (t *TeamsBotHandler) handleApprovalResponse(requestID string, turn *activity.TurnContext) (schema.Activity, error) {
@@ -163,14 +222,29 @@ func (t *TeamsBotHandler) handleApprovalResponse(requestID string, turn *activit
 	roles := strings.Split(role, ",")
 	t.Lock()
 	userRef := coreActivity.GetCoversationReference(turn.Activity)
-	t.pendingApproval[requestID] = AccessRequest{
+	request := AccessRequest{
 		Account:  &turn.Activity.From,
 		UserRef:  &userRef,
 		Database: uint(castedDatasourceID),
 		Roles:    roles,
 	}
+	t.pendingApproval[requestID] = request
 	t.Unlock()
-
+	adminApprovalView, err := t.CreateApprovalAdminView(requestID, request)
+	if err != nil {
+		utils.Logger.Error("error while creating admin approval view", zap.String("err_msg", err.Error()))
+		return turn.Activity, err
+	}
+	// send the approval to admin
+	err = t.adapter.ProactiveMessage(context.TODO(), *t.adminRef, coreActivity.HandlerFuncs{
+		OnMessageFunc: func(turn *coreActivity.TurnContext) (schema.Activity, error) {
+			return turn.SendActivity(coreActivity.MsgOptionAttachments(adminApprovalView))
+		},
+	})
+	if err != nil {
+		utils.Logger.Error("error while sending approval view to admin", zap.String("err_msg", err.Error()))
+		return turn.Activity, err
+	}
 	return turn.SendActivity(activity.MsgOptionText("Your request is sent for approval to the admin"))
 }
 
@@ -257,7 +331,7 @@ func (t *TeamsBotHandler) CreateApprovalAdminView(requestID string, request Acce
 		utils.Logger.Error("error while retriving datasources", zap.String("err_msg", err.Error()))
 		return []schema.Attachment{}, err
 	}
-	optionsView := createOptionsView([]string{"aprove", "deny"}, []string{fmt.Sprintf("approve:%s", requestID), fmt.Sprintf("deny:%s", requestID)})
+	optionsView := createOptionsView([]string{"approve", "deny"}, []string{fmt.Sprintf("aprove:%s", requestID), fmt.Sprintf("deny:%s", requestID)})
 	rawJson := fmt.Sprintf(`
 	{
 		"$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
@@ -268,11 +342,11 @@ func (t *TeamsBotHandler) CreateApprovalAdminView(requestID string, request Acce
 			"type": "TextBlock",
 			"size": "Medium",
             "weight": "Bolder",
-            "text": "%s has requested to access %s with roles %s"
+            "text": "%s has requested to access %s \n with roles %s"
 		  },
 		  {
 			"type": "Input.ChoiceSet",
-			"id": "roles",
+			"id": "approval",
 			"style": "compact",
 			"label": "Select the roles you want",
 			"isMultiSelect": true,
@@ -300,31 +374,4 @@ func (t *TeamsBotHandler) CreateApprovalAdminView(requestID string, request Acce
 		},
 	}
 	return attachments, nil
-}
-
-func createRequestApprovalCard(requestID string, dbChoices string) string {
-	return fmt.Sprintf(`
-	{
-		"$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-		"type": "AdaptiveCard",
-		"version": "1.0",
-		"body": [
-		  {
-			"type": "Input.ChoiceSet",
-			"id": "%s",
-			"style": "compact",
-			"label": "Select the database you want to access",
-			"isMultiSelect": false,
-			"value": "1",
-			"choices": %s
-		  }
-		],
-		"actions": [
-		  {
-			"type": "Action.Submit",
-			"title": "OK"
-		  }
-		]
-	  }
-	  `, requestID, dbChoices)
 }
