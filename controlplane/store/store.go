@@ -408,6 +408,21 @@ func (s *Store) Get(key string) (string, error) {
 	return d.Value, err
 }
 
+func (s *Store) GetIntegrationConfig() (*types.IntegrationConfig, error) {
+	val, err := s.Get(types.IntegrationConfigKey)
+	if err != nil {
+		utils.Logger.Error("error while fetching integraton config", zap.String("err_msg", err.Error()))
+		return nil, err
+	}
+	config := &types.IntegrationConfig{}
+	err = json.Unmarshal([]byte(val), config)
+	if err != nil {
+		utils.Logger.Error("error while unmarshaling integration config", zap.String("err_msg", err.Error()))
+		return nil, err
+	}
+	return config, nil
+}
+
 func (s *Store) Update(key string, value string) error {
 	return s.db.Model(&models.KV{}).
 		Where("key = ?", key).

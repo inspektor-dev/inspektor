@@ -17,6 +17,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"inspektor/teamsbot"
 	"inspektor/types"
 	"inspektor/utils"
 	"net/http"
@@ -35,6 +36,30 @@ func (h *Handlers) Config() InspectorHandler {
 			PolicyHash:    h.Policy.GetPolicyHash()[:7],
 		}
 		utils.WriteSuccesMsgWithData("ok", http.StatusOK, res, ctx.Rw)
+	}
+}
+
+func (h *Handlers) IntegrationMeta() InspectorHandler {
+	return func(ctx *types.Ctx) {
+		if utils.IndexOf(ctx.Claim.Roles, "admin") == -1 {
+			utils.WriteErrorMsg("invalid access", http.StatusBadRequest, ctx.Rw)
+			return
+		}
+		integrationConfig, err := h.Store.GetIntegrationConfig()
+		if err != nil {
+			utils.Logger.Error("error while retriving integration config", zap.String("err_msg", err.Error()))
+			utils.WriteErrorMsg("server down", http.StatusInternalServerError, ctx.Rw)
+			return
+		}
+		meta := integrationConfig.GetIntegrationMeta()
+		h.Lock()
+		if meta.IsTeamConfigure && h.teamsBot != nil {
+			meta.IsTeamAdminJoined = h.teamsBot.IsConfigured()
+			if !meta.IsTeamAdminJoined {
+				meta.TeamsJoinToken = h.teamsBot.JoinToken()
+			}
+		}
+		utils.WriteSuccesMsgWithData("ok", http.StatusOK, meta, ctx.Rw)
 	}
 }
 
@@ -108,5 +133,53 @@ func (h *Handlers) ConfigureAuditLog() InspectorHandler {
 			return
 		}
 		utils.WriteSuccesMsg("ok", http.StatusOK, ctx.Rw)
+	}
+}
+
+func (h *Handlers) ConfigureTeams() InspectorHandler {
+	return func(ctx *types.Ctx) {
+		if utils.IndexOf(ctx.Claim.Roles, "admin") == -1 {
+			utils.WriteErrorMsg("invalid access", http.StatusBadRequest, ctx.Rw)
+			return
+		}
+		config := &types.TeamsConfig{}
+		if err := json.NewDecoder(ctx.R.Body).Decode(config); err != nil {
+			utils.WriteErrorMsg("invalid json", http.StatusBadRequest, ctx.Rw)
+			return
+		}
+		if err := config.Validate(); err != nil {
+			utils.WriteErrorMsg(err.Error(), http.StatusBadRequest, ctx.Rw)
+			return
+		}
+		bot, err := teamsbot.New(config.AppID, config.AppToken, h.Store)
+		if err != nil {
+			utils.Logger.Error("error while creating teams bot", zap.String("err_msg", err.Error()))
+			utils.WriteErrorMsg("invalid token", http.StatusBadRequest, ctx.Rw)
+			return
+		}
+		err = h.UpdateIntegrationCfg(func(cfg *types.IntegrationConfig) {
+			cfg.TeamsConfig = config
+		})
+		if err != nil {
+			utils.Logger.Error("eror while updating integration config", zap.String("err_msg", err.Error()))
+			utils.WriteErrorMsg("server down", http.StatusInternalServerError, ctx.Rw)
+			return
+		}
+		h.Lock()
+		h.teamsBot = bot
+		h.Unlock()
+		utils.WriteSuccesMsg("ok", http.StatusOK, ctx.Rw)
+	}
+}
+
+func (h *Handlers) HandleTeamsMsg() http.HandlerFunc {
+	return func(rw http.ResponseWriter, r *http.Request) {
+		h.Lock()
+		defer h.Unlock()
+		if h.teamsBot == nil {
+			utils.WriteErrorMsg("teams not configured", http.StatusBadRequest, rw)
+			return
+		}
+		h.teamsBot.HandleTeamsNotification(rw, r)
 	}
 }

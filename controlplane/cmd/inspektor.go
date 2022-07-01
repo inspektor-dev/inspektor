@@ -13,7 +13,6 @@ import (
 	"inspektor/rpcserver"
 	"inspektor/slackbot"
 	"inspektor/store"
-	"inspektor/teamsbot"
 	"inspektor/utils"
 
 	"github.com/gorilla/mux"
@@ -74,15 +73,10 @@ var rootCmd = &cobra.Command{
 				log.Fatal(err)
 			}
 		}(server)
-		teamsBotHandler, err := teamsbot.New("temp", "temp", "tell", store)
-		if err != nil {
-			utils.Logger.Fatal("error while intializing teams bot handler", zap.String("err_msg", err.Error()))
-		}
 		h := handlers.Handlers{
-			Store:        store,
-			Cfg:          config,
-			Policy:       policyManager,
-			TeamsHandler: teamsBotHandler.HandleTeamsNotification,
+			Store:  store,
+			Cfg:    config,
+			Policy: policyManager,
 		}
 		router := mux.NewRouter()
 		h.Init(router)

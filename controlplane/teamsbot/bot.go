@@ -53,7 +53,7 @@ type TeamsBotHandler struct {
 
 const configureCommand = "configure:"
 
-func New(appID string, password string, configToken string, store *store.Store) (*TeamsBotHandler, error) {
+func New(appID string, password string, store *store.Store) (*TeamsBotHandler, error) {
 	setting := core.AdapterSetting{
 		AppID:       appID,
 		AppPassword: password,
@@ -65,7 +65,7 @@ func New(appID string, password string, configToken string, store *store.Store) 
 	}
 	return &TeamsBotHandler{
 		adapter:         adapter,
-		configToken:     configToken,
+		configToken:     utils.GenerateSecureToken(7),
 		store:           store,
 		pendingApproval: map[string]AccessRequest{},
 		sentRequestIDs:  map[string]interface{}{},
@@ -80,14 +80,9 @@ func (t *TeamsBotHandler) HandleTeamsNotification(w http.ResponseWriter, req *ht
 		utils.WriteErrorMsg("server down", http.StatusInternalServerError, w)
 		return
 	}
-	buf, _ := json.MarshalIndent(userRequest, "", "    ")
-	fmt.Printf("user request %+v \n\n\n\n\n\n\n\n\n\n", string(buf))
 
 	err = t.adapter.ProcessActivity(ctx, userRequest, activity.HandlerFuncs{
 		OnMessageFunc: func(turn *activity.TurnContext) (schema.Activity, error) {
-			buf, _ := json.MarshalIndent(turn, "", "    ")
-			fmt.Printf("turn request%+v \n\n\n\n\n\n\n\n\n\n", string(buf))
-
 			// check whether incoming message is configuration message. if it's; configuration
 			// message then mark the incoming user as admin user.
 			if strings.HasPrefix(turn.Activity.Text, configureCommand) {
@@ -323,6 +318,14 @@ func createOptionsView(names []string, values []string) string {
 
 	buf.WriteRune(']')
 	return buf.String()
+}
+
+func (t *TeamsBotHandler) IsConfigured() bool {
+	return t.adminRef != nil
+}
+
+func (t *TeamsBotHandler) JoinToken() string {
+	return t.configToken
 }
 
 func (t *TeamsBotHandler) CreateApprovalAdminView(requestID string, request AccessRequest) ([]schema.Attachment, error) {

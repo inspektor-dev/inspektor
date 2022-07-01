@@ -117,9 +117,36 @@ func (c *CreateServiceAccount) Validate() error {
 	return nil
 }
 
+type IntegrationMeta struct {
+	IsTeamConfigure   bool   `json:"isTeamConfigured"`
+	IsTeamAdminJoined bool   `json:"isTeamAdminConfigured"`
+	TeamsJoinToken    string `json:"teamsJoinToken"`
+}
+
 type IntegrationConfig struct {
 	CloudWatchConfig *CloudWatchConfig `json:"cloudWatchConfig"`
 	AuditLogConfig   *AuditLogConfig   `json:"auditLogConfig"`
+	TeamsConfig      *TeamsConfig      `json:"teamConfig"`
+}
+
+func (i *IntegrationConfig) GetIntegrationMeta() *IntegrationMeta {
+	meta := &IntegrationMeta{}
+	if i.TeamsConfig != nil && i.TeamsConfig.AppID != "" && i.TeamsConfig.AppToken != "" {
+		meta.IsTeamConfigure = true
+	}
+	return meta
+}
+
+type TeamsConfig struct {
+	AppID    string `json:"appID"`
+	AppToken string `json:"appToken"`
+}
+
+func (t *TeamsConfig) Validate() error {
+	if t.AppID == "" || t.AppToken == "" {
+		return errors.New("app id and app token is required field")
+	}
+	return nil
 }
 
 type AuditLogConfig struct {
