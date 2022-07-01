@@ -3,6 +3,7 @@ package store
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"inspektor/models"
 	"inspektor/types"
 	"inspektor/utils"
@@ -411,6 +412,21 @@ func (s *Store) Update(key string, value string) error {
 	return s.db.Model(&models.KV{}).
 		Where("key = ?", key).
 		Updates(map[string]interface{}{"value": value}).Error
+}
+
+// GetDataSourceWithIDs will return datasources names and ids in array.
+func (s *Store) GetDataSourceWithIDs() ([]string, []string, error) {
+	datasourceNames := []string{}
+	databaseIDs := []string{}
+	datasources, err := s.GetDataSource()
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, datasource := range datasources {
+		datasourceNames = append(datasourceNames, datasource.Name)
+		databaseIDs = append(databaseIDs, fmt.Sprintf("%d", datasource.ID))
+	}
+	return datasourceNames, databaseIDs, nil
 }
 
 func handleGormErr(err error) error {
