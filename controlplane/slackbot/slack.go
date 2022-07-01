@@ -15,7 +15,6 @@
 package slackbot
 
 import (
-	"fmt"
 	"inspektor/config"
 	"inspektor/store"
 	"inspektor/utils"
@@ -161,16 +160,10 @@ func (s *SlackBot) handleAction(action *slack.BlockAction, iEvent slack.Interact
 	case "request-access":
 		// access has been requested. So, open a modal where user can choose
 		// the database and roles which they want to gain.
-		datasources, err := s.store.GetDataSource()
+		databaseNames, databaseIDs, err := s.store.GetDataSourceWithIDs()
 		if err != nil {
 			utils.Logger.Error("error while retriving all the datasources", zap.String("err_msg", err.Error()))
 			return
-		}
-		databaseNames := []string{}
-		databaseIDs := []string{}
-		for _, datasource := range datasources {
-			databaseNames = append(databaseNames, datasource.Name)
-			databaseIDs = append(databaseIDs, fmt.Sprintf("%d", datasource.ID))
 		}
 		roles, err := s.store.GetRoles()
 		if err != nil {
