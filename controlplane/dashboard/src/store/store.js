@@ -64,7 +64,7 @@ const store = createStore({
                 return
             }
             let config = await api.config()
-            commit("config", config)
+            commit("config", config)       
             commit('setIsAdmin', true)
         },
         async updateDatasource({ commit }) {

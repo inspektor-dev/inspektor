@@ -7,6 +7,9 @@
       <n-gi>
         <auditlog />
       </n-gi>
+      <n-gi>
+        <teams/>
+      </n-gi>
     </n-grid>
   </div>
 </template>
@@ -14,10 +17,12 @@
 <script>
 import Cloudwatch from "./integration/cloudwatch.vue";
 import Auditlog from "./integration/auditlog.vue";
+import Teams from "./integration/teams.vue";
 export default {
   components: {
     Cloudwatch,
     Auditlog,
+    Teams,
   },
 };
 </script>
