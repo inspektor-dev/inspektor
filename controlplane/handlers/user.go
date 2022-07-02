@@ -445,12 +445,12 @@ func (h *Handlers) Init(router *mux.Router) {
 	router.HandleFunc("/api/oauth", h.OAuthUrl()).Methods("GET")
 	router.HandleFunc("/api/configure/cloudwatch", h.AuthMiddleWare(h.ConfigureCloudWatch())).Methods("POST")
 	router.HandleFunc("/api/configure/auditlog", h.AuthMiddleWare(h.ConfigureAuditLog())).Methods("POST")
+	router.HandleFunc("/api/configure/teams", h.AuthMiddleWare(h.ConfigureTeams())).Methods("POST")
 	router.HandleFunc("/api/auth/callback/", h.OAuthCallBack()).Methods("GET")
 	router.HandleFunc("/api/auth/callback", h.OAuthCallBack()).Methods("GET")
 	router.HandleFunc("/readiness", func(rw http.ResponseWriter, r *http.Request) {
 		rw.Write([]byte("ok"))
 	})
-	router.HandleFunc("/integration/meta", h.AuthMiddleWare(h.IntegrationMeta())).Methods("GET")
 	// initialize teams handler
 	integrationCfg, err := h.Store.GetIntegrationConfig()
 	if err != nil {
@@ -458,7 +458,7 @@ func (h *Handlers) Init(router *mux.Router) {
 		return
 	}
 
-	if integrationCfg.TeamsConfig.AppID != "" && integrationCfg.TeamsConfig.AppToken != "" {
+	if integrationCfg.TeamsConfig != nil && integrationCfg.TeamsConfig.AppID != "" && integrationCfg.TeamsConfig.AppToken != "" {
 		h.teamsBot, err = teamsbot.New(integrationCfg.TeamsConfig.AppID, integrationCfg.TeamsConfig.AppToken, h.Store)
 		if err != nil {
 			utils.Logger.Fatal("error while intializing teams bot handler", zap.String("err_msg", err.Error()))
