@@ -31,20 +31,6 @@ func (h *Handlers) Config() InspectorHandler {
 			utils.WriteErrorMsg("invalid access", http.StatusBadRequest, ctx.Rw)
 			return
 		}
-		res := &types.ConfigResponse{
-			PolicyRepoURL: h.Cfg.PolicyRepo,
-			PolicyHash:    h.Policy.GetPolicyHash()[:7],
-		}
-		utils.WriteSuccesMsgWithData("ok", http.StatusOK, res, ctx.Rw)
-	}
-}
-
-func (h *Handlers) IntegrationMeta() InspectorHandler {
-	return func(ctx *types.Ctx) {
-		if utils.IndexOf(ctx.Claim.Roles, "admin") == -1 {
-			utils.WriteErrorMsg("invalid access", http.StatusBadRequest, ctx.Rw)
-			return
-		}
 		integrationConfig, err := h.Store.GetIntegrationConfig()
 		if err != nil {
 			utils.Logger.Error("error while retriving integration config", zap.String("err_msg", err.Error()))
@@ -53,13 +39,19 @@ func (h *Handlers) IntegrationMeta() InspectorHandler {
 		}
 		meta := integrationConfig.GetIntegrationMeta()
 		h.Lock()
+		defer h.Unlock()
 		if meta.IsTeamConfigure && h.teamsBot != nil {
 			meta.IsTeamAdminJoined = h.teamsBot.IsConfigured()
 			if !meta.IsTeamAdminJoined {
 				meta.TeamsJoinToken = h.teamsBot.JoinToken()
 			}
 		}
-		utils.WriteSuccesMsgWithData("ok", http.StatusOK, meta, ctx.Rw)
+		res := &types.ConfigResponse{
+			PolicyRepoURL:   h.Cfg.PolicyRepo,
+			PolicyHash:      h.Policy.GetPolicyHash()[:7],
+			IntegrationMeta: meta,
+		}
+		utils.WriteSuccesMsgWithData("ok", http.StatusOK, res, ctx.Rw)
 	}
 }
 

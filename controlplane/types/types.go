@@ -82,8 +82,9 @@ type CreateSessionRequest struct {
 }
 
 type ConfigResponse struct {
-	PolicyRepoURL string `json:"policyRepoUrl"`
-	PolicyHash    string `json:"policyHash"`
+	PolicyRepoURL   string           `json:"policyRepoUrl"`
+	PolicyHash      string           `json:"policyHash"`
+	IntegrationMeta *IntegrationMeta `json:"integrationMeta"`
 }
 
 type AddRoleRequest struct {
@@ -138,7 +139,7 @@ func (i *IntegrationConfig) GetIntegrationMeta() *IntegrationMeta {
 }
 
 type TeamsConfig struct {
-	AppID    string `json:"appID"`
+	AppID    string `json:"appId"`
 	AppToken string `json:"appToken"`
 }
 
