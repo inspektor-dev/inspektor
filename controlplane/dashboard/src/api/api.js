@@ -69,14 +69,17 @@ export default {
     createServiceAccount: async(data) => {
         await axios.post("/api/serviceaccount", data)
     },
+    configureTeams: async (data) => {
+        await axios.post("/api/configure/teams", data)
+    },
     getServiceAccount: async () => {
         let res = await axios.get("api/serviceaccount")
         return res.data
     },
-    intializeToken: () => {
+    intializeToken: async () => {
         let token = localStorage.getItem("access-token");
         if (token != null) {
             axios.defaults.headers["Auth-Token"] = token;
         }
-    }
+    },
 }
