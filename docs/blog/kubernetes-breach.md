@@ -1,7 +1,7 @@
 ---
-title: Silly Misconfiguration Made 900,000 Kubernetes Cluster Public!
-description: In recent days
-slug: misconfiguration-made-kubernetes-cluster-public
+title: decrypting recent security incidents
+description: Recent days, we have witnessed lot of security incidents. This post covers some of the major incidents and what are those learnings.
+slug: decrypting-recent-security-incidents
 authors:
   - name: zriyansh
     title: Contributor
@@ -20,7 +20,7 @@ But exposing nearly a million Kubernetes clusters seems a little serious and mad
 
 **1. Cybel Claim**
 
-[Cyble claims](https://blog.cyble.com/2022/06/27/exposed-kubernetes-clusters/) that they found 900,000 Kubernetes cluster API servers exposed to the public internet, but only 799 of them can be exploited, where the intruder can get the access of the entire cluster.
+[Cyble claims](https://blog.cyble.com/2022/06/27/exposed-kubernetes-clusters/) that they found 900,000 Kubernetes cluster API servers exposed to the public internet due to misconfiguration, but only 799 of them can be exploited, where the intruder can get the access of the entire cluster.
 
 ![country-wise distribution of exposed k8s cluster](/img/k8.png)
 
