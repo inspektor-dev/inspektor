@@ -1,7 +1,7 @@
 ---
-title: silly misconfiguration made 900,000 kubernetes cluster public.  
+title: Silly Misconfiguration Made 900,000 Kubernetes Cluster Public!
 description: In recent days
-slug: missconfiguration-made-kubernetes-cluster-public
+slug: misconfiguration-made-kubernetes-cluster-public
 authors:
   - name: zriyansh
     title: Contributor
@@ -13,39 +13,44 @@ hide_table_of_contents: false
 ---
 ![banner for blog](/img/hacking.jpg)
 
-Most of us do silly mistakes mostly due to lethargic or some are geninue. But the price we pay is huge because some of the damaage are irreversiable. 
-But exposing million kuebernetes cluster seems little serious and made me to revisit some of the
-security issues in recent days.
+Most of us do silly mistakes mostly due to lethargy or some are genuine. But the price we pay is huge because some of the damages are irreversible. 
+But exposing nearly a million Kubernetes clusters seems a little serious and made me revisit some of the security issues in recent days.
 
 # Recent Security issues
 
-**Cybel claim**
+**1. Cybel Claim**
 
-[Cyble claims](https://blog.cyble.com/2022/06/27/exposed-kubernetes-clusters/) that they found 900,000 kubernetes cluster api server exposed to the public internet, but only 799 of them can be exploited, where the intruder can get the access of the entire cluster.
+[Cyble claims](https://blog.cyble.com/2022/06/27/exposed-kubernetes-clusters/) that they found 900,000 Kubernetes cluster API servers exposed to the public internet, but only 799 of them can be exploited, where the intruder can get the access of the entire cluster.
 
-![country wise distribution of exposed k8s cluster](/img/k8.png)
+![country-wise distribution of exposed k8s cluster](/img/k8.png)
 
-**Okta breach**
+**2. Okta breach**
 
-Okta is a public traded identity management company was breached by hacking group called Lapsus$. As per the investigation, it turned to be hackers able to get vpn keys of support engineers by social engineering.
+Okta is a public traded identity management company that was breached by a hacking group called Lapsus$. As per the investigation, it turned out to be hackers able to get VPN keys of support engineers by social engineering.
 
-The most disturbing part is that the hackers are inside the network for more than 1 months without anyone's notice. 
+The most disturbing part is that the hackers are inside the network for more than 1 month without anyone's notice. 
 
-![mockery on state of industry](/img/ss.png)
+![mockery on the state of the industry](/img/ss.png)
 
-**Log4J**
+**3. Log4J**
 
-If you are coming from java world, you wouldn't have missed log4j vulnerbility. Log4j vulnerbility will allow the attacker to run the code whatever they want and gain access to the system. I'm still not sure how many of the folks would of upgraded the version or this vulnerbility is still living in a not upgraded system.
+If you are coming from the Java world, you wouldn't have missed the log4j vulnerability. Log4j vulnerability will allow the attacker to run the code whatever they want and gain access to the system. I'm still not sure how many of the folks would have upgraded the version or if this vulnerability is still living in a not upgraded system.
 
 ![meme on cloudflare](/img/log4j.jpeg)
 
 ## Learnings
 
-From those all those metioned cases, it's clear that if we have followed best practices we could have avoided most of those instance.
+From all those mentioned cases, it's clear that if we have followed best practices we could have avoided most of those instances.
 
-- Network polices wouldn't have exposed kubernetes clusters
-- Security education and basic monitoring wouldn't have let Lapsus$ to hack the system for almost 1 month
-- Continous package scanning to avoid supply chain would made the developers to upgrade the system at right time
+- Network policies wouldn't have exposed Kubernetes clusters.
+- Security education and basic monitoring wouldn't have let Lapsus$ hack the system for almost 1 month.
+- Continuous package scanning to avoid supply chain would make the developers upgrade the system at the right time.
+
+The present time itself is full of challenges in the world of network security. Everything seems to indicate that the number of threats that users will have to face will continue to grow, so now more than ever, having a good security policy and protection is essential.
 
 
-We covered only fraction of security insidents, we have curated the list of leaks around the world in the [github repo](https://github.com/inspektor-dev/awesome-data-leak). The list might be a shock to you by seeing your day to day tech companies on the [list](https://github.com/inspektor-dev/awesome-data-leak).
+We covered only a fraction of security incidents, we have curated the list of leaks around the world in the [github repo](https://github.com/inspektor-dev/awesome-data-leak). The list might be a shock to you by seeing your day-to-day tech companies on the [list](https://github.com/inspektor-dev/awesome-data-leak).
+
+Let me leave you with a question **"Does Remote work lack IAM & cybersecurity oversight?"**
+
+Chao!
