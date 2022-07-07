@@ -16,7 +16,11 @@
 
   <n-modal v-model:show="showSecretToken">
     <n-card title="Secret Token" style="width: 600px">
-          <n-input v-model:value="currentSecretToken " type="text" placeholder="Secret Token" />
+      <n-input
+        v-model:value="currentSecretToken"
+        type="text"
+        placeholder="Secret Token"
+      />
     </n-card>
   </n-modal>
 
@@ -146,14 +150,30 @@ const createColumn = (
               if (window.isSecureContext) {
                 navigator.clipboard.writeText(row.sidecarToken);
                 message.success("Token Copied!!");
-                return
+                return;
               }
               console.log(row.sidecarToken);
               currentSecretToken.value = row.sidecarToken;
               showSecretToken.value = true;
             },
           },
-           showTokenText()
+          showTokenText()
+        );
+      },
+    },
+    {
+      title: "Delete datasource",
+      render(row) {
+        return h(
+          NButton,
+          {
+            type: "error",
+            onClick: async () => {
+              await api.deleteDatasource({ datasourceId: row.id });
+              await store.dispatch("updateDatasource");
+            },
+          },
+          "delete datasource"
         );
       },
     },
@@ -162,9 +182,9 @@ const createColumn = (
 
 function showTokenText() {
   if (window.isSecureContext) {
-    return "Copy Token"
+    return "Copy Token";
   }
-  return "Show Token"
+  return "Show Token";
 }
 
 export default {
