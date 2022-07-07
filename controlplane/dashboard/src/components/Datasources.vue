@@ -55,9 +55,10 @@ const createColumn = (
   currentSessionMeta,
   store,
   currentSecretToken,
-  showSecretToken
+  showSecretToken,
+  admin
 ) => {
-  return [
+  let columns = [
     {
       title: "Datasource Name",
       key: "name",
@@ -161,7 +162,9 @@ const createColumn = (
         );
       },
     },
-    {
+  ];
+  if (admin) {
+    columns.push({
       title: "Delete datasource",
       render(row) {
         return h(
@@ -176,8 +179,9 @@ const createColumn = (
           "delete datasource"
         );
       },
-    },
-  ];
+    });
+  }
+  return columns;
 };
 
 function showTokenText() {
@@ -208,7 +212,8 @@ export default {
         currentSessionMeta,
         store,
         currentSecretToken,
-        showSecretToken
+        showSecretToken,
+        store.state.isAdmin
       ),
       datasourceAdded: async () => {
         showModal.value = false;
