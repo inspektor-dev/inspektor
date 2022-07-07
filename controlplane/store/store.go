@@ -444,6 +444,20 @@ func (s *Store) GetDataSourceWithIDs() ([]string, []string, error) {
 	return datasourceNames, databaseIDs, nil
 }
 
+func (s *Store) DeleteDatasource(id uint) {
+	err := s.db.Unscoped().Where("id = ?", id).Delete(&models.DataSource{}).Error
+	if err != nil {
+		utils.Logger.Error("error while deleting datasource", zap.String("err_msg", err.Error()))
+	}
+}
+
+func (s *Store) DeleteSessionsForDatasource(objectID, userID uint) {
+	err := s.db.Unscoped().Where("object_id = ? AND user_id = ?", objectID, userID).Delete(&models.Session{}).Error
+	if err != nil {
+		utils.Logger.Error("error while deleting sessions", zap.Uint("user_id", userID), zap.Uint("object_id", objectID))
+	}
+}
+
 func handleGormErr(err error) error {
 	if err == nil {
 		return nil

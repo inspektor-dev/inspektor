@@ -185,3 +185,7 @@ func (s *CloudWatchConfig) Validate() error {
 	}
 	return nil
 }
+
+type DeleteDatasourceRequest struct {
+	DatasourceID uint `json:"datasourceId"`
+}
