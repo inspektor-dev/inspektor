@@ -430,6 +430,7 @@ func (h *Handlers) Init(router *mux.Router) {
 	router.HandleFunc("/api/login", h.Login()).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/datasource", h.AuthMiddleWare(h.CreateDataSource())).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/datasource", h.AuthMiddleWare(h.GetDataSources())).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/datasource", h.AuthMiddleWare(h.DeleteDatasource())).Methods("DELETE", "OPTIONS")
 	router.HandleFunc("/api/session", h.AuthMiddleWare(h.CreateSession())).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/session", h.AuthMiddleWare(h.GetSesssion())).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/session/temp", h.AuthMiddleWare(h.CreateTempSession())).Methods("POST", "OPTIONS")

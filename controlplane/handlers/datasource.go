@@ -99,3 +99,20 @@ func (h *Handlers) GetDataSources() InspectorHandler {
 		utils.WriteSuccesMsgWithData("ok", http.StatusOK, datasources, ctx.Rw)
 	}
 }
+
+func (h *Handlers) DeleteDatasource() InspectorHandler {
+	return func(ctx *types.Ctx) {
+		if utils.IndexOf(ctx.Claim.Roles, "admin") == -1 {
+			utils.WriteErrorMsgWithErrCode("only admin can create data source", types.ErrInvalidAccess, http.StatusUnauthorized, ctx.Rw)
+			return
+		}
+		req := &types.DeleteDatasourceRequest{}
+		if err := json.NewDecoder(ctx.R.Body).Decode(req); err != nil {
+			utils.WriteErrorMsg("invalid json", http.StatusBadRequest, ctx.Rw)
+			return
+		}
+		h.Store.DeleteDatasource(req.DatasourceID)
+		h.Store.DeleteSessionsForDatasource(req.DatasourceID, ctx.Claim.ObjectID)
+		utils.WriteSuccesMsg("ok", http.StatusOK, ctx.Rw)
+	}
+}
