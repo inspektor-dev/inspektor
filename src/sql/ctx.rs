@@ -117,9 +117,9 @@ impl Ctx {
         // table name as column name.
         let mut should_prefix = prefix_table_name;
         let splits = table_name.split(".").collect::<Vec<&str>>();
-        if splits.len() > 1 {
-            should_prefix = true;
-        }
+        // if splits.len() > 1 {
+        //     should_prefix = true;
+        // }
         let mut selections = vec![];
         if let Some(protected_columns) = self.protected_columns.get(table_name) {
             let protected_columns_set = protected_columns.iter().collect::<HashSet<&String>>();
