@@ -76,6 +76,9 @@ export default {
         let res = await axios.get("api/serviceaccount")
         return res.data
     },
+    deleteDatasource: async(data) => {
+        await axios.delete("/api/datasource", {data})
+    },
     intializeToken: async () => {
         let token = localStorage.getItem("access-token");
         if (token != null) {
