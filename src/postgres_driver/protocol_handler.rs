@@ -1,4 +1,3 @@
-use crate::apiproto::api_grpc::InspektorClient;
 // Copyright 2021 Balaji (rbalajis25@gmail.com)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +11,7 @@ use crate::apiproto::api_grpc::InspektorClient;
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use crate::apiproto::api::{Metric, MetricsRequest};
+use crate::apiproto::apiproto::{Metric, MetricsRequest};
 use crate::auditlog::build_audit_msg;
 use crate::bytespool::BUF_POOL;
 use crate::config::PostgresConfig;
@@ -24,14 +23,15 @@ use crate::sql::ctx::Ctx;
 use crate::sql::query_rewriter::QueryRewriter;
 use crate::sql::rule_engine::HardRuleEngine;
 use anyhow::*;
-use bytes::BytesMut;
+use bytes::{BufMut, BytesMut};
 use grpcio::CallOption;
 use log::*;
 use md5::{Digest, Md5};
-use openssl::ssl::{Ssl, SslConnector, SslMethod};
+use openssl::ssl::{ SslConnector, SslMethod};
 use postgres_protocol::authentication::sasl;
-use protobuf::RepeatedField;
+
 use sqlparser::ast::Statement;
+use core::result::Result::Ok;
 use std::borrow::BorrowMut;
 use std::cell::Ref;
 use std::collections::{HashMap, HashSet};
@@ -44,7 +44,12 @@ use tokio::net::TcpStream;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::watch;
 use tokio::time as tokio_time;
+use anyhow::Result;
 use tokio_openssl::SslStream;
+use tokio_postgres::tls::TlsConnect;
+use crate::apiproto::apiproto::inspektor_client::InspektorClient;
+use crate::apiproto::InspektorClientCommon;
+use tonic::Request;
 
 fn md5_password(username: &String, password: &String, salt: Vec<u8>) -> String {
     let mut md5 = Md5::new();
@@ -67,8 +72,8 @@ pub struct ProtocolHandler {
     datasource_name: String,
     pending_error: Option<ProtocolHandlerError>,
     current_transaction_status: TransactionStatus,
-    client: InspektorClient,
-    pending_metrics: RepeatedField<Metric>,
+    client: InspektorClient<InspektorClientCommon>,
+    pending_metrics: Vec<Metric>,
     token: String,
     passthrough: bool,
     audit_sender: Sender<String>,
@@ -352,7 +357,7 @@ impl ProtocolHandler {
         groups: Vec<String>,
         evaluator: PolicyEvaluator,
         datasource_name: String,
-        controlplane_client: InspektorClient,
+        controlplane_client: InspektorClient<InspektorClientCommon>,
         token: String,
         passthrough: bool,
         audit_sender: Sender<String>,
@@ -361,7 +366,8 @@ impl ProtocolHandler {
 
         // create a tcp connection with target postgres server to start
         // sending messages.
-        let target_conn = ProtocolHandler::connect_target(&config).await?;
+        let mut target_conn = ProtocolHandler::connect_target(&config).await?;
+        //target_conn = ProtocolHandler::try_ssl_upgrade(&config, target_conn).await?;
         let startup_params = HashMap::from([
             (
                 "database".to_string(),
@@ -401,7 +407,7 @@ impl ProtocolHandler {
             pending_error: None,
             current_transaction_status: TransactionStatus::Idle,
             client: controlplane_client,
-            pending_metrics: RepeatedField::default(),
+            pending_metrics: Vec::default(),
             token: token,
             passthrough: passthrough,
             audit_sender: audit_sender,
@@ -629,22 +635,23 @@ impl ProtocolHandler {
 
     pub fn push_metrics(&mut self, query_metrics: HashMap<String, HashSet<String>>) {
         for (table_name, columns) in query_metrics {
-            let mut metric = Metric::new();
-            metric.set_collection_name(table_name);
-            metric.set_property_name(RepeatedField::from_vec(Vec::from_iter(columns)));
+            let mut metric = Metric{
+                collection_name: table_name,
+                property_name: Vec::from_iter(columns)
+            };
             self.pending_metrics.push(metric);
         }
     }
 
-    pub fn flush_metrics(&mut self) {
+    pub async fn flush_metrics(&mut self) {
         if self.pending_metrics.len() == 0 {
             return;
         }
-        let mut req = MetricsRequest::new();
-        let metrics = mem::replace(&mut self.pending_metrics, RepeatedField::new());
-        req.set_metrics(metrics);
-        req.set_groups(RepeatedField::from_vec(self.groups.clone()));
-        if let Err(e) = self.client.send_metrics_opt(&req, self.get_call_opt()) {
+        let mut req = Request::new(MetricsRequest{
+            metrics: mem::replace(&mut self.pending_metrics, Vec::new()),
+            groups: self.groups.clone()
+        });
+        if let Err(e) = self.client.send_metrics(req).await {
             error!("error while sending metrics to the controlplane {:?}", e);
         }
     }
@@ -655,53 +662,48 @@ impl ProtocolHandler {
         config: &PostgresConfig,
         conn: PostgresConn,
     ) -> Result<PostgresConn, anyhow::Error> {
-        match conn {
-            PostgresConn::Unsecured(mut inner) => {
-                inner
-                    .write_all(&FrontendMessage::SslRequest.encode_without_buf())
-                    .await
-                    .map_err(|e| {
-                        error!("unable to send ssl upgrade request to target. err: {:?}", e);
-                        return anyhow!("unable to send ssl upgrade request");
-                    })?;
-                // check whether remote server accept ssl connection.
-                let mut buf = [0; 1];
-                inner.read_exact(&mut buf).await.map_err(|e| {
-                    error!("error reading response message after ssl request {:?}", e);
-                    return anyhow!("error while reading response message after ssl request");
-                })?;
-                if buf[0] != ACCEPT_SSL_ENCRYPTION {
-                    // since postgres doesn't accept ssl. so let's drop the
-                    // current connection and create a new unsecured connection.
-                    return ProtocolHandler::connect_target(config).await;
-                }
-                let connector = ProtocolHandler::get_ssl_connector();
-                let mut stream = SslStream::new(connector, inner).unwrap();
-                Pin::new(&mut stream).connect().await.map_err(|e| {
-                    error!(
-                        "unable to upgrade the target connection to ssl stream {:?}",
-                        e
-                    );
-                    anyhow!("error while upgrading target connection to ssl stream")
-                })?;
-                debug!("taget connection upgraded to tls connection");
-                Ok(PostgresConn::Secured(stream))
-            }
-            _ => Ok(conn),
-        }
+        unreachable!();
+        // match conn {
+        //     PostgresConn::Unsecured(mut inner) => {
+        //         inner
+        //             .write_all(&FrontendMessage::SslRequest.encode_without_buf())
+        //             .await
+        //             .map_err(|e| {
+        //                 error!("unable to send ssl upgrade request to target. err: {:?}", e);
+        //                 return anyhow!("unable to send ssl upgrade request");
+        //             })?;
+        //         // check whether remote server accept ssl connection.
+        //         let mut buf = [0; 1];
+        //         inner.read_exact(&mut buf).await.map_err(|e| {
+        //             error!("error reading response message after ssl request {:?}", e);
+        //             return anyhow!("error while reading response message after ssl request");
+        //         })?;
+        //         if buf[0] != ACCEPT_SSL_ENCRYPTION {
+        //             // since postgres doesn't accept ssl. so let's drop the
+        //             // current connection and create a new unsecured connection.
+        //             return ProtocolHandler::connect_target(config).await;
+        //         }
+        //         let connector = ProtocolHandler::get_ssl_connector();
+        //         let mut stream = connector.connect( inner).unwrap();
+        //         // Pin::new(&mut stream).connect().await.map_err(|e| {
+        //         //     error!(
+        //         //         "unable to upgrade the target connection to ssl stream {:?}",
+        //         //         e
+        //         //     );
+        //         //     anyhow!("error while upgrading target connection to ssl stream")
+        //         // })?;
+        //         debug!("taget connection upgraded to tls connection");
+        //         Ok(PostgresConn::Secured(stream))
+        //     }
+        //     _ => Ok(conn),
+        // }
     }
 
-    fn get_ssl_connector() -> Ssl {
-        SslConnector::builder(SslMethod::tls())
-            .unwrap()
-            .build()
-            .configure()
-            .unwrap()
-            .verify_hostname(false)
-            .use_server_name_indication(false)
-            .into_ssl("")
-            .unwrap()
-    }
+    // fn get_ssl_connector() -> TlsConnector {
+    //     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+    //     builder.set_ca_file("/usr/lib/ssl/certs/ca-certificates.crt").unwrap();
+    //     TlsConnector::new(builder.build().configure().unwrap(), "streak-production-final.cyym8n3wehdv.ap-south-1.rds.amazonaws.com")
+    // }
 
     async fn handle_frontend_message(
         &mut self,

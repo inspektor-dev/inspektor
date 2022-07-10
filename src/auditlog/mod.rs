@@ -14,7 +14,7 @@
 
 mod cloudwatch;
 mod stdout;
-use crate::apiproto::api::IntegrationConfigResponse;
+use crate::apiproto::apiproto::IntegrationConfigResponse;
 use crate::auditlog::cloudwatch::CloudWatchLogs;
 use crate::auditlog::stdout::StdOutLogs;
 use async_trait::async_trait;
@@ -28,41 +28,38 @@ pub trait AuditLog {
 
 /// start_audit_worker will start the audit log worker. it listens for audit logs from
 /// data source driver and push the audit logs to the configured audit log destination.
-pub fn start_audit_worker(cfg: IntegrationConfigResponse) -> mpsc::Sender<String> {
+pub async fn start_audit_worker(cfg: IntegrationConfigResponse) -> mpsc::Sender<String> {
     // mpsc channels are used communicate between audit worker and from the
     // audit producer.
     let (tx, mut rx) = mpsc::channel(32);
-    thread::spawn(move || {
-        // run the worker in different thread to listen for audit logs.
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            // retrive audit log client from the configuration.
-            let mut audit_client = get_audit_client(cfg).await;
-            loop {
-                let log = rx.recv().await.unwrap();
-                if audit_client.is_none() {
-                    continue;
-                }
-                unsafe {
-                    audit_client.as_mut().unwrap_unchecked().push_log(log).await;
-                }
+
+    tokio::spawn(async move {
+        // retrive audit log client from the configuration.
+        let mut audit_client = get_audit_client(cfg).await;
+        loop {
+            let log = rx.recv().await.unwrap();
+            if audit_client.is_none() {
+                continue;
             }
-        })
+            unsafe {
+                audit_client.as_mut().unwrap_unchecked().push_log(log).await;
+            }
+        }
     });
     tx
 }
 
-/// get_audit_client retuns the respective audit log client based on the given 
-/// integration config. 
+/// get_audit_client retuns the respective audit log client based on the given
+/// integration config.
 async fn get_audit_client(mut cfg: IntegrationConfigResponse) -> Option<Box<dyn AuditLog + Send>> {
     let mut audit_client: Option<Box<dyn AuditLog + Send>> = None;
-    if cfg.has_audit_log_config() {
+    if cfg.audit_log_config.is_some() {
         let log_prefix = cfg.audit_log_config.unwrap().log_prefix;
         audit_client = Some(Box::new(StdOutLogs::new(log_prefix)));
-    } else if cfg.has_cloud_watch_config() {
+    } else if cfg.cloud_watch_config.is_some() {
         // check wether we have cloudwatch config.
-        let cloud_watch_config = cfg.take_cloud_watch_config();
-        if cloud_watch_config.get_cred_type() != "" {
+        let cloud_watch_config = cfg.cloud_watch_config.unwrap();
+        if cloud_watch_config.cred_type != "" {
             audit_client = Some(Box::new(
                 CloudWatchLogs::new(cloud_watch_config)
                     .await

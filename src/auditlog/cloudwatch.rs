@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use super::AuditLog;
-use crate::apiproto::api::CloudWatchConfig;
+use crate::apiproto::apiproto::CloudWatchConfig;
 use anyhow;
 use async_trait::async_trait;
 use aws_config;
@@ -33,7 +33,7 @@ impl CloudWatchLogs {
     /// new will return cloud watch client
     pub async fn new(config: CloudWatchConfig) -> Result<CloudWatchLogs, anyhow::Error> {
         env::set_var("AWS_DEFAULT_REGION", config.region_name.clone());
-        if config.get_cred_type() == "cred" {
+        if config.cred_type == "cred" {
             env::set_var("AWS_ACCESS_KEY_ID", config.access_key.clone());
             env::set_var("AWS_SECRET_ACCESS_KEY", config.secret_key.clone());
         }
@@ -52,13 +52,13 @@ impl CloudWatchLogs {
         let res = describe_log_group
             .set_log_group_name(Some(
                 self.cloud_watch_config
-                    .get_log_group_name()
+                    .log_group_name
                     .clone()
                     .to_string(),
             ))
             .set_log_stream_name_prefix(Some(
                 self.cloud_watch_config
-                    .get_log_stream_name()
+                    .log_stream_name
                     .clone()
                     .to_string(),
             ))
@@ -86,13 +86,13 @@ impl AuditLog for CloudWatchLogs {
             .put_log_events()
             .set_log_group_name(Some(
                 self.cloud_watch_config
-                    .get_log_group_name()
+                    .log_group_name
                     .clone()
                     .to_string(),
             ))
             .set_log_stream_name(Some(
                 self.cloud_watch_config
-                    .get_log_stream_name()
+                    .log_stream_name
                     .clone()
                     .to_string(),
             ))
