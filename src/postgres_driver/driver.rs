@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
-use crate::apiproto::api::{AuthRequest, AuthResponse, DataSourceResponse};
-use crate::apiproto::api_grpc::*;
+use crate::apiproto::apiproto::{AuthRequest, AuthResponse, DataSourceResponse};
+use crate::apiproto::apiproto::inspektor_client::InspektorClient;
+use crate::apiproto::InspektorClientCommon;
 use crate::config::PostgresConfig;
 use crate::policy_evaluator::evaluator::PolicyEvaluator;
 use crate::postgres_driver::conn::PostgresConn;
@@ -15,6 +16,7 @@ use log::*;
 use openssl::ssl::{Ssl, SslAcceptor, SslFiletype, SslMethod};
 
 use std::pin::Pin;
+use tonic::Request;
 
 use tokio;
 use tokio::io::AsyncWriteExt;
@@ -26,7 +28,7 @@ use tokio_openssl::SslStream;
 pub struct PostgresDriver {
     pub postgres_config: PostgresConfig,
     pub policy_watcher: watch::Receiver<Vec<u8>>,
-    pub client: InspektorClient,
+    pub client: InspektorClient<InspektorClientCommon>,
     pub token: String,
     pub datasource: DataSourceResponse,
     pub audit_sender: Sender<String>,
@@ -36,35 +38,30 @@ pub struct PostgresDriver {
 impl PostgresDriver {
     /// start will start listening for postgres connection from the configured
     /// listening port.
-    pub fn start(&self) {
-        // let acceptor = self.get_ssl_acceptor();
-        // run the socket message.
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async move {
-            let listener = TcpListener::bind(format!(
-                "0.0.0.0:{}",
-                self.postgres_config.proxy_listen_port.as_ref().unwrap()
-            ))
-            .await
-            .map_err(|_| anyhow!("unable to listern on the given port"))
-            .unwrap();
-            info!(
-                "postgres driver listeneing at 0.0.0.0:{}",
-                self.postgres_config.proxy_listen_port.as_ref().unwrap()
-            );
-            loop {
-                let (socket, _) = listener.accept().await.unwrap();
-                //       let acceptor = acceptor.clone();
-                let driver = self.clone();
-                let socket = PostgresConn::Unsecured(socket);
-                tokio::spawn(async move {
-                    if let Err(e) = driver.handle_client_conn(socket).await {
-                        error!("error while handling client connection {:?}", e);
-                    }
-                    ()
-                });
-            }
-        });
+    pub async  fn start(&self) {
+        let listener = TcpListener::bind(format!(
+            "0.0.0.0:{}",
+            self.postgres_config.proxy_listen_port.as_ref().unwrap()
+        ))
+        .await
+        .map_err(|_| anyhow!("unable to listern on the given port"))
+        .unwrap();
+        info!(
+            "postgres driver listeneing at 0.0.0.0:{}",
+            self.postgres_config.proxy_listen_port.as_ref().unwrap()
+        );
+        loop {
+            let (socket, _) = listener.accept().await.unwrap();
+            //       let acceptor = acceptor.clone();
+            let mut driver = self.clone();
+            let socket = PostgresConn::Unsecured(socket);
+            tokio::spawn(async move {
+                if let Err(e) = driver.handle_client_conn(socket).await {
+                    error!("error while handling client connection {:?}", e);
+                }
+                ()
+            });
+        }
     }
 
     // get_ssl_acceptor will get ssl acceptor if the sidecar is set to run on tls
@@ -82,7 +79,7 @@ impl PostgresDriver {
     // }
 
     /// handle_client_conn will handle the tcp connection of the client.
-    async fn handle_client_conn(&self, conn: PostgresConn) -> Result<(), anyhow::Error> {
+    async fn handle_client_conn(&mut self, conn: PostgresConn) -> Result<(), anyhow::Error> {
         let (startup_msg, mut conn) = self.get_startup_msg(conn).await?;
 
         let params = match startup_msg {
@@ -102,7 +99,7 @@ impl PostgresDriver {
                 return Err(anyhow!("error while building the policy evaluator {:?}", e));
             }
         };
-        let groups: Vec<String> = auth_res.get_groups().into();
+        let groups: Vec<String> = auth_res.groups.into();
         let result = match evaluator.evaluate(
             &self.datasource.data_source_name,
             &"view".to_string(),
@@ -166,9 +163,6 @@ impl PostgresDriver {
                 Ok(msg) => msg,
                 Err(e) => {
                     match e {
-                        DecoderError::UnsupporedVersion => {
-                            return Err(anyhow!("unsupported postgres protocol version"))
-                        }
                         _ => {
                             // log the error and close the connection.
                             return Err(anyhow!("error while decoding startup message {:?}", e));
@@ -217,7 +211,7 @@ impl PostgresDriver {
     // verfiy_client_params will verify the client password with the dataplane.
     // if it's succeed it'll retrive all group assigned to the user.
     async fn verfiy_client_params(
-        &self,
+        &mut self,
         params: &HashMap<String, String>,
         client_conn: &mut PostgresConn,
     ) -> Result<AuthResponse, anyhow::Error> {
@@ -238,11 +232,12 @@ impl PostgresDriver {
                 unreachable!("expectected password message while decoding for password message");
             }
         };
-        let mut auth_req = AuthRequest::new();
-        auth_req.password = password;
-        auth_req.user_name = params.get("user").unwrap().clone();
-        let res = self.client.auth_opt(&auth_req, self.get_call_opt())?;
-        Ok(res)
+        let mut auth_req = Request::new(AuthRequest{
+            password: password,
+            user_name: params.get("user").unwrap().clone()
+        });
+        let res = self.client.auth(auth_req).await?;
+        Ok(res.into_inner())
     }
 
     /// get_call_opt return call option with control plane auth token. So that

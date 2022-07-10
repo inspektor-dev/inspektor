@@ -5,19 +5,20 @@ use byteorder::{ByteOrder, NetworkEndian};
 use bytes::{Buf, BufMut, BytesMut};
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+
 use tokio::time::Interval;
 // Postgres protocol version.
 
 // decode_startup_message decode pg startup message, if ssl request it'll  upgrade the connection to ssl connection and returns the
-pub async fn decode_init_startup_message<T>(conn: &mut T) -> Result<FrontendMessage, DecoderError>
+pub async fn decode_init_startup_message<T>(conn: &mut T) -> Result<FrontendMessage, anyhow::Error>
 where
     T: AsyncRead + Unpin + AsyncReadExt + AsyncWrite + AsyncWriteExt,
 {
     // read the frame length.
-    let len = decode_frame_length(conn).await?;
+    let len = decode_frame_length(conn).await.map_err(|err| DecoderError::Other(err))?;
     let mut buf = BytesMut::new();
     buf.resize(len, b'0');
-    conn.read_exact(&mut buf).await?;
+    conn.read_exact(&mut buf).await.map_err(|err| DecoderError::IoErr(err))?;
     // read version number
     let version_number = buf.get_i32();
     match version_number {
@@ -28,9 +29,9 @@ where
             // have to make it safe.
             while *buf.get(0).unwrap() != 0 {
                 let key =
-                    read_cstr(&mut buf).map_err(|_| anyhow!("error while reading key params"))?;
+                    read_cstr(&mut buf).map_err(|_| DecoderError::Other(anyhow!("error while reading key params")))?;
                 let val =
-                    read_cstr(&mut buf).map_err(|_| anyhow!("error while reading value params"))?;
+                    read_cstr(&mut buf).map_err(|_| DecoderError::Other(anyhow!("error while reading value params")))?;
                 params.insert(key, val);
             }
 
@@ -40,7 +41,7 @@ where
             });
         }
         _ => {
-            return Err(DecoderError::UnsupporedVersion);
+            return Err(anyhow!("unsupported version"));
         }
     };
 }

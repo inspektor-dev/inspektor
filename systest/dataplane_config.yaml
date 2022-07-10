@@ -1,5 +1,5 @@
 driver_type: "postgres"
-controlplane_addr: "localhost:5003"
+controlplane_addr: "http://localhost:5003"
 secret_token: "b5571a086fb62180cf5493a4a6555a641dede6a45048fda0d79b24fc9a8e"
 postgres_config:
   target_addr: "localhost"
