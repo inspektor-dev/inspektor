@@ -6,32 +6,39 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { version = "1.13.0", features = ["full"] }
+tokio = { version = "1.19.2", features = ["full"] }
 byteorder = "1.4.3"
 bytes = "1.1.0"
-anyhow = "1.0"
-thiserror = "1.0"
-log = "0.4"
-env_logger = "0.8.4"
+anyhow = "1.0.58"
+thiserror = "1.0.31"
+log = "0.4.17"
+env_logger = "0.9.0"
 tokio-openssl = "0.6.3"
-openssl = "0.10.38"
-clap = "2.33.3"
-md-5 = "0.9"
-grpcio = { version = "0.6", features = ["prost-codec", "openssl"] }
-protobuf = { version = "2", features = ["with-bytes"] }
-futures = "0.3"
+openssl = "0.10.41"
+clap = "3.2.8"
+md-5 = "0.10.1"
+grpcio = { version = "0.10.3", features = ["prost-codec", "openssl"] }
+protobuf = { version = "3.1.0", features = ["with-bytes"] }
+futures = "0.3.21"
 burrego = {git = "https://github.com/kubewarden/policy-evaluator"}
-serde_json = "1.0.71"
+serde_json = "1.0.82"
 sqlparser = {git = "https://github.com/poonai/sqlparser-rs", branch = "poonai/tablefunction"}
-tokio-postgres-openssl = "0.1.0-rc.1"
-tokio-postgres = "0.7.5"
-serde = "1.0.131"
-serde_yaml = "0.8.23"
-postgres-protocol = "0.6.3"
-aws-config = "0.11.0"
-aws-sdk-cloudwatchlogs = "0.11.0"
-async-trait = "0.1.53"
+tokio-postgres = "0.7.6"
+serde = "1.0.138"
+serde_yaml = "0.8.25"
+postgres-protocol = "0.6.4"
+aws-config = "0.15.0"
+aws-sdk-cloudwatchlogs = "0.15.0"
+async-trait = "0.1.56"
 thread_local = "1.1.4"
+openssl-probe = "0.1.5"
 lazy_static = "1.4.0"
+prost = "0.10"
+# Only necessary if using Protobuf well-known types:
+prost-types = "0.10"
+tonic = "0.7.2"
+
 [build-dependencies]
-protoc-grpcio = "3.0.0"
+tonic-build = "0.7.2"
+
+
