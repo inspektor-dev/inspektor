@@ -97,7 +97,7 @@ async fn main() {
 async fn get_controlplane_client(
     config: &Config,
 ) -> Result<InspektorClient<InspektorClientCommon>, anyhow::Error> {
-    let contolplane_addr = config.controlplane_addr.as_ref().unwrap().clone();
+    let contolplane_addr = format!("http://{}", config.controlplane_addr.as_ref().unwrap());
     let channel = Channel::from_static(Box::leak(contolplane_addr.into_boxed_str()))
         .connect()
         .await?;
