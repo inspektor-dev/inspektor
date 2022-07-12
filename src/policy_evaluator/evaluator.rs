@@ -108,7 +108,9 @@ impl PolicyEvaluator {
             "evaluating policy with data_soruce {:?} action {:?} groups {:?}",
             data_source, action, groups
         );
-        let input = self.get_input_value(data_source, action, groups);
+        let mut datasource = data_source.clone();
+        remove_whitespace(&mut datasource);
+        let input = self.get_input_value(&datasource, action, groups);
         let data = Value::Object(Map::default());
 
         let allow = self.evaluator.evaluate(
@@ -212,9 +214,15 @@ impl PolicyEvaluator {
     }
 }
 
+#[inline]
+fn remove_whitespace(s: &mut String) {
+    s.retain(|c| !c.is_whitespace());
+}
+
 #[cfg(test)]
 mod tests {
     use super::PolicyEvaluator;
+    use super::remove_whitespace;
     use std::env;
     use std::fs;
 
@@ -236,5 +244,12 @@ mod tests {
             result.protected_attributes,
             vec!["prod", "postgres.public.kids"]
         );
+    }
+
+    #[test]
+    fn test_remove_whitespace(){
+        let mut a = String::from("Hello \n");
+        remove_whitespace(&mut a);
+        assert_eq!(a, String::from("Hello"));
     }
 }
