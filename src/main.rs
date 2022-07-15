@@ -19,6 +19,7 @@ mod bytespool;
 mod config;
 mod policy_evaluator;
 mod postgres_driver;
+mod mysql_driver;
 mod sql;
 use apiproto::apiproto::inspektor_client::InspektorClient;
 use apiproto::{apiproto::*, AuthInterceptor, InspektorClientCommon};
