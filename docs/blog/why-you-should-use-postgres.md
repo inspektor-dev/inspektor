@@ -1,6 +1,6 @@
 ---
 title: Why you should use postgres as a primary database?
-description: Find out why postgres is so popular and it's used an a primary database
+description: Find out why Postgres is so widely used as a primary database and why it is so popular.
 slug: why-postgres-is-popular
 authors:
   - name: Poonai
