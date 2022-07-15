@@ -13,25 +13,25 @@ hide_table_of_contents: false
 ---
 ![image of an elephant](/img/elephant.jpg)
 
-Initially, I was more comfortable with `MongoDB` than `SQL` because `NodeJS` and `mongoose` was easy to use as a university kid. I got familiar to postgres once I took the real job. After that I never went back to any other databases for my projects, it's always been postgres ❤️.
+As a university student, I was more familiar with `NodeJS` and`mongoose` than `SQL`, so I went with `MongoDB`, instead of `SQL`. When I started working in the real world, I became familiar with postgres. Postgres has always been my go-to database for my projects since then ❤️.
 
 **here is my mental model, why I choose Postgres for all my projects?** 
 
-- tested and proven
-- third party extension
-- JSON for other needs
-- tooling around around postgres 
-- community 
+- **tested and proven**
+- **third party extension**
+- **JSON for other needs**
+- **tooling around around postgres** 
+- **community** 
 
 ## tested and proven
 
-Postgres is been developed for more than 2 decades and used by many big giants. It's basic  human tendency to avoid risk and use the well-tested solution. Check the below screenshot, how instagram engineer flexing his postgres usage. 
+For more than two decades, Postgres has been developed and is now being used by many large corporations. It's a basic human instinct to stick with tried-and-true methods. Take a look at the screenshot below to see how an instagram engineer flexing his postgres usage.
 
 ![postgres at instagram](/img/postgresinstagram.png)
 
-## Extension ecosystem
+## extension ecosystem
 
-Postgres allows developers to extends it's capabilites by writing an extensions, since some get into some unique usecase which can't be solved by general purpose database.
+Postgres allows developers to extends it's capabilites by writing an extensions, since some unique usecase can't be solved by general purpose database.
 
 **I used pg_cron extenstion to solve my unique usecase myself**
 
@@ -43,18 +43,18 @@ Fellow OSS engineers have opensourced their extensions for the community to use.
 - [**pg_cron**](https://github.com/citusdata/pg_cron) cron jobs inside postgres
 - [**pg_storm**](https://github.com/heterodb/pg-strom) accelerate analytics query performance by offloading analytics computation to GPU
 
-If you don't find any extenstion for your usecase, you can always write your own extension. 
-Now you can write extension in rust as well using [`pgx`](https://github.com/tcdi/pgx) crate.
+you can always write your own extension, if you don't find extenstion for your usecase. 
+Now you can write extension in rust as well using [`pgx`](https://github.com/tcdi/pgx)
 
 ## JSON for other needs
 
-Usual question that comes while choosing Postgres is that we can't store complex relationship. But unknow fact to most of the developers is that, postgres let developers to store and query JSON data. 
+Usual question that comes while choosing Postgres is that, can we store complex relationship?. But unknow fact to most of the developers is that, postgres let developers to store and query JSON data.
 
-![image of an elephant](/img/postgresjson.png)
+![postgres json tweet](/img/postgresjson.png)
 
 ## Tooling around Postgres
 
-Having a good database alone don't solve the problem, there are other scenarios we need to consider. For eg: backup, runnnig an HA setup. Postgres have all sort of tooling to run a production database.
+Having a good database alone won't solve the problem, there are other scenarios that we need to consider. For eg: backup, runnnig an HA setup. Postgres have all sort of tooling to run a production database.
 
 - [**patroni**](https://github.com/zalando/patroni) - running a HA postgres on k8s
 - [**kubesdb**](https://kubedb.com/) - running postgres on k8s
@@ -73,10 +73,10 @@ postgres community is very welcoming and have precense in all the popular social
 
 Ofc, you can join [our community](https://t.co/NWnxhxsIx7) as well to talk about postgres :P 
 
-Not just community have precense in different social channel, community is friendly and helps you instantly if you come across any issue. 
+Not only does the community have a presence on various social media platforms, but it is also friendly and helps you instantly if you come across any issue.
 
 ## Closing Notes
 
-Postgres is not just about the database, the kind of ecosystem, development, and research it poses is unimaginable. I want to end the essay by saying
+Postgres isn't just a database; it's an entire ecosystem of development, research, and innovation that's impossible to fathom. I want to end the essay by saying
 
 > Postgres doing its justification for its elephant mascot
